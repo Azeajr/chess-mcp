@@ -1,12 +1,3 @@
-/**
- * Explainable mixed-feature Strategic Fit distance.
- *
- * Only stable or irreversible evidence at matched, comparable milestones participates. Missing
- * checkpoints, missing feature slots, and arbitrary final PGN endpoints never create distance.
- * Each supported feature is normalized to 0-1, averaged inside its feature family, and then
- * combined with the configured family weights. The exported contribution fields use the same
- * arithmetic as the final score so explanations can always reconcile with it.
- */
 import { assertDefined } from "../assert.js";
 import type { StrategicConceptDictionary, StrategicRouteConcepts } from "./concepts.js";
 import type { StrategicModeReport } from "./modes.js";
@@ -45,18 +36,15 @@ export const DEFAULT_STRATEGIC_DISTANCE_FEATURE_FAMILY_WEIGHTS: StrategicDistanc
   });
 
 export interface StrategicDistanceOptions {
-  /** Partial overrides are merged with the deterministic equal-family defaults. */
   readonly feature_family_weights?: Partial<StrategicDistanceFeatureFamilyWeights>;
 }
 
 export interface StrategicDistanceFeatureContribution {
   readonly family: StrategicSignalFamily;
-  /** Stable signal feature ID, or the language-neutral supported-concepts feature. */
   readonly feature_id: string;
   readonly distance: number;
   readonly matched_evidence_count: number;
   readonly matched_checkpoint_keys: readonly string[];
-  /** Share of the final mixed-feature calculation after family and feature normalization. */
   readonly normalized_weight: number;
   readonly contribution: number;
 }
@@ -66,7 +54,6 @@ export interface StrategicDistanceFamilyContribution {
   readonly distance: number;
   readonly feature_count: number;
   readonly configured_weight: number;
-  /** Configured weight normalized over families with comparable evidence. */
   readonly normalized_weight: number;
   readonly contribution: number;
 }
@@ -77,7 +64,6 @@ export interface StrategicTrajectoryDistance {
   readonly state: StrategicDistanceState;
   readonly left_route_id: string;
   readonly right_route_id: string;
-  /** Null means the routes share no supported evidence and are not safely comparable. */
   readonly distance: number | null;
   readonly matched_checkpoint_keys: readonly string[];
   readonly left_only_checkpoint_keys: readonly string[];
@@ -201,11 +187,6 @@ function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reads a property that a preceding `Object.keys`/`Object.hasOwn` check already proved is present.
- * `JsonValue` legitimately includes `null`, so `assertDefined` (which also rejects `null`) is not
- * safe here — only `undefined` (the index-signature artifact for a genuinely absent key) is an error.
- */
 function requireProperty(value: Readonly<Record<string, JsonValue>>, key: string): JsonValue {
   const result = value[key];
   if (result === undefined) {
@@ -255,7 +236,6 @@ function ordinalDistance(featureId: string, left: string, right: string): number
     : Math.abs(leftValue - rightValue);
 }
 
-/** A bounded symmetric JSON distance. Object keys absent on either side are missing evidence. */
 function mixedValueDistance(left: JsonValue, right: JsonValue, featureId: string): number {
   const normalizedLeft = canonicalValue(left);
   const normalizedRight = canonicalValue(right);
@@ -346,8 +326,6 @@ function conceptObservation(
   left: StrategicRouteConcepts,
   right: StrategicRouteConcepts,
 ): FeatureObservation | null {
-  // An empty dictionary side means the deterministic classifier found no supported concept. It
-  // does not prove the concept is absent, so it cannot by itself count as a difference.
   if (left.concepts.length === 0 || right.concepts.length === 0) return null;
   const leftIds = left.concepts.map((concept) => concept.concept_id);
   const rightIds = right.concepts.map((concept) => concept.concept_id);
@@ -523,7 +501,6 @@ function reconcileContributions<T extends { readonly contribution: number }>(
   );
 }
 
-/** Compare two trajectories symmetrically using only their shared supported evidence. */
 export function computeStrategicTrajectoryDistance(
   left: StrategicTrajectory,
   right: StrategicTrajectory,
@@ -654,7 +631,6 @@ function requireCompatibleReports(
   }
 }
 
-/** Calculate every included route's explainable distance from each supported real-route mode. */
 export function calculateStrategicDistances(
   modeReport: StrategicModeReport,
   trajectoryReport: StrategicTrajectoryReport,

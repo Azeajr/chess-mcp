@@ -42,8 +42,6 @@ jobs:
         run: pnpm check:legacy-imports
       - name: Strategic Fit domain suite
         run: pnpm test:strategic-fit
-      # The non-strategic-fit half of chess-tools had no unit suite at all — 50 test files existed
-      # and every one of them was under test/strategic-fit/.
       - name: chess-tools core suite
         run: pnpm test:chess-tools
       - name: Design token, responsive tier, and primitive contracts
@@ -52,10 +50,6 @@ jobs:
         run: |
           node scripts/smoke-gametree.mjs
           node scripts/structure-accuracy.mjs
-      # Engine-free unit suites for the MCP server's own modules. They gated nothing until now:
-      # each was runnable only from the `// Run:` comment in its own header. Every one sets the env
-      # it needs and exits non-zero on failure, so they need no wrapper. perftools reads
-      # chess-tools `dist`, built above.
       - name: MCP server unit suites (paths guard, eval cache, handle cache, perf tools)
         run: |
           node --import tsx apps/mcp-server/test/confine.mjs
@@ -86,15 +80,7 @@ jobs:
         with:
           node-version: 26
           cache: pnpm
-      # Only the host install is needed: playwright-container.mjs resolves the image tag from the
-      # installed `playwright` package. There is deliberately no chess-tools build here — the
-      # container copies git-tracked files only (`dist/` is ignored) and runs its own install and
-      # build, so building on the host is work that never reaches the run.
       - run: pnpm install --frozen-lockfile
-      # CI's container runners get 2 Playwright workers regardless of shard count, so test time
-      # scales with shard count almost linearly. Each shard does pay the fixed setup again — image
-      # pull, host install, in-container install and build — so total compute rises even as
-      # wall-clock falls; 6 is the point where added setup stops buying much.
       - run: pnpm test:e2e:container -- --shard=${{ matrix.shard }}/6
       - name: Upload Playwright report
         if: failure()

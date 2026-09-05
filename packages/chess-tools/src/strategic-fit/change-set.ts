@@ -1,10 +1,3 @@
-/**
- * Pure Task 8.8 Replacement Lab change-set construction and atomic clone application.
- *
- * Task 8.7 safety evidence is deterministically recomputed before construction or application.
- * This module never stages, persists, commits, allocates a document revision, stores an archive,
- * mutates metadata, or implements undo. Those host concerns begin in Task 8.9.
- */
 import type { PgnNodeData } from "chessops/pgn";
 
 import type { GameTree } from "../pgn.js";
@@ -87,7 +80,6 @@ export interface ConstructReplacementChangeSetInput {
   readonly current_repertoire_revision: string;
   readonly safety: ReplacementSafetySimulationResult;
   readonly candidate_id: string;
-  /** Optional editorial preference. It does not change semantic safety or select pruning. */
   readonly promote_candidate_to_mainline?: boolean;
 }
 
@@ -128,7 +120,6 @@ export interface ReplacementAtomicChangeSetSuccess extends ReplacementAtomicChan
 
 export interface ReplacementAtomicChangeSetFailure extends ReplacementAtomicChangeSetResultBase {
   readonly status: "failure";
-  /** Atomic failure never exposes the transaction clone. */
   readonly tree: null;
   readonly output: ReplacementChangeSetFailure;
 }
@@ -272,8 +263,6 @@ function sameVersions(value: StrategicFitReplacementVersioned): boolean {
   return (
     value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
     value.analysis_version === STRATEGIC_FIT_ANALYSIS_VERSION &&
-    // replacement_schema_version's declared type is the literal STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION,
-    // but `value` may be caller-supplied stale/untrusted evidence at runtime — this revalidates it.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     value.replacement_schema_version === STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION
   );
@@ -306,8 +295,6 @@ function currentSafety(
       explanation: "Current repertoire revision does not match Task 8.7 safety evidence.",
     };
   }
-  // The *_unchanged flags are declared `true`-literal, but `safety` is caller-supplied evidence that
-  // may be stale/tampered at runtime — these revalidate it rather than trust the static type.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     !sameVersions(safety) ||
@@ -382,8 +369,6 @@ function currentSafety(
     !suppliedApplicable ||
     supplied.error_code !== null ||
     supplied.safety_checks.some((check) => check.status === "blocked") ||
-    // supplied is caller-supplied Task 8.7 evidence — these *_unchanged flags are declared `true`-literal
-    // but must be revalidated at runtime, not trusted from the static type.
     /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     !supplied.source_tree_unchanged ||
     !supplied.scored_candidate_unchanged ||
@@ -647,8 +632,6 @@ function constructOperations(
   );
   const expansion = current.scored.expansion as ReplacementCompleteCandidateExpansion;
   const decisionPaths = pivotDecisionPaths(current);
-  // The cast above assumes a complete expansion; these re-verify that assumption at runtime rather
-  // than trust it, since `current.scored.expansion`'s true (union) status isn't provably complete here.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     decisionPaths.length === 0 ||
@@ -810,7 +793,6 @@ function constructOperations(
   return withSequences([...add, ...links, ...annotations, ...archives, ...prunes, ...reorders]);
 }
 
-/** Construct a deterministic validated domain proposal from one current safe Task 8.7 candidate. */
 export function constructReplacementChangeSet(
   input: ConstructReplacementChangeSetInput,
 ): ConstructReplacementChangeSetResult {
@@ -862,7 +844,6 @@ export function constructReplacementChangeSet(
     base_repertoire_revision: input.current_repertoire_revision,
     status: "validated",
     atomic: true,
-    /** Inert domain proposal only; Task 8.9 owns host staging and persistence. */
     staged: true,
     retention: replace
       ? {
@@ -959,8 +940,6 @@ function validateChangeSet(
       explanation: "Change-set request, candidate, revision, or deterministic identity is stale.",
     };
   }
-  // changeSet is caller-supplied; atomic/staged are declared `true`-literal but must be revalidated
-  // at runtime rather than trusted from the static type.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (changeSet.status !== "validated" || !changeSet.atomic || !changeSet.staged) {
     /* eslint-enable @typescript-eslint/no-unnecessary-condition */
@@ -970,8 +949,6 @@ function validateChangeSet(
     };
   }
   const replace = current.candidate.action === "replace";
-  // Each branch's fields narrow to a single literal combination given the declared retention union,
-  // but changeSet is caller-supplied — this revalidates the combination against actual runtime data.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   const validRetention = replace
     ? changeSet.retention.archive === "archive" &&
@@ -1346,8 +1323,6 @@ function applyPrune(
   archivedTargets: ReadonlyMap<string, ReplacementChangeTarget>,
   diff: MutableDiff,
 ): OperationFailure | null {
-  // explicitly_confirmed is declared `true`-literal, but operation is caller-supplied and must be
-  // revalidated at runtime rather than trusted from the static type.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!operation.explicitly_confirmed)
     return { code: "prune-not-confirmed", explanation: "Pruning requires literal confirmation." };
@@ -1551,7 +1526,6 @@ function failureOutput(
   };
 }
 
-/** Apply a caller-supplied validated change set to exactly one clone. */
 export function applyReplacementChangeSet(
   input: ApplyReplacementChangeSetInput,
 ): ReplacementAtomicChangeSetResult {
@@ -1739,7 +1713,6 @@ export function applyReplacementChangeSet(
   };
 }
 
-/** Construct then atomically apply one current safe Task 8.7 candidate to an isolated clone. */
 export function constructAndApplyReplacementChangeSet(
   input: ConstructReplacementChangeSetInput,
 ): ReplacementAtomicChangeSetResult {

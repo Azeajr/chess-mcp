@@ -21,11 +21,6 @@ const line = (over: Partial<EngineLine> = {}): EngineLine => ({
   ...over,
 });
 
-/**
- * A fake engine. `analyzeMainline` asks for one line per position in mainline order (N moves means
- * N+1 positions, the last being the position after the final move), so a script of white-POV
- * centipawn scores drives the whole calculation deterministically.
- */
 function scriptedEngine(script: (readonly [number, string])[]): {
   analyse: Analyse;
   calls: { fen: string; multipv: number; depth: number }[];
@@ -57,10 +52,6 @@ test("analyzeMainline asks the engine once per position, one line at the given d
   assert.ok(engine.calls.every((call) => call.multipv === 1 && call.depth === 18));
 });
 
-/**
- * cp_loss is the swing against the player who moved, so the subtraction flips with colour. A test
- * that only used one colour would pass with the branches transposed.
- */
 test("analyzeMainline measures loss against whoever moved", async () => {
   const engine = scriptedEngine([
     [50, "e2e4"], // before White's 1. e4
@@ -126,29 +117,20 @@ test("analyzeMainline returns null when the engine is unavailable", async () => 
   assert.equal(await analyzeMainline(GAME, 12, analyse), null);
 });
 
-/**
- * Regression guard for a named past bug. A game ending in mate has no legal move in its final
- * position, so the engine returns [] for that one lookup. Treating [] as engine-unavailable
- * aborted the review of every game that ended in checkmate; it must instead be read as a terminal
- * score. Fool's Mate is the shortest such game.
- */
 test("analyzeMainline reviews a game that ends in checkmate instead of aborting", async () => {
   const mateGame = '[Event "T"]\n\n1. f3 e5 2. g4 Qh4# 0-1\n';
   let call = 0;
   const analyse: Analyse = async () => {
     call++;
-    // Four moves means five positions; only the last is terminal.
     return await Promise.resolve(call === 5 ? [] : [line({ cp: 0, uci: "f2f3" })]);
   };
 
   const records = await analyzeMainline(mateGame, 12, analyse);
   assert.notEqual(records, null, "a mated game must still produce a review");
   assert.equal(records?.length, 4);
-  // The final position is mate with White to move, which is -100000 from White's point of view.
   assert.equal(records?.[3]?.eval_cp, -100_000);
 });
 
-/** An interior position always has a legal move, so a missing best move there is engine trouble. */
 test("analyzeMainline returns null when the engine gives no line for a non-terminal position", async () => {
   const analyse: Analyse = async () => await Promise.resolve([]);
   assert.equal(await analyzeMainline(GAME, 12, analyse), null);
@@ -206,7 +188,6 @@ test("onlyMoveDeckCsv labels the root as the start position rather than an empty
   assert.match(csv, /\(start position\)/u);
 });
 
-/** A decisive margin is a mate sentinel, not a centipawn count, so it must not be printed as one. */
 test("onlyMoveDeckCsv describes a decisive margin in words instead of centipawns", () => {
   const decisive = onlyMoveDeckCsv("white", [finding({ margin: 100_000 })]);
   assert.match(decisive, /alternatives are decisively worse/u);
@@ -221,12 +202,9 @@ test("onlyMoveDeckCsv joins several prescribed moves rather than dropping any", 
   assert.match(csv, /Nf3 \/ Nc3/u);
 });
 
-/** A FEN contains commas nowhere but the front text contains parentheses and spaces; quoting must
- *  survive a round trip through a naive splitter for the fields that cannot contain a comma. */
 test("onlyMoveDeckCsv emits exactly four fields per row", () => {
   const csv = onlyMoveDeckCsv("white", [finding()]);
   const row = csv.trimEnd().split("\n")[1] ?? "";
-  // Fields may be quoted, so count separators outside quotes rather than splitting naively.
   let outside = 0;
   let inQuotes = false;
   for (const char of row) {

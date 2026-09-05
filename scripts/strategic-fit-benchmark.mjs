@@ -1,24 +1,3 @@
-/**
- * Task 12.4 — Strategic Fit performance benchmark.
- *
- * Run it after building `@chess-mcp/chess-tools`:
- *
- *   pnpm --filter @chess-mcp/chess-tools build
- *   node scripts/strategic-fit-benchmark.mjs            # gated scales (small, standard)
- *   node scripts/strategic-fit-benchmark.mjs --record   # rewrite the committed baseline
- *   node --max-old-space-size=8192 scripts/strategic-fit-benchmark.mjs --scale large
- *
- * The ten-thousand-node scale is opt-in and needs a raised heap: a complete scan of a repertoire
- * that size does not fit in a default Node old space, which is itself part of what the benchmark
- * has to say about that size.
- *
- * The benchmark observes; it never changes analysis. Every scan it times is a scan an ordinary
- * host performs, through the same entry points, and each one is checked to return exactly the
- * report an unmeasured run returns. It adds no cache, no bound, and no second identity: paging,
- * mounted-window, and cache limits are asserted against the constants the product already exports.
- *
- * Budgets and the gate itself live in `scripts/lib/strategic-fit-benchmark.mjs`.
- */
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { cpus } from "node:os";
@@ -65,10 +44,6 @@ const option = (name) => {
   return value;
 };
 
-/**
- * The mounted-window bounds are the UI's own. Node strips the types at import time, so the
- * benchmark asserts against the exported constants rather than restating them.
- */
 async function visualizationLimits() {
   try {
     return await import("../apps/ui/src/components/strategic-fit/visualization-limits.ts");
@@ -100,14 +75,6 @@ function scan(tree, options) {
   return completeStrategicFitReport(analyzeStrategicFit(tree, options));
 }
 
-/**
- * Byte identity of a report, reduced to a digest immediately so equivalence can be checked without
- * holding several complete reports at once. The report is folded in place rather than serialized:
- * a benchmark that runs out of memory measuring itself has measured nothing, and at the largest
- * scale a complete report has no JSON string at all — it exceeds the maximum string V8 can hold.
- * The traversal visits the same values in the same order `JSON.stringify` would, so two reports
- * share a digest exactly when they would have shared a serialization.
- */
 function foldValue(value, fold) {
   if (value === null || typeof value !== "object") {
     fold(JSON.stringify(value ?? null) ?? "null");
@@ -151,7 +118,6 @@ function reportDigest(report) {
   return hash.digest("hex").slice(0, 32);
 }
 
-/** Time a scan and keep only its duration and digest, so the report itself becomes collectable. */
 function timedScan(tree, options) {
   const { ms, value } = timed(() => scan(tree, options));
   return { ms, digest: reportDigest(value) };
@@ -165,10 +131,6 @@ function analysisOptions(fixture, revision, extra = {}) {
   });
 }
 
-/**
- * A scan instrumented for phase durations and peak heap. It is timed separately from the plain
- * cold scan so the instrumentation never inflates a budgeted duration.
- */
 function instrumentedScan(tree, options) {
   const phases = [];
   let peak = heapMb();
@@ -187,11 +149,6 @@ function instrumentedScan(tree, options) {
   return { phases, peak_heap_mb: Math.max(peak, heapMb()) };
 }
 
-/**
- * Cancellation has two distinct costs. A cancellation requested mid-phase is not observable until
- * the phase boundary, so the worst case is the longest phase — that is what the gate budgets. What
- * happens once it *is* observable is measured directly: the scan must stop, not finish.
- */
 function measureCancellation(tree, options, phases) {
   let requestedAt = 0;
   let cancel = false;
@@ -222,11 +179,6 @@ function measureCancellation(tree, options, phases) {
   };
 }
 
-/**
- * What the host's main thread does while the worker scans: walk the report by cursor, project a
- * conversation page, and compute mounted windows. Each operation is timed on its own because the
- * budget is per frame, not per session.
- */
 function measureMainThread(report, limits) {
   const identity = {
     report_id: report.report_id,
@@ -351,11 +303,6 @@ function measureMainThread(report, limits) {
   };
 }
 
-/**
- * The affected-cohort scope a host derives from its own semantic comparison. It bounds the reuse an
- * incremental run may claim; it can never decide a value, which is why the run is still checked
- * against a cold scan of the edited tree.
- */
 function affectedCohortScope(previous, previousPgn, currentPgn, color) {
   const current = new Set(
     buildRepertoireGraph(GameTree.fromPgn(currentPgn), color).routes.map((route) => route.route_id),

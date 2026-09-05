@@ -1,10 +1,3 @@
-/**
- * Document-scoped Strategic Fit metadata state and persistence.
- *
- * The shared package owns the canonical sidecar contract and normalization. This browser facade
- * adds only stable-document-keyed IndexedDB storage, race-safe restore/write ordering, and the
- * reactive state needed by later UI tasks.
- */
 import { createEffect, createSignal } from "solid-js";
 import {
   createDefaultStrategicFitDocumentMetadata,
@@ -115,11 +108,6 @@ function durableMetadata(
     : result.metadata;
 }
 
-/**
- * Create an injectable persistence controller. Reads are guarded by an activation token and a
- * per-key epoch. Writes capture their own document key and are sequenced per key, so a late read,
- * write, or delete can never cross document identities.
- */
 export function createStrategicFitMetadataPersistence(
   options: ControllerOptions,
 ): StrategicFitMetadataPersistenceController {
@@ -266,8 +254,6 @@ export function createStrategicFitMetadataPersistence(
           issues: result.issues,
           warning: result.state === "fallback" ? fallbackWarning(id, result) : null,
         });
-        // Canonicalize migrated, repaired, and whitelist-stripped records only after their read has
-        // settled and the result has become the active document state.
         if (result.state !== "valid" || result.issues.length > 0) {
           scheduleWrite(id, metadata, epoch, 0);
         }
@@ -280,7 +266,6 @@ export function createStrategicFitMetadataPersistence(
       if (state.document_id !== id) {
         void controller.activateDocument(id);
       }
-      // Explicit mutation wins over an in-flight restore for this document.
       activation += 1;
       activeLoad = Promise.resolve();
       const result = normalizeStrategicFitDocumentMetadata(input);
@@ -395,7 +380,6 @@ const browserPersistence = createStrategicFitMetadataPersistence({
 });
 let persistenceEffectStarted = false;
 
-/** Install the document-ID watcher once from the App component's reactive owner. */
 export function startStrategicFitMetadataPersistence(): void {
   if (persistenceEffectStarted) return;
   persistenceEffectStarted = true;
@@ -406,13 +390,11 @@ export function startStrategicFitMetadataPersistence(): void {
   });
 }
 
-/** Enable metadata restore only after the working document restore has selected its stable ID. */
 export async function restoreStrategicFitMetadata(): Promise<void> {
   setWorkingRestoreSettled(true);
   await browserPersistence.activateDocument(documentId());
 }
 
-/** Current metadata never crosses document IDs, even before the reactive switch effect runs. */
 export function strategicFitMetadata(): StrategicFitDocumentMetadata {
   const id = documentId();
   const snapshot = browserSnapshot();
@@ -439,26 +421,22 @@ export function strategicFitMetadataWarning(): StrategicFitMetadataWarning | nul
   return snapshot.document_id === id ? snapshot.warning : null;
 }
 
-/** Minimal canonical replace boundary; profile-specific mutation semantics begin in Task 4.4. */
 export function replaceStrategicFitMetadata(
   input: unknown,
 ): StrategicFitMetadataNormalizationResult {
   return browserPersistence.replaceDocumentMetadata(documentId(), input);
 }
 
-/** Delete only the requested document sidecar. Deleting the active sidecar safely publishes defaults. */
 export async function deleteStrategicFitMetadata(targetDocumentId: string): Promise<void> {
   const normalized = normalizeBrowserDocumentId(targetDocumentId);
   if (!normalized) throw new Error("Invalid Strategic Fit metadata document ID");
   await browserPersistence.deleteDocumentMetadata(normalized);
 }
 
-/** Test/dev synchronization boundary; normal product writes remain debounced. */
 export function flushStrategicFitMetadata(targetDocumentId?: string): Promise<void> {
   return browserPersistence.flush(targetDocumentId);
 }
 
-/** Hold reactive metadata writes behind a Strategic Fit document transaction. */
 export function pauseStrategicFitMetadataPersistence(
   targetDocumentId: string,
 ): Promise<() => void> {

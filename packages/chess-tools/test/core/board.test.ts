@@ -15,10 +15,6 @@ test("pieceAt returns undefined for an empty square", () => {
   assert.equal(pieceAt(START_FEN, "e4"), undefined);
 });
 
-/**
- * The three ways a caller can ask for nothing must be indistinguishable from an empty square, since
- * `pieceAt` has no error channel — the browser keyboard layer calls it per square while rendering.
- */
 test("pieceAt returns undefined rather than throwing on unusable input", () => {
   assert.equal(pieceAt(MALFORMED_FEN, "e1"), undefined, "malformed FEN");
   assert.equal(pieceAt(START_FEN, "e9"), undefined, "square off the board");
@@ -31,11 +27,6 @@ test("isCheck is true for the side to move in Fool's Mate and false in the start
   assert.equal(isCheck(START_FEN), false);
 });
 
-/**
- * Both rejections matter and they fail at different stages: a malformed FEN never parses, while a
- * kingless board parses fine and is rejected as an illegal position. Either way the answer is
- * false, never a throw.
- */
 test("isCheck reports false for unparseable and for illegal positions", () => {
   assert.equal(isCheck(MALFORMED_FEN), false, "unparseable");
   assert.equal(isCheck(KINGLESS_FEN), false, "parses, but is not a legal position");

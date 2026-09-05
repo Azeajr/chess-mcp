@@ -1,4 +1,3 @@
-/* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
 import { executeBrowserCommand } from "./application/browser-commands/client";
@@ -123,10 +122,6 @@ const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");
 render(() => <App />, root);
 
-// DEV-only handle for headless verification (loading a PGN / driving the suggestion pipeline
-// without a native file picker or a live LLM key). Not bundled in production builds.
-// Only flagged production tests can call these read-only commands without the chat UI. Keep the
-// bridge at the application entry point and execute through the canonical browser registry.
 if (import.meta.env.VITE_PWA_LIFECYCLE_TEST === "1") {
   const bridge = (window as unknown as { __pwaLifecycleTest: object }).__pwaLifecycleTest;
   Object.assign(bridge, {
@@ -149,8 +144,6 @@ if (import.meta.env.DEV) {
     commandStates,
     lastDirectCommandRequest,
     setCommandStateForTesting,
-    // WP-026 AC-4 e2e seam: seed the "last direct command" so the Retry button's guard
-    // (a prior dispatch must exist) is satisfiable deterministically in specs.
     recordDirectCommandForTesting: (command: string, args: Record<string, unknown>) => {
       recordDirectCommandForTesting(
         command as Parameters<typeof recordDirectCommandForTesting>[0],
@@ -240,8 +233,6 @@ if (import.meta.env.DEV) {
     setReplacementLabReviewForTesting: replacementLab.setReviewForTesting,
     setResolutionProofForTesting: strategicFitResolutionProof.setForTesting,
     strategicFitResolutionProofSnapshot,
-    // Clears the live regions between UX-012 scenarios so consecutive identical messages
-    // (e.g. started → completed of two separate runs) remain observable as changes.
     resetAnnouncementsForTesting: async () => {
       const m = await import("./store/announce");
       m.resetAnnouncementsForTesting();
@@ -250,14 +241,9 @@ if (import.meta.env.DEV) {
       const m = await import("./store/announce");
       return m.announcementLogForTesting().map((entry) => entry.message);
     },
-    // WP-009: deterministic driver for the live-region announcement scenarios (UX-012 baseline).
-    // Each scenario triggers the real store path so the assertion covers the actual wiring.
     exerciseAnnouncementScenario: async (scenario: string) => {
       switch (scenario) {
         case "file-saved": {
-          // Headless browsers reject showSaveFilePicker with an AbortError, which saveFile
-          // correctly treats as a user cancel. Stub the picker with a minimal handle so the
-          // success path — and its "Saved <name>." announcement — is what gets exercised.
           const files = await import("./store/files");
           const pickerWindow = window as unknown as {
             showSaveFilePicker?: (opts?: unknown) => Promise<{
@@ -282,8 +268,6 @@ if (import.meta.env.DEV) {
           return;
         }
         case "document-restored": {
-          // A fresh dev session has no autosave, so restoreWorking would legitimately restore
-          // nothing. Seed one first through the same store path the app writes, then restore.
           const persist = await import("./store/persist");
           const idb = await import("./store/idb");
           const game = await import("./store/game");
@@ -315,8 +299,6 @@ if (import.meta.env.DEV) {
             return;
           }
           if (scenario === "operation-failed") {
-            // An unknown argument fails canonical validation, which surfaces as a per-item error
-            // result announced as failed without throwing.
             await commands.executeCommand(command, { surprise: true }).catch(() => undefined);
             return;
           }
@@ -332,14 +314,9 @@ if (import.meta.env.DEV) {
         }
         case "mutation-applied":
         case "mutation-undone": {
-          // A real staged edit applied through the suggestion writer, then undone. Announce the
-          // mutation outcome here because WP-009 owns the policy and no store currently announces
-          // mutations; WP-005's undo flow will consume Toast for the same event.
           const game = await import("./store/game");
           const suggestionsStore = await import("./store/suggestions");
           const { announce } = await import("./store/announce");
-          // A real staged edit through the suggestion writer: add d5 as a new reply at move
-          // one (RICH_PGN's first game opens 1.d4, so "d4" always resolves), then optionally undo.
           const staged = suggestionsStore.stageEdit("add", ["d4"], {
             addMoves: ["d5"],
           });

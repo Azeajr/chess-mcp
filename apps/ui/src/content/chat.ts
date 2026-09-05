@@ -1,9 +1,3 @@
-/**
- * WP-027: chat control labels and context-chip copy.
- *
- * The labels say what the control does to what: "Stop" and "Retry" left the user guessing whether
- * they act on the whole conversation, the current turn, or one tool.
- */
 export const CHAT_CONTROLS = {
   stopRequest: "Stop this request",
   stopRequestDescription: "Stops the assistant's current turn, including any tool still running.",
@@ -13,11 +7,6 @@ export const CHAT_CONTROLS = {
   cancelRunDescription: (tool: string) => `Cancels ${tool} and lets the turn continue.`,
 } as const;
 
-/**
- * First-run prompts for a configured but unused chat. They name the three things the assistant is
- * actually good at here, so the empty panel answers "what do I ask it?" instead of showing a blank
- * column above a placeholder.
- */
 export const CHAT_STARTERS = [
   "What is the plan for White in this position?",
   "Which of my replies here is weakest, and why?",
@@ -28,7 +17,6 @@ export const CHAT_CONTEXT = {
   label: "What the assistant can see",
   expandLabel: "Show the exact text sent with your message",
   collapseLabel: "Hide the exact text sent with your message",
-  /** The short human summary; the disclosure shows the verbatim injected block. */
   summary: (input: {
     readonly sanPath: readonly string[];
     readonly color: string;

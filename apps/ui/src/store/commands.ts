@@ -1,5 +1,3 @@
-/** Shared direct-analysis client. Buttons and chat both execute the application command; this store owns only
- * direct-UI lifecycle (progress, cancellation, and the last typed result). */
 import { createSignal } from "solid-js";
 import {
   executeBrowserCommand,
@@ -16,7 +14,6 @@ import {
 } from "./operations";
 import { assertTestOnly } from "./test-seam";
 
-/** Direct-control adapter; dependency injection keeps equivalence tests deterministic. */
 export function executeDirectBrowserCommand(
   command: BrowserCommandName,
   args: Record<string, unknown> = {},
@@ -40,7 +37,6 @@ export interface CommandState {
   result?: Record<string, unknown>;
   error?: string;
   progress?: { done: number; total?: number; detail?: string };
-  /** Epoch millis of the last transition to a settled status — drives WP-022 AC-4 summaries. */
   completedAt?: number;
 }
 
@@ -58,7 +54,6 @@ export { commandStates };
 
 const controllers = new Map<DirectCommand, AbortController>();
 
-/** Development harness seam for deterministic direct-panel result fixtures. */
 export function setCommandStateForTesting(command: DirectCommand, state: CommandState) {
   assertTestOnly();
   controllers.get(command)?.abort();
@@ -78,7 +73,6 @@ export function cancelCommand(command: DirectCommand) {
       completedAt: Date.now(),
     },
   }));
-  // WP-010: the registry settles the operation and owns the announcement.
   const operationId = commandOperationIds.get(command);
   if (operationId !== undefined) {
     settleOperation(operationId, "cancelled");
@@ -86,7 +80,6 @@ export function cancelCommand(command: DirectCommand) {
   }
 }
 
-/** Human-readable label per direct command — the announcement policy speaks in operations, not IDs. */
 const COMMAND_LABELS: Record<DirectCommand, string> = {
   audit_repertoire_moves: "Prescribed-move audit",
   find_only_moves: "Only-moves scan",
@@ -99,17 +92,11 @@ const COMMAND_LABELS: Record<DirectCommand, string> = {
 
 const commandOperationIds = new Map<DirectCommand, string>();
 
-/**
- * WP-026 AC-4: the most recent direct-panel command request, so an error card's Retry re-issues
- * exactly what failed. Tracked here — at the single dispatch point — so every caller (panel
- * buttons, deck/export follow-ups) is covered, not just one component.
- */
 let lastCommandRequest: {
   command: DirectCommand;
   args: Record<string, unknown>;
 } | null = null;
 
-/** The last command this session dispatched, for ErrorResult's Retry action. */
 export function lastDirectCommandRequest(): {
   command: DirectCommand;
   args: Record<string, unknown>;
@@ -117,7 +104,6 @@ export function lastDirectCommandRequest(): {
   return lastCommandRequest;
 }
 
-/** DEV/e2e seam: seed the last-command record without dispatching. */
 export function recordDirectCommandForTesting(
   command: DirectCommand,
   args: Record<string, unknown>,
@@ -132,7 +118,6 @@ export async function executeCommand(command: DirectCommand, args: Record<string
   controllers.set(command, controller);
   lastCommandRequest = { command, args: { ...args } };
   setCommandStates((all) => ({ ...all, [command]: { status: "running" } }));
-  // WP-010: registration announces the start; settle announces the outcome. No double speech.
   const operationId = registerOperation({
     kind: `direct-command:${command}`,
     label: COMMAND_LABELS[command],
@@ -157,8 +142,6 @@ export async function executeCommand(command: DirectCommand, args: Record<string
       },
     });
     if (controller.signal.aborted) {
-      // The superseding run (or cancelCommand) already settled this operation; settle quietly so
-      // the entry cannot linger as running forever when no supersede happened to register.
       settleOperationQuietly(operationId, "cancelled");
       commandOperationIds.delete(command);
       return;
@@ -205,7 +188,6 @@ export async function executeCommand(command: DirectCommand, args: Record<string
   }
 }
 
-/** First plausible count in a command result, for the completion announcement. */
 function resultCount(result: Record<string, unknown>): number {
   for (const key of ["count", "total", "moves_audited", "positions_scanned"]) {
     const value = result[key];
@@ -214,10 +196,6 @@ function resultCount(result: Record<string, unknown>): number {
   return 0;
 }
 
-/**
- * Cancel without the cancelled-settle announcement — used when a new run supersedes the old one.
- * Only an explicit user-visible cancellation announces; a supersede is bookkeeping, not feedback.
- */
 function cancelCommandSilently(command: DirectCommand) {
   controllers.get(command)?.abort();
   controllers.delete(command);
@@ -225,8 +203,6 @@ function cancelCommandSilently(command: DirectCommand) {
     ...all,
     [command]: { ...all[command], status: "cancelled", progress: undefined },
   }));
-  // Supersede: settle the superseded operation QUIETLY — a new run of the same command replacing
-  // the old one is bookkeeping, not user feedback. Only cancelCommand announces "cancelled."
   const operationId = commandOperationIds.get(command);
   if (operationId !== undefined) {
     settleOperationQuietly(operationId, "cancelled");

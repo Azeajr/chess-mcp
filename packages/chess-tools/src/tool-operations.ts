@@ -29,7 +29,6 @@ export interface GroundedPosition {
   legal_moves: string[];
 }
 
-/** Shared validation and result shaping for position-grounding host adapters. */
 export function groundPosition(rawFen: string): GroundedPosition | PositionError {
   const checked = validateFen(rawFen);
   if (!checked.valid) return { error: "invalid_fen", reason: checked.reason ?? "invalid FEN" };
@@ -45,7 +44,6 @@ export interface EvaluationMove {
   depth: number;
 }
 
-/** Shared semantic shape; hosts inject only the UCI-to-SAN conversion. */
 export function shapeEvaluation(
   fen: string,
   lines: readonly EngineLine[],
@@ -255,7 +253,6 @@ export function repertoireHistoryResult(
   };
 }
 
-/** Shared opponent-preparation report used by both the handle-based MCP host and browser document. */
 export function opponentPrepResult(
   tree: GameTree,
   color: Color,

@@ -1,11 +1,3 @@
-/**
- * GameTree — variation-aware PGN tree over chessops, shared by the UI and (later) the
- * Node MCP server. This is the TS counterpart of the Python server's variation walking
- * (repertoire.py iter_nodes/walk_leaves). Mainline + variations, auto-append on play.
- *
- * A position is addressed by a Path: the list of child indices from the root. The board
- * is recomputed by replaying SANs along the path — cheap for opening-depth trees.
- */
 import { Chess } from "chessops/chess";
 import type { Board } from "chessops/board";
 import { makeFen, parseFen, INITIAL_FEN } from "chessops/fen";
@@ -25,15 +17,8 @@ import type { Move, NormalMove } from "chessops/types";
 import { positionKey, type Color } from "./congruence.js";
 import { assertDefined } from "./assert.js";
 
-/** Child-index path from the root. `[]` is the starting position. */
 export type Path = number[];
 
-/**
- * Throw if a parsed game declares a non-standard start via a FEN header. Every walker in this
- * package (positionAt, leaves, coverage, congruence, mainline) replays from the standard start,
- * so a FEN-setup game would silently be analysed from the wrong positions. Rejecting at each
- * parse boundary is the honest behavior until the walkers take a start position.
- */
 export function rejectFenSetup(game: Game<PgnNodeData>): void {
   const setupFen = game.headers.get("FEN");
   if (setupFen === undefined) return;
@@ -52,124 +37,64 @@ export function rejectFenSetup(game: Game<PgnNodeData>): void {
 
 export interface PlayResult {
   path: Path;
-  /** true when the move created a new node (vs navigating into an existing one). */
   appended: boolean;
 }
 
-/**
- * An engine-guided stub→prep connection (extendedBridges) — the surviving stub-resolution half of
- * the old bridges tool. A stopped line (frontier leaf, `color` to move) continued by `moves` lands
- * back in prep at `joinsPath`. The color's moves in `moves` are the engine's picks (good by
- * construction); opponent replies are enumerated.
- */
 export interface ExtendedBridge {
-  /** SAN path to the frontier leaf the extension departs from. */
   fromPath: string[];
-  /** SAN sequence (length ≥ 1) that bridges the leaf into existing prep. */
   moves: string[];
-  /** The repertoire color (to move at fromPath). */
   sideToMove: Color;
-  /** Shallowest SAN path that already reaches the position the extension lands on. */
   joinsPath: string[];
-  /** Ply depth of joinsPath. */
   joinsPly: number;
 }
 
-/** One engine line for the prune scan (white-POV cp/mate). Matches the Node/browser MultiLine. */
 export interface PruneEngineLine {
   uci: string;
   cp: number | null;
   mate: number | null;
 }
 
-/**
- * A way to SHORTEN a line: at an early node where it is your turn, an engine-best move re-routes
- * the line into a position already prepared on a DIFFERENT line, making the original tail
- * redundant (find_pruning_transpositions).
- */
 export interface PruneSuggestion {
-  /** SAN path to the leaf line that can be shortened. */
   linePath: string[];
-  /** SAN path to the re-route node (a prefix of linePath). */
   atPath: string[];
-  /** Ply index of atPath (== atPath.length). */
   atPly: number;
-  /** Engine SAN that transposes (≠ the line's own next move, within the near-best window). */
   rerouteMove: string;
-  /** Shallowest SAN path on a DIFFERENT line the re-route reaches. */
   joinsPath: string[];
-  /** linePath.length − atPly: the redundant tail removed by re-routing here. */
   savedPlies: number;
-  /** cp (mover POV) of the engine's #1 move at the node. */
   evalBest: number;
-  /** cp (mover POV) of the line's own next move (null if it was outside the top-k). */
   evalStay: number | null;
-  /** cp (mover POV) of the re-route move (passed the near-best gate). */
   evalTranspose: number;
-  /** evalStay − evalTranspose: cp given up by transposing vs staying (null if evalStay unknown). */
   evalDelta: number | null;
-  /** C1: this is the biggest-tail-cut re-route for its line (earliest node; ties → better eval). */
   bestSavings: boolean;
-  /** C1: this is the best-eval re-route for its line (highest evalTranspose; ties → more saved). */
   bestEval: boolean;
-  /** E1: evalTranspose was deep-confirmed (re-searched at confirmDepth). Only the bestEval pick is. */
   evalConfirmed: boolean;
 }
 
-/**
- * Result of one `pruneTranspositions` call. The scan walks leaves in tree order; a call may cover the
- * whole tree or a cursor-bounded slice (leafStart/leafCount) so a long scan can be driven in chunks
- * with visible progress between calls. `nextLeaf` is the cursor for the following chunk (null = done).
- */
 export interface PruneScanResult {
-  /** Shortening suggestions found in the leaves scanned by THIS call (sorted, longest tail first). */
   suggestions: PruneSuggestion[];
-  /** Total leaves in the tree (the cursor's upper bound). */
   totalLeaves: number;
-  /** First leaf index this call scanned. */
   leafStart: number;
-  /** How many leaves this call fully scanned (≤ leafCount). */
   leavesScanned: number;
-  /** Cursor for the next chunk (leafStart + leavesScanned), or null when the tree is exhausted. */
   nextLeaf: number | null;
-  /** Engine analyses actually spent in this call. */
   positionsAnalysed: number;
-  /** Engine analyses to scan the WHOLE tree: your-turn nodes that have a cross-branch transposer (the
-   *  pre-filtered work), summed over all leaves. A tight upper bound (a leaf stops early once it emits). */
   totalPositionsEstimate: number;
-  /** Self-correcting ETA: positions left to scan, from THIS call's actual cost-per-leaf (null if none scanned). */
   estimatedPositionsRemaining: number | null;
-  /** C6: true when this call did NOT cover the whole tree (a cursor chunk). A partial result's sort is
-   *  chunk-local — it is NOT the global ranking. Only a full (partial:false) call is authoritative; the
-   *  caller must never merge/re-sort partial chunks itself (the tool owns the ranking). */
   partial: boolean;
 }
 
-// --- shared transposition primitives (gap resolution · stub resolution · shorten) ---
-
-/**
- * Apply a shorten suggestion (W1): the SAN path to prune is the original line's OWN node at the
- * re-route ply — `linePath` truncated to `atPly + 1`. Pruning this drops the now-redundant tail and
- * leaves the `joinsPath` branch as the surviving prep. Do NOT prune at `atPath` (one ply shallower):
- * that also deletes the transposition target the re-route depends on.
- */
 export function pruneTailPath(s: Pick<PruneSuggestion, "linePath" | "atPly">): string[] {
   return s.linePath.slice(0, s.atPly + 1);
 }
 
-/** Path `a` is an ancestor-or-equal of `b` (same line). */
 export function isPrefix(a: Path, b: Path): boolean {
   return a.length <= b.length && a.every((v, i) => b[i] === v);
 }
 
 export interface KeyIndex {
-  /** positionKey → shallowest occurrence among all child nodes. */
   keyMap: Map<string, { path: Path; sanPath: string[]; ply: number }>;
-  /** positionKey → number of nodes carrying it (≥2 ⇒ an existing transposition). */
   keyCount: Map<string, number>;
 }
 
-/** Index every child node by positionKey: shallowest path per key + occurrence counts. */
 export function buildKeyIndex(root: Node<PgnNodeData>): KeyIndex {
   const keyMap: KeyIndex["keyMap"] = new Map();
   const keyCount: KeyIndex["keyCount"] = new Map();
@@ -192,11 +117,6 @@ export function buildKeyIndex(root: Node<PgnNodeData>): KeyIndex {
   return { keyMap, keyCount };
 }
 
-/**
- * Does playing into `afterPos` land in a DIFFERENT prepared line? Returns the shallowest target
- * (sanPath + ply) when yes, else null. `ownPath` is the source node's index path; an
- * ancestor/descendant target is the line's own continuation, not a cross-branch transposition.
- */
 export function landsInCrossBranchPrep(
   keyMap: KeyIndex["keyMap"],
   afterPos: Chess,
@@ -208,9 +128,6 @@ export function landsInCrossBranchPrep(
   return { sanPath: tgt.sanPath, ply: tgt.ply };
 }
 
-/** Legal moves at `pos` as { move, after }, yielded lazily — pawns to the last rank as queen
- *  promotions only. Each yield costs one `pos.clone()`, so an early-exiting consumer (P6:
- *  `someLegal`) skips the clones a full enumeration would pay. */
 export function* iterateLegal(pos: Chess): Generator<{ move: NormalMove; after: Chess }> {
   for (const [orig, dests] of chessgroundDests(pos)) {
     const from = parseSquare(orig);
@@ -229,12 +146,10 @@ export function* iterateLegal(pos: Chess): Generator<{ move: NormalMove; after: 
   }
 }
 
-/** Legal moves at `pos` as { move, after } — pawns to the last rank as queen promotions only. */
 export function enumerateLegal(pos: Chess): { move: NormalMove; after: Chess }[] {
   return [...iterateLegal(pos)];
 }
 
-/** True when any legal move satisfies `pred` — stops cloning at the first hit (P6). */
 export function someLegal(
   pos: Chess,
   pred: (m: { move: NormalMove; after: Chess }) => boolean,
@@ -243,8 +158,6 @@ export function someLegal(
   return false;
 }
 
-/** P5: one leaf's engine-free prune-scan pre-pass — the replayed step positions plus the indices
- *  of your-turn steps that have a cross-branch transposer (the only nodes worth an engine call). */
 interface PruneLeafWork {
   leaf: Path;
   leafSan: string[];
@@ -255,9 +168,6 @@ interface PruneLeafWork {
 export class GameTree {
   game: Game<PgnNodeData>;
 
-  /** P5: cached prune-scan pre-pass (key index + per-leaf replay/candidates). Valid because the
-   *  tree is immutable per MCP handle (edits clone-on-write); the UI's live tree mutates only
-   *  through appendSan, which drops the cache. Scan code must treat `steps[].pos` as read-only. */
   private _pruneWork: { color: Color; keyMap: KeyIndex["keyMap"]; work: PruneLeafWork[] } | null =
     null;
 
@@ -265,9 +175,6 @@ export class GameTree {
     this.game = game ?? defaultGame();
   }
 
-  /** Parse a PGN into a single tree. Multiple games are merged (used when repertoire tools
-   *  export each line as a separate game). Throws if no game is present, or if any game sets
-   *  up a non-standard start via a FEN header (see `rejectFenSetup`). */
   static fromPgn(pgn: string): GameTree {
     const games = parsePgn(pgn);
     const first = games[0];
@@ -281,15 +188,6 @@ export class GameTree {
     return tree;
   }
 
-  /**
-   * Replay every line once and throw on the first illegal SAN. chessops `parsePgn` stores a
-   * syntactically-valid-but-illegal SAN (a repeated "e4", or "Nf6" with no knight able to play it)
-   * verbatim, so without this guard such a PGN would load silently — and then `stats()` (which counts
-   * structurally) would report a leaf that `leaves()` / `leafPositions()` skip and `positionAtSan*`
-   * throw on. Validating at the construction boundary keeps every tree fully legal; `load_repertoire`
-   * catches the throw and surfaces it as `invalid_pgn`. Honors a FEN setup header so a non-standard
-   * start still validates from its true origin (e.g. a promotion study).
-   */
   private assertLegal(): void {
     const fen = this.game.headers.get("FEN");
     const start = fen ? Chess.fromSetup(parseFen(fen).unwrap()).unwrap() : Chess.default();
@@ -305,7 +203,6 @@ export class GameTree {
     dfs(this.game.moves, start);
   }
 
-  /** Detect the repertoire color from PGN headers (ChessTempo: ChesstempoRepertoireColour). */
   static detectColorFromPgn(pgn: string): "white" | "black" | null {
     const game = parsePgn(pgn)[0];
     if (!game) return null;
@@ -326,7 +223,6 @@ export class GameTree {
     return makePgn(this.game);
   }
 
-  /** The node at `path`, or the root node for `[]`. Throws on an invalid path. */
   nodeAt(path: Path): Node<PgnNodeData> {
     let node: Node<PgnNodeData> = this.game.moves;
     for (const idx of path) {
@@ -337,7 +233,6 @@ export class GameTree {
     return node;
   }
 
-  /** Replay the SANs along `path` and return the resulting position. */
   positionAt(path: Path): Chess {
     const pos = Chess.default();
     let node: Node<PgnNodeData> = this.game.moves;
@@ -356,50 +251,35 @@ export class GameTree {
     return makeFen(this.positionAt(path).toSetup());
   }
 
-  /** chessground dests map (legal moves) for the position at `path`. */
   destsAt(path: Path): Map<string, string[]> {
     return chessgroundDests(this.positionAt(path));
   }
 
-  /**
-   * Play a board move (chessground orig/dest squares) from `path`. If a child with the
-   * same SAN already exists, navigate into it; otherwise append a new node. Returns the
-   * resulting path and whether a node was created.
-   */
   playMove(path: Path, orig: string, dest: string, promotion?: string): PlayResult {
     const pos = this.positionAt(path);
     const from = parseSquare(orig);
     const to = parseSquare(dest);
     if (from === undefined || to === undefined) throw new Error("bad square");
     const move: NormalMove = { from, to };
-    // Auto-queen a pawn reaching the last rank when no promotion is given (Phase 1: no
-    // promotion modal). rank 0 = '1', rank 7 = '8'; `to >> 3` is the rank index.
     const piece = pos.board.get(from);
     const toRank = to >> 3;
     if (promotion) move.promotion = promotion as NormalMove["promotion"];
     else if (piece?.role === "pawn" && (toRank === 0 || toRank === 7)) move.promotion = "queen";
-    // Legality must be asked before playing. The previous guard tested `makeSanAndPlay(...) === "--"`,
-    // which is chessops' SAN for a NULL move, not its answer for an illegal one: given e2e5 it
-    // returns "e5" and plays it, so every illegal orig/dest was appended to the tree with a
-    // plausible-looking SAN. That made the tree's own invariant -- every line replayable, which
-    // `assertLegal` enforces at parse time -- reachable only through PGN, not through the board.
     if (!pos.isLegal(move)) throw new Error(`illegal move ${orig}${dest}`);
     const san = makeSanAndPlay(pos, move);
     return this.appendSan(path, san);
   }
 
-  /** Append a SAN at `path` (or navigate if it already exists as a child). */
   appendSan(path: Path, san: string): PlayResult {
     const parent = this.nodeAt(path);
     const existing = parent.children.findIndex((c) => c.data.san === san);
     if (existing >= 0) return { path: [...path, existing], appended: false };
     const child = new ChildNode<PgnNodeData>({ san });
     parent.children.push(child);
-    this._pruneWork = null; // P5: tree shape changed — the cached pre-pass is stale
+    this._pruneWork = null;
     return { path: [...path, parent.children.length - 1], appended: true };
   }
 
-  /** (nodes, leaves, maxDepthPlies) over the whole tree — for the load_repertoire summary. */
   stats(): { nodes: number; leaves: number; maxDepth: number } {
     let nodes = 0;
     let leaves = 0;
@@ -416,12 +296,10 @@ export class GameTree {
     return { nodes, leaves, maxDepth };
   }
 
-  /** Known continuations (child SANs) at `path` — the in-book moves from here. */
   childSansAt(path: Path): string[] {
     return this.nodeAt(path).children.map((c) => c.data.san);
   }
 
-  /** Known continuations with origin/destination squares, for drawing repertoire arrows. */
   childMovesAt(path: Path): { san: string; orig: string; dest: string }[] {
     const pos = this.positionAt(path);
     return this.nodeAt(path).children.flatMap((c) => {
@@ -431,10 +309,6 @@ export class GameTree {
     });
   }
 
-  /**
-   * Transposition keys of every position in the tree (for adjacency detection). DFS replays
-   * each line once, carrying the position — O(nodes), no per-node re-walk.
-   */
   allPositionKeys(): Set<string> {
     const keys = new Set<string>();
     const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
@@ -451,10 +325,6 @@ export class GameTree {
     return keys;
   }
 
-  /**
-   * Positions the tree reaches by more than one move order (port of find_transpositions).
-   * Groups nodes by transposition key; returns converging positions (>1 path), largest first.
-   */
   transpositions(): { fen: string; paths: string[][] }[] {
     const groups = new Map<string, { fen: string; paths: string[][] }>();
     const dfs = (node: Node<PgnNodeData>, pos: Chess, sanPath: string[]) => {
@@ -478,15 +348,6 @@ export class GameTree {
       .sort((a, b) => b.paths.length - a.paths.length);
   }
 
-  /**
-   * Engine-guided multi-ply extension of frontier_link bridges (retro 2a/2b). For each frontier
-   * leaf where `color` is to move, search forward up to `maxDepth` plies — the color's moves are
-   * chosen by the injected engine (`pickMoves` returns the best UCIs ± a cp threshold, so they are
-   * good by construction); opponent replies are enumerated — until the position transposes into
-   * prep already in the tree. `pickMoves` runs only at color-to-move nodes; the search is bounded
-   * by `nodeBudget` total expansions to cap the combinatorial fan-out. Returns the bridging
-   * sequences, shallowest leaf first.
-   */
   async extendedBridges(
     color: Color,
     opts: {
@@ -502,7 +363,6 @@ export class GameTree {
 
     const { keyMap, keyCount } = buildKeyIndex(this.game.moves);
 
-    // Legal moves at pos as { san, after, uci } (queen-promo only), via the shared enumerator.
     const legalMoves = (pos: Chess) =>
       enumerateLegal(pos).map(({ move, after }) => ({
         san: makeSan(pos, move),
@@ -510,12 +370,9 @@ export class GameTree {
         uci: makeUci(move),
       }));
 
-    // Frontier leaves (no children) where `color` is to move; shallowest first (highest impact).
     const frontiers: { path: Path; pos: Chess; sanPath: string[] }[] = [];
     const findFrontiers = (node: Node<PgnNodeData>, pos: Chess, path: Path, sanPath: string[]) => {
       if (node.children.length === 0) {
-        // Skip a leaf whose position already transposes elsewhere (keyCount > 1): it already
-        // rejoins prep, so it is not a real dangling stub (transpositions() already reports it).
         if (pos.turn === color && (keyCount.get(positionKey(makeFen(pos.toSetup()))) ?? 0) <= 1) {
           frontiers.push({ path, pos, sanPath });
         }
@@ -564,7 +421,7 @@ export class GameTree {
                 joinsPly: tgt.ply,
               });
             }
-            continue; // reached prep — stop deepening this branch
+            continue;
           }
           await dfs(c.after, accNext, ply + 1);
         }
@@ -581,14 +438,6 @@ export class GameTree {
     );
   }
 
-  /**
-   * Line shortening via engine-vetted transposition (find_pruning_transpositions). For each leaf
-   * line, walk your-turn nodes EARLIEST first; run multipv; among the candidate moves WITHIN
-   * `cpThreshold` of the engine's #1 (the near-best gate — multipv can return blunders, so "top-k"
-   * is not "good enough to play"), find one that transposes into a DIFFERENT line. The earliest such
-   * node per line is reported (most tail pruned). Reports evalStay vs evalTranspose so the caller can
-   * weigh the trade. Engine injected via `analyse`; `chess-tools` stays engine-free.
-   */
   async pruneTranspositions(
     color: Color,
     opts: {
@@ -596,25 +445,19 @@ export class GameTree {
       cpThreshold?: number;
       maxLossCp?: number;
       budget?: number;
-      /** Cursor: first leaf index to scan (default 0). Pair with leafCount to drive a long scan in chunks. */
       leafStart?: number;
-      /** Cursor: how many leaves to scan from leafStart (default: to the end). */
       leafCount?: number;
-      /** E1: deep-confirm depth. When set, each line's best-eval re-route is re-searched at this depth
-       *  (vs the cheaper scan effort) so the eval you act on is trustworthy. Unset = no deep confirm. */
       confirmDepth?: number;
-      /** Cooperative cancellation; no additional engine work is scheduled after it becomes true. */
       shouldCancel?: () => boolean;
     },
     analyse: (fen: string, multipv: number, depth?: number) => Promise<PruneEngineLine[] | null>,
-    /** Fires after each engine analysis with (analysesDone, sliceEstimate) — for a determinate progress bar. */
     onProgress?: (done: number, total: number) => void,
   ): Promise<PruneScanResult> {
     const multipv = opts.multipv ?? 4;
     const cpThreshold = opts.cpThreshold ?? 50;
     const maxLossCp = opts.maxLossCp;
-    const budget = opts.budget; // max engine analyses over the whole walk (undefined = unlimited)
-    const confirmDepth = opts.confirmDepth; // E1: deep-confirm depth for each line's best-eval pick
+    const budget = opts.budget;
+    const confirmDepth = opts.confirmDepth;
     const MATE = 100000;
 
     const moverCp = (fen: string, l: PruneEngineLine) => {
@@ -622,16 +465,9 @@ export class GameTree {
       return fen.split(" ")[1] === "w" ? white : -white;
     };
 
-    // Pre-pass (engine-free, P1): replay each leaf and find the your-turn nodes that actually have a
-    // legal move transposing into a DIFFERENT prepared line — the ONLY nodes worth an engine call.
-    // Skipping the rest is the main speed-up, and the candidate count is a TIGHT progress denominator
-    // (real engine work, not a loose parity bound). P5: the pre-pass is O(whole tree) and depends only
-    // on the tree + color, so it is computed once per instance and reused across cursor chunks (and
-    // repeat scans on the same MCP handle) instead of being re-run on every chunked call.
     if (this._pruneWork?.color !== color) {
       const keyIndex = buildKeyIndex(this.game.moves).keyMap;
 
-      // Every leaf's index path.
       const leaves: Path[] = [];
       const collect = (node: Node<PgnNodeData>, path: Path) => {
         if (node.children.length === 0) {
@@ -650,7 +486,7 @@ export class GameTree {
         const pos = Chess.default();
         let node: Node<PgnNodeData> = this.game.moves;
         for (let depth = 0; depth < leaf.length; depth++) {
-          steps.push({ pos: pos.clone(), ply: depth }); // pos is the node before playing leafSan[depth]
+          steps.push({ pos: pos.clone(), ply: depth });
           const child = assertDefined(node.children[assertDefined(leaf[depth])]);
           const move = parseSan(pos, child.data.san);
           if (!move) break;
@@ -661,7 +497,6 @@ export class GameTree {
         const candidates: number[] = [];
         steps.forEach((s, idx) => {
           if (s.pos.turn !== color) return;
-          // P6: stop cloning at the first cross-branch hit instead of materialising every after-position.
           if (someLegal(s.pos, (m) => landsInCrossBranchPrep(keyIndex, m.after, leaf) != null)) {
             candidates.push(idx);
           }
@@ -673,7 +508,6 @@ export class GameTree {
     }
     const { keyMap, work: allWork } = this._pruneWork;
 
-    // Cursor slice: scan leaves [leafStart, leafStart+leafCount). Default = the whole tree.
     const totalLeaves = allWork.length;
     const leafStart = Math.min(Math.max(opts.leafStart ?? 0, 0), totalLeaves);
     const leafCount = opts.leafCount ?? totalLeaves - leafStart;
@@ -686,9 +520,6 @@ export class GameTree {
     let leavesScanned = 0;
     let budgetSpent = false;
 
-    // P2: memoise engine results within the scan, keyed by transposition-stable positionKey (4-field
-    // FEN, clock dropped) + multipv. A position reached by several leaves or move-orders is analysed
-    // once. Only a real engine call (cache miss) counts toward analyses / onProgress.
     const evalMemo = new Map<string, PruneEngineLine[] | null>();
     const analyseCached = async (
       fen: string,
@@ -705,8 +536,6 @@ export class GameTree {
       return r;
     };
 
-    // mover-POV cp of the position AFTER the move (single-PV, negated to the mover). Used to fill an
-    // out-of-top-k stay move (C2) and to deep-confirm a re-route's eval (E1, via the depth override).
     const evalAfterMove = async (
       pos: Chess,
       san: string,
@@ -718,10 +547,9 @@ export class GameTree {
       after.play(mv);
       const fen = makeFen(after.toSetup());
       const sl = await analyseCached(fen, 1, depth);
-      return sl?.length ? -moverCp(fen, assertDefined(sl[0])) : null; // sl is opponent-POV; negate for the mover
+      return sl?.length ? -moverCp(fen, assertDefined(sl[0])) : null;
     };
 
-    // A re-route collected for the current line (pos kept for E1's deep re-eval; not emitted).
     interface Reroute {
       pos: Chess;
       atPly: number;
@@ -736,8 +564,6 @@ export class GameTree {
     for (const work of sliceWork) {
       if (budgetSpent || opts.shouldCancel?.()) break;
       const { leaf, leafSan, steps, candidates } = work;
-      // C1: collect EVERY viable re-route for this line (not just the earliest) — a shallow one saves
-      // more plies, a deeper one may keep a better eval; the caller chooses the trade.
       const reroutes: Reroute[] = [];
       for (const idx of candidates) {
         if (opts.shouldCancel?.()) break;
@@ -749,7 +575,7 @@ export class GameTree {
         const fen = makeFen(s.pos.toSetup());
         const lines = await analyseCached(fen, multipv);
         if (!lines?.length) continue;
-        const stayMove = assertDefined(leafSan[s.ply]); // the line's own next move at this node
+        const stayMove = assertDefined(leafSan[s.ply]);
         const enriched = lines
           .map((l) => {
             const mv = parseUci(l.uci);
@@ -761,20 +587,18 @@ export class GameTree {
         const evalBest = Math.max(...enriched.map((e) => e.cp));
         const stayInList = enriched.find((e) => e.san === stayMove);
         let evalStay = stayInList ? stayInList.cp : null;
-        let evalStayResolved = stayInList != null; // don't re-eval the stay move per candidate
+        let evalStayResolved = stayInList != null;
 
         for (const e of enriched) {
           if (opts.shouldCancel?.()) break;
-          if (e.san === stayMove) continue; // staying, not a re-route
-          if (evalBest - e.cp > cpThreshold) continue; // near-best gate (drops blunders in top-k)
+          if (e.san === stayMove) continue;
+          if (evalBest - e.cp > cpThreshold) continue;
           const after = s.pos.clone();
           after.play(e.mv);
-          // Re-route must land in a DIFFERENT prepared line. Compare against the FULL leaf — a
-          // shared early ancestor must NOT count as same-line.
           const tgt = landsInCrossBranchPrep(keyMap, after, leaf);
           if (!tgt) continue;
           if (!evalStayResolved) {
-            evalStay = await evalAfterMove(s.pos, stayMove); // C2: fill the trade for an out-of-top-k stay
+            evalStay = await evalAfterMove(s.pos, stayMove);
             evalStayResolved = true;
           }
           if (maxLossCp != null && evalStay != null && evalStay - e.cp > maxLossCp) continue;
@@ -790,11 +614,9 @@ export class GameTree {
           });
         }
       }
-      if (!budgetSpent && !opts.shouldCancel?.()) leavesScanned++; // a cut-short leaf is left for the next cursor chunk
+      if (!budgetSpent && !opts.shouldCancel?.()) leavesScanned++;
       if (!reroutes.length) continue;
 
-      // Tag the per-line winners on each axis: max-savings (earliest; tie → better eval) and
-      // best-eval (highest evalTranspose; tie → more saved).
       let savIdx = 0;
       let evIdx = 0;
       reroutes.forEach((r, i) => {
@@ -812,8 +634,6 @@ export class GameTree {
           evIdx = i;
       });
 
-      // E1: deep-confirm the best-eval pick so the number the user acts on is trustworthy (selection
-      // itself stays on the cheaper scan eval; only the reported eval is upgraded).
       let confirmedIdx = -1;
       if (confirmDepth != null && !opts.shouldCancel?.()) {
         const best = assertDefined(reroutes[evIdx]);
@@ -848,8 +668,6 @@ export class GameTree {
         b.savedPlies - a.savedPlies || (a.evalDelta ?? 0) - (b.evalDelta ?? 0) || a.atPly - b.atPly,
     );
     const scannedEnd = leafStart + leavesScanned;
-    // U1: a self-correcting remaining estimate from THIS call's actual cost-per-leaf (the agent's ETA
-    // tightens after the first chunk instead of trusting the loose upper bound).
     const remainingLeaves = totalLeaves - scannedEnd;
     const estimatedPositionsRemaining =
       leavesScanned > 0 ? Math.round((analyses / leavesScanned) * remainingLeaves) : null;
@@ -866,11 +684,6 @@ export class GameTree {
     };
   }
 
-  /**
-   * Tree-shape hygiene (port of coverage_report). Dangling = leaves where it is YOUR turn and
-   * the position is not continued elsewhere by transposition (a real hole). Frontier = the rest
-   * (opponent-to-move leaves, or your-turn leaves covered by another move order).
-   */
   coverage(color: Color): {
     leaves: number;
     danglingCount: number;
@@ -910,11 +723,6 @@ export class GameTree {
     };
   }
 
-  /**
-   * Position-keyed map of the moves the repertoire prescribes (port of player_move_map). For
-   * every position with ≥1 continuation: the child SANs + side to move. Transposition-aware (one
-   * entry per position). Used to walk a played game against the prep (repertoire_vs_history).
-   */
   moveMap(): Map<string, { sans: string[]; turn: Color }> {
     const map = new Map<string, { sans: string[]; turn: Color }>();
     const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
@@ -935,13 +743,11 @@ export class GameTree {
     return map;
   }
 
-  /** Chess position at a SAN variation path, or null if the path doesn't match the tree. */
   positionAtSanPath(sans: readonly string[]): Chess | null {
     if (!this.resolveSan(sans)) return null;
     return this.positionAtSan(sans);
   }
 
-  /** Every leaf with its SAN path + position (for per-leaf congruence analysis). */
   leaves(): { path: string[]; pos: Chess }[] {
     const out: { path: string[]; pos: Chess }[] = [];
     const dfs = (node: Node<PgnNodeData>, pos: Chess, sanPath: string[]) => {
@@ -959,7 +765,6 @@ export class GameTree {
     return out;
   }
 
-  /** Chess position at every leaf (for aggregate structural analysis). */
   leafPositions(): Chess[] {
     const out: Chess[] = [];
     const dfs = (node: Node<PgnNodeData>, pos: Chess) => {
@@ -976,14 +781,11 @@ export class GameTree {
     return out;
   }
 
-  /** FEN at a SAN variation path, or null if the path doesn't match the tree. */
   fenAtSanPath(sans: readonly string[]): string | null {
     const pos = this.positionAtSanPath(sans);
     return pos ? makeFen(pos.toSetup()) : null;
   }
 
-  /** Leaf boards in the subtree rooted at `sans` (the node itself if it's a leaf), or null if absent.
-   *  For C3: the structures a branch commits you to (vs the aggregate). */
   subtreeLeafBoards(sans: readonly string[]): Board[] | null {
     const res = this.resolveSan(sans);
     if (!res) return null;
@@ -1005,7 +807,6 @@ export class GameTree {
     return out;
   }
 
-  /** Board at the mainline (first-child) leaf under `sans`, or null. The branch's representative line. */
   mainlineLeafBoard(sans: readonly string[]): Board | null {
     const res = this.resolveSan(sans);
     if (!res) return null;
@@ -1021,7 +822,6 @@ export class GameTree {
     return pos.board;
   }
 
-  /** Resolve a SAN variation path to its node + parent (null parent at the root). */
   private resolveSan(
     sans: readonly string[],
   ): { node: Node<PgnNodeData>; parent: Node<PgnNodeData> | null } | null {
@@ -1036,7 +836,6 @@ export class GameTree {
     return { node, parent };
   }
 
-  /** Position reached by replaying a (already-validated) SAN path. */
   private positionAtSan(sans: readonly string[]): Chess {
     const pos = Chess.default();
     for (const san of sans) {
@@ -1047,11 +846,6 @@ export class GameTree {
     return pos;
   }
 
-  /**
-   * Deep structural copy (P8): nodes and their data (san/nags/comments) are copied directly —
-   * no PGN serialize + reparse + full legality replay. Safe because the source tree is already
-   * legal (validated at construction), so a copy cannot introduce illegality.
-   */
   clone(): GameTree {
     const copyChildren = (src: Node<PgnNodeData>, dst: Node<PgnNodeData>) => {
       for (const c of src.children) {
@@ -1074,19 +868,12 @@ export class GameTree {
     });
   }
 
-  /**
-   * Clone-on-write edit (port of apply_repertoire_edit). Returns a NEW GameTree with the edit
-   * applied; `this` is untouched. error ∈ variation_not_found / invalid_line / invalid_edit.
-   *   - prune: remove the node at `sanPath` and its subtree (path must be non-empty).
-   *   - add: graft `addMoves` (SAN) under the node, merging into existing children.
-   *   - reorder: make `promoteMove` the first child (mainline) at the node.
-   */
   edit(
     action: "prune" | "add" | "reorder",
     sanPath: readonly string[],
     opts: { addMoves?: string[]; promoteMove?: string } = {},
   ): { tree: GameTree | null; error: string | null; added?: { from: string[]; moves: string[] } } {
-    const clone = this.clone(); // P8: structural deep copy, no PGN round-trip
+    const clone = this.clone();
     let effectiveSanPath = [...sanPath];
     let effectiveAddMoves = opts.addMoves ?? [];
     let res = clone.resolveSan(effectiveSanPath);
@@ -1131,12 +918,9 @@ export class GameTree {
           cursor = child;
         }
       }
-      // Report what actually anchored the graft — when the caller's path ran past the tree,
-      // the fallback above re-split it, so `effectiveSanPath`/`moves` differ from the input.
       return { tree: clone, error: null, added: { from: effectiveSanPath, moves } };
     }
 
-    // reorder
     if (!opts.promoteMove) return { tree: null, error: "invalid_edit" };
     const idx = node.children.findIndex((c) => c.data.san === opts.promoteMove);
     if (idx < 0) return { tree: null, error: "variation_not_found" };
@@ -1145,11 +929,6 @@ export class GameTree {
     return { tree: clone, error: null };
   }
 
-  /**
-   * NAG-tier illustrative lines (the authoritative engine-free signal from
-   * classify_illustrative_lines): nodes carrying a mistake/dubious/blunder NAG ($2/$4/$6) mark
-   * a side line shown because it is BAD. Returns each flagged node's SAN path + leaves beneath it.
-   */
   illustrativeLines(): { lines: { path: string[]; reason: "nag" }[]; illustrativeLeaves: number } {
     const NAG_BAD = new Set([2, 4, 6]);
     const lines: { path: string[]; reason: "nag" }[] = [];
@@ -1162,7 +941,7 @@ export class GameTree {
         if ((child.data.nags ?? []).some((n) => NAG_BAD.has(n))) {
           lines.push({ path: sp, reason: "nag" });
           illustrativeLeaves += countLeaves(child);
-          continue; // subtree already counted; a nested NAG inside it must not count its leaves again
+          continue;
         }
         dfs(child, sp);
       }
@@ -1171,13 +950,11 @@ export class GameTree {
     return { lines, illustrativeLeaves };
   }
 
-  /** SAN of the move that leads to `path` (the last node), or null at the root. */
   sanAt(path: Path): string | null {
     if (path.length === 0) return null;
     return (this.nodeAt(path) as ChildNode<PgnNodeData>).data.san;
   }
 
-  /** SAN list along an index path (root→node) — the inverse of `resolveSan`. `[]` → `[]`. */
   sanPathAt(path: Path): string[] {
     const out: string[] = [];
     let node: Node<PgnNodeData> = this.game.moves;
@@ -1190,7 +967,6 @@ export class GameTree {
     return out;
   }
 
-  /** Index path for a SAN variation path, or null if it doesn't match a line (inverse of sanPathAt). */
   indexPathOfSan(sans: readonly string[]): Path | null {
     const out: Path = [];
     let node: Node<PgnNodeData> = this.game.moves;
@@ -1203,7 +979,6 @@ export class GameTree {
     return out;
   }
 
-  /** UCI of the last move on `path`, for chessground lastMove highlight. */
   lastMoveAt(path: Path): [string, string] | null {
     if (path.length === 0) return null;
     const before = this.positionAt(path.slice(0, -1));

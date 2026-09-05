@@ -1,17 +1,3 @@
-/**
- * TopBar: open/save PGN, white/black repertoire toggle, new game, unsaved indicator, settings.
- * File I/O lives in store/files (shared with the Cmd/Ctrl+S shortcut).
- *
- * WP-017 applies DV-3: `Save to file` stays a visible one-interaction control, while Open,
- * Re-link, New, and Recover are additionally reachable in two interactions through the
- * Repertoire menu. The direct buttons remain so existing flows and their tests keep working.
- *
- * Layout is two groups rather than a flat run of peers: an identity group (what document am I
- * editing, and is it saved) on the left, an action group on the right. Previously the filename was
- * painted twice — once by DocumentStatus's prose and once by `.moveno` — with the prose clipped
- * mid-sentence between them, and all six controls carried identical visual weight so nothing said
- * which one you normally want.
- */
 import { Show } from "solid-js";
 import { actions, color, dirty, fileName } from "../store/game";
 import {

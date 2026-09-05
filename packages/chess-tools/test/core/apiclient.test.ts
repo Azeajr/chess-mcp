@@ -27,10 +27,6 @@ test("fetchJson passes the caller's headers through to fetch", async () => {
   }
 });
 
-/**
- * Every failure mode degrades to null so a consumer can treat it exactly like a cache miss. None of
- * these may throw — that is the whole contract of this module.
- */
 test("fetchJson degrades to null for a non-200, a thrown fetch, and an unparseable body", async () => {
   const clock = withFakeClock();
   try {
@@ -84,14 +80,13 @@ test("fetchText returns the body as text and null on failure", async () => {
   }
 });
 
-/** The limiter is what keeps an unauthenticated client inside what Lichess asks for. */
 test("consecutive requests are spaced at least a second apart", async () => {
   const clock = withFakeClock();
   try {
     stubFetch(() => json({}));
     const started = clock.now();
 
-    await fetchJson("https://example.test/1"); // first call is free — nothing to wait behind
+    await fetchJson("https://example.test/1");
     for (const path of ["2", "3"]) {
       const pending = fetchJson(`https://example.test/${path}`);
       clock.tick(1000);
@@ -104,11 +99,6 @@ test("consecutive requests are spaced at least a second apart", async () => {
   }
 });
 
-/**
- * Lichess asks a throttled client to wait a full minute. The 429 still degrades to null for the
- * caller, but the limiter must hold every subsequent request too — one throttled consumer must not
- * let the next call re-offend a second later.
- */
 test("a 429 holds the next request for the full cooldown, not just the usual second", async () => {
   const clock = withFakeClock();
   try {

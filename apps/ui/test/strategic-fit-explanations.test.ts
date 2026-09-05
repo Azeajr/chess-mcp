@@ -65,7 +65,6 @@ function dependencies(report: StrategicFitReport | null) {
   };
 }
 
-/** Resolve one dotted citation path against a returned command result. */
 function resolves(root: unknown, path: string): boolean {
   let current = root;
   for (const key of path.split(".")) {
@@ -253,7 +252,6 @@ test("missing and withheld evidence reaches the model as explicit nulls, states,
   }
   assert.equal(typeof summary.preflight.omitted_issue_count, "number");
 
-  // A report whose evidence exceeds the transport bounds must arrive flagged, not silently short.
   const stretched: StrategicFitReport = {
     ...report,
     findings: [

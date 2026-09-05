@@ -1,10 +1,3 @@
-/**
- * Portable Strategic Fit sidecars and intent-PGN projections.
- *
- * Sidecars are a deterministic, strict, secret-free projection of the canonical document
- * metadata. Import is deliberately split into parse/preview/merge operations so hosts can bind a
- * preview to their own document identity and require explicit confirmation before persistence.
- */
 import type { ChildNode, PgnNodeData } from "chessops/pgn";
 import type { GameTree } from "../pgn.js";
 import {
@@ -85,14 +78,6 @@ const error = (
   metadata_issues: metadataIssues,
 });
 
-/**
- * Code-unit ordering, not locale collation.
- *
- * `localeCompare` uses the runtime's default collation, which varies with locale and ICU build —
- * so a "stable" serialisation could differ byte-for-byte across supported environments for
- * non-ASCII keys, breaking deterministic exports and byte-level comparison. This matches the
- * `compareStrings` helper the sibling deterministic modules already use.
- */
 function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
@@ -107,8 +92,6 @@ function stableJson(value: unknown): string {
 }
 
 function canonicalMetadata(input: unknown): StrategicFitDocumentMetadata {
-  // Normalization reconstructs every nested object from an explicit whitelist. Even deliberately
-  // malicious credential fields therefore cannot enter the exported envelope.
   return normalizeStrategicFitDocumentMetadata(input).metadata;
 }
 
@@ -128,7 +111,6 @@ export function createStrategicFitSidecar(
   };
 }
 
-/** Deterministic bytes for download, cache identity, and round-trip tests. */
 export function serializeStrategicFitSidecar(documentId: string, metadata: unknown): string {
   return `${stableJson(createStrategicFitSidecar(documentId, metadata))}\n`;
 }
@@ -182,7 +164,6 @@ function completePartialMetadata(value: RecordLike): {
   };
 }
 
-/** Strictly parse untrusted JSON/structured data without mutating or falling back silently. */
 export function parseStrategicFitSidecar(
   input: unknown,
 ): ParsedStrategicFitSidecar | StrategicFitSidecarError {
@@ -351,7 +332,6 @@ const resolutionIdentity = (entry: StrategicFitPersistedResolution): string =>
     ? `legacy-resolution:${entry.resolution_id}`
     : `semantic-finding:${entry.semantic_finding_id}`;
 
-/** Apply the approved incoming-wins-by-identity merge policy without mutating either input. */
 export function previewStrategicFitSidecarMerge(
   targetDocumentId: string,
   localInput: StrategicFitDocumentMetadata,
@@ -485,7 +465,6 @@ function addComment(tree: GameTree, path: readonly string[], text: string): bool
   return true;
 }
 
-/** Create a legal clone-only PGN projection; comments are never read back as canonical metadata. */
 export function exportStrategicFitIntentPgn(
   source: GameTree,
   metadataInput: StrategicFitDocumentMetadata,

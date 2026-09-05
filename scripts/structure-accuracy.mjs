@@ -1,5 +1,3 @@
-// Structure-classifier accuracy harness — ported from evals/structure_accuracy.py.
-// Runs classifyStructureFromFen against the canonical labeled FENs and reports accuracy.
 import { classifyStructureFromFen } from "../packages/chess-tools/dist/index.js";
 
 const FIXTURES = [
@@ -42,8 +40,6 @@ for (const [fen, expected] of FIXTURES) {
 console.log(`structure accuracy: ${pass}/${FIXTURES.length}`);
 for (const m of mismatches) console.log("  MISMATCH:", m);
 
-// Memo check: classifying the same position twice returns the SAME cached object (proves the
-// classifyStructure memo hits) and the unchanged label — the cache must never alter a result.
 const a = classifyStructureFromFen(FIXTURES[0][0]);
 const b = classifyStructureFromFen(FIXTURES[0][0]);
 const memoOk = a === b && a.structure_class === FIXTURES[0][1];

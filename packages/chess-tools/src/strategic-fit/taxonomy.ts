@@ -1,10 +1,3 @@
-/**
- * Hierarchical opening taxonomy for Strategic Fit.
- *
- * Source opening names are kept verbatim for display and provenance. Their hierarchy is a
- * deterministic projection used for descriptive containers; later cohort logic must still apply
- * strategic and decision-scope evidence before treating any taxonomy node as actionable.
- */
 import { assertDefined } from "../assert.js";
 import type { OpeningEntry, OpeningTable } from "../openings.js";
 import type { RepertoireGraph } from "./graph.js";
@@ -45,7 +38,6 @@ export interface OpeningTaxonomyProvenance {
   readonly kind: OpeningTaxonomyProvenanceKind;
   readonly source_position_ids: readonly string[];
   readonly source_eco_codes: readonly string[];
-  /** Exact labels from the supplied opening table, never reconstructed display names. */
   readonly exact_source_names: readonly string[];
   readonly explanation: string;
 }
@@ -56,12 +48,9 @@ export interface OpeningTaxonomy {
   readonly state: OpeningTaxonomyState;
   readonly family: OpeningTaxonomyNode | null;
   readonly system: OpeningTaxonomyNode | null;
-  /** The most specific variation node, if the source label has variation levels. */
   readonly variation: OpeningTaxonomyNode | null;
-  /** Every variation level, preserving comma- and colon-delimited source hierarchy. */
   readonly variation_path: readonly OpeningTaxonomyNode[];
   readonly path: readonly OpeningTaxonomyNode[];
-  /** Range of the most specific available taxonomy node. */
   readonly eco_range: OpeningEcoRange | null;
   readonly provenance: OpeningTaxonomyProvenance;
 }
@@ -129,12 +118,6 @@ function canonicalSegments(value: string): string[] {
     .filter((segment) => segment.length > 0);
 }
 
-/**
- * Parse a source opening label into all supported levels.
- *
- * Accepted/Declined gambit qualifiers are promoted to system level so, for example, Queen's
- * Gambit Accepted and Queen's Gambit Declined share a family without losing their exact labels.
- */
 export function classifyOpeningName(name: string): OpeningTaxonomyNameParts | null {
   const segments = canonicalSegments(name);
   const root = segments.shift();
@@ -333,11 +316,6 @@ function inheritedTaxonomy(candidates: readonly InheritedCandidate[]): OpeningTa
   return taxonomyFromPath(common, provenance(kind, candidates, explanation));
 }
 
-/**
- * Classify every canonical graph position and semantic route from the supplied opening table.
- * Exact canonical-position hits always win; otherwise labels are inherited only where all incoming
- * evidence has a deterministic common taxonomy ancestor.
- */
 export function buildOpeningTaxonomy(
   graph: RepertoireGraph,
   table: OpeningTable | null | undefined,

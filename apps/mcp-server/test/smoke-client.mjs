@@ -1,4 +1,3 @@
-// MCP smoke client: spawn the Node server over stdio, list tools, exercise a representative set.
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   StdioClientTransport,
@@ -20,8 +19,6 @@ const smokeRepertoireDir = await mkdtemp(join(tmpdir(), "chess-mcp-smoke-"));
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const TRAP = "1. e4 e5 2. Nf3 Nc6 3. Bc4 Nd4 4. Nxe5 Qg5 5. Nxf7 Qg6 *";
 
-// SMOKE_NETWORK=0 skips the live Lichess/Chess.com assertions (CI); default runs everything.
-// Explorer auth-gate checks stay on either way — without LICHESS_TOKEN they answer locally.
 const NET = process.env.SMOKE_NETWORK !== "0";
 
 let pass = 0,
@@ -32,12 +29,6 @@ const skip = (m) => (skipped++, console.log("SKIP (network):", m));
 const call = async (client, name, args) =>
   JSON.parse((await client.callTool({ name, arguments: args })).content[0].text);
 
-// Launch exactly as .mcp.json does: the tsx executable from the repo root. `node --import tsx`
-// loses piped child stdio on Node 26.2 and exits cleanly before MCP initialize; the CLI path works
-// on both the supported Node 22 runtime and current Node. The SDK's
-// StdioClientTransport does NOT inherit the parent's full env by default (only an allowlist —
-// PATH, HOME, etc., sudo-style) — LICHESS_TOKEN must be forwarded explicitly or the spawned
-// server never sees it even when this process has it.
 class DiagnosticStdioTransport extends StdioClientTransport {
   async start() {
     await super.start();
@@ -65,7 +56,6 @@ await client.connect(transport);
 
 const tools = (await client.listTools()).tools;
 console.log("TOOLS:", tools.length, "→", tools.map((t) => t.name).join(", "));
-// The canonical contract owns the inventory; this asserts completeness, not a fixed number.
 const canonicalMcpTools = TOOL_CONTRACTS.filter((contract) =>
   contract.hosts.includes("mcp"),
 ).length;
@@ -74,8 +64,6 @@ ok(
   `every canonical MCP tool is registered (${canonicalMcpTools})`,
 );
 
-// MCP Zod output must recursively match the canonical application contract. Transport prose is
-// explicitly ignored by the shared comparer; nested array items and additionalProperties are not.
 for (const name of TOOL_CONTRACTS.filter((tool) => tool.input && tool.hosts.includes("mcp")).map(
   (tool) => tool.name,
 )) {
@@ -102,8 +90,6 @@ if (NET) {
   skip("cloud_eval + tablebase_lookup early");
 }
 
-// Opening explorer: live when LICHESS_TOKEN is in the environment (the spawned server inherits
-// it), else the auth gate must answer — never a silent null.
 if (NET && process.env.LICHESS_TOKEN) {
   const pop = await call(client, "position_popularity", { fen: START, top_moves: 3 });
   ok(
@@ -134,7 +120,6 @@ ok(
   typeof rep.repertoire_id === "string" && rep.nodes > 0,
   `load_repertoire id + ${rep.nodes} nodes`,
 );
-// An illegal-but-parseable move (no knight reaches f6) must be rejected as invalid_pgn, not loaded.
 const badLoad = await call(client, "load_repertoire", { pgn: "1. e4 e5 2. Nf6 *", color: "white" });
 ok(
   badLoad.error === "invalid_pgn",
@@ -226,12 +211,6 @@ ok(
 );
 
 console.log("find_only_moves (engine scan)…");
-// The trap line is sharp by construction: after 4...Qg5 white's 5.Nxf7 stands alone (anything else
-// drops g2/the knight). Its margin depends on cache state: run in isolation the second-best is a
-// fresh multipv-2 search (~100cp), but after the gap scan this position's wider multipv-N entry
-// serves the request truncated (P4 cross-multipv), yielding a smaller ~50cp margin. Both are
-// deterministic given a fixed call order; the next-sharpest node is ~24cp. min_margin 30 splits
-// the sharp trap from the noise floor regardless of which serve path the trap node took.
 const om = await call(client, "find_only_moves", {
   repertoire_id: rep.repertoire_id,
   depth: 12,
@@ -260,7 +239,6 @@ const omBad = await call(client, "find_only_moves", {
 ok(omBad.error === "path_not_allowed", "find_only_moves export confined to REPERTOIRE_DIR");
 
 const t0 = Date.now();
-// Game analysis on a game with a clear white blunder (4.Nxe5 hangs a knight).
 const BLUNDER = "1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nxe5 Nxe5 5. d4 *";
 console.log("analyze_game / get_game_summary (engine, depth 8)…");
 const ag = await call(client, "analyze_game", { pgn: BLUNDER, depth: 8 });
@@ -279,8 +257,6 @@ console.log(
 ok(gs.white.blunders + gs.white.mistakes >= 1, "get_game_summary flags white's Nxe5");
 const ann = await call(client, "export_annotated_pgn", { pgn: BLUNDER, depth: 8 });
 ok(/\$[246]/.test(ann.annotated_pgn), "export_annotated_pgn has a NAG glyph");
-// A game ending in CHECKMATE: the terminal position returns no engine lines ([]). The review must
-// still complete (regression: [] was misread as engine_unavailable, aborting the whole review).
 const MATE = "1. e4 e5 2. Bc4 Nc6 3. Qh5 Nf6 4. Qxf7# *";
 const agMate = await call(client, "analyze_game", { pgn: MATE, depth: 8 });
 ok(
@@ -296,7 +272,6 @@ if (NET) {
   skip("tablebase_lookup late");
 }
 
-// modify_repertoire_line (clone-on-write) + export round-trip
 const repE = await call(client, "load_repertoire", { pgn: "1. e4 *", color: "white" });
 const mod = await call(client, "modify_repertoire_line", {
   repertoire_id: repE.repertoire_id,

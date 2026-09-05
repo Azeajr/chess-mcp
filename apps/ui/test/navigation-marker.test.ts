@@ -1,13 +1,3 @@
-/**
- * F14 (WP-028 AC-3): the `Showing on board` marker must survive only the navigation that set it.
- *
- * The original mechanism was a `createEffect` in AnalysisPanel diffing a closure variable, which
- * (a) contradicted the documented invariant in store/ui.ts, (b) only guarded routes that happened
- * to re-render that panel, and (c) could not be unit-tested at all — `tsx --test` resolves
- * solid-js to its server build, where createEffect callbacks never run (see the note in
- * board-cursor.test.ts). Clearing inside game.ts's single `setPath` writer makes the invariant
- * real for every route and testable here.
- */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { actions, currentPath } from "../src/store/game.ts";
@@ -15,7 +5,6 @@ import { lastNavigationSource, setLastNavigationSource } from "../src/store/ui.t
 
 const CARD = { kind: "chat", id: "suggestion-1" } as const;
 
-/** What a result card's `Go to line` button does: navigate, then claim the marker in the same tick. */
 function gotoFromCard(path: readonly number[]) {
   actions.goto([...path]);
   setLastNavigationSource(CARD);
@@ -43,8 +32,6 @@ test("F14 move-tree navigation to another line clears the marker", () => {
 test("F14 navigating back to the same path still clears the marker", () => {
   reset();
   gotoFromCard([0, 0]);
-  // Same destination, different actor. The marker names the control that navigated, so an
-  // unrelated route landing on the same square must not inherit the card's claim.
   actions.goto([0, 0]);
   assert.equal(lastNavigationSource(), null);
 });

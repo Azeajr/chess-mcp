@@ -43,7 +43,6 @@ function scan(tree: GameTree, analysis: AnalyzeStrategicFitOptions): StrategicFi
   return completeStrategicFitReport(analyzeStrategicFit(tree, analysis));
 }
 
-/** The affected-cohort scope a host derives from its own comparison, as Task 12.1 defines it. */
 function affectedCohortScope(
   previous: StrategicFitReport,
   previousPgn: string,
@@ -72,7 +71,6 @@ test("the benchmark gate passes a within-budget record and rejects every regress
   assert.deepEqual(result.failures, []);
   assert.equal(result.ok, true);
 
-  // The self-check is only meaningful if each perturbation is individually necessary.
   assert.ok(STRATEGIC_FIT_BENCHMARK_SELF_CHECKS.length >= 8);
   for (const [description, perturb] of STRATEGIC_FIT_BENCHMARK_SELF_CHECKS) {
     const record = syntheticStrategicFitBenchmarkRecord();
@@ -184,7 +182,6 @@ test("the index stays inside its declared bound on a generated repertoire withou
   const tree = GameTree.fromPgn(fixture.pgn);
   const cold = scan(tree, options("benchmark:test:memory"));
 
-  // A bound far smaller than the working set is the interesting case: it must evict, not grow.
   const index = new StrategicFitIndexCache({ maximumEntries: 8 });
   const bounded = scan(tree, options("benchmark:test:memory", { index }));
   assert.equal(JSON.stringify(bounded), JSON.stringify(cold));

@@ -27,10 +27,6 @@ import {
 const CONCEPT = "setup-family.castling.repertoire.kingside";
 const OTHER_CONCEPT = "endgame-tendency.queenless";
 
-/**
- * The interview is exercised against the real Task 4.4 profile state over an in-memory metadata
- * boundary, so "nothing persisted" is asserted against the same writer the product uses.
- */
 function interview(initial = createDefaultStrategicFitDocumentMetadata()) {
   const documents = new Map<string, StrategicFitDocumentMetadata>([
     ["document:a", structuredClone(initial)],

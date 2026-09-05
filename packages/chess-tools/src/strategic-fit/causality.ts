@@ -1,12 +1,3 @@
-/**
- * Provisional engine-free causal ownership for Strategic Fit differences.
- *
- * Causality starts with the stable feature differences already accepted by the distance stage.
- * For each feature, this module walks backward through deterministic route observations until the
- * continuous difference begins, then assigns that move using semantic graph ownership. This is
- * deliberately conservative: unsupported concepts, missing raw evidence, and interacting moves
- * increase uncertainty instead of manufacturing a player-controlled pivot.
- */
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import { parseSquare, squareFile } from "chessops/util";
@@ -162,11 +153,6 @@ function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reads a property that a preceding `Object.keys` check already proved is present. `JsonValue`
- * legitimately includes `null`, so `assertDefined` (which also rejects `null`) is not safe here —
- * only `undefined` (the index-signature artifact for a genuinely absent key) is an error.
- */
 function requireProperty(value: Readonly<Record<string, JsonValue>>, key: string): JsonValue {
   const result = value[key];
   if (result === undefined) {
@@ -509,8 +495,6 @@ function irreversibleExplanation(
   const movingPiece = before.board.get(from);
   if (!movingPiece) return null;
   const destination = before.board.get(to);
-  // chessops represents standard castling in UCI_Chess960 form: the king targets its friendly
-  // rook square. Keep this aligned with position-signals so the rook is never called a capture.
   const rookTarget = destination?.color === movingPiece.color && destination.role === "rook";
   const castling =
     movingPiece.role === "king" &&
@@ -868,7 +852,6 @@ function buildContext(graph: RepertoireGraph): CausalityContext {
   };
 }
 
-/** Attribute one route-to-baseline distance without using an engine or network source. */
 export function attributeStrategicCausalOwnership(
   graph: RepertoireGraph,
   affectedTrajectory: StrategicTrajectory,
@@ -910,7 +893,6 @@ function requireCompatibleReports(
   }
 }
 
-/** Attribute every route-to-mode comparison in a deterministic distance report. */
 export function calculateStrategicCausality(
   graph: RepertoireGraph,
   trajectoryReport: StrategicTrajectoryReport,

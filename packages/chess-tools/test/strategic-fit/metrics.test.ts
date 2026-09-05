@@ -480,7 +480,6 @@ test("transposition resilience recognizes shared modes without double-counting c
   assert.equal(graph.transposition_links.length > 0, true);
   assert.equal(weights.weighting_units.length, 1);
   close(metrics.move_order_resilience.value!, 1);
-  // Two move orders into one canonical evidence unit are not two independent concept observations.
   close(metrics.concept_reuse.value!, 0);
   assert.deepEqual(metrics.concept_centrality.value, [
     {

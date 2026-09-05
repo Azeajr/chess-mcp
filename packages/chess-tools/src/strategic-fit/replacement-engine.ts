@@ -1,11 +1,3 @@
-/**
- * Framework-free Replacement Lab engine candidate generation.
- *
- * Hosts inject completed MultiPV analysis through ReplacementEngineProvider. This module validates
- * every UCI/PV from the semantic pivot, preserves White-POV transport, calculates separately named
- * repertoire-POV quality, and merges engine alternatives into Task 8.3 candidate seeds by canonical
- * outcome. Results remain expansion-required seeds; Task 8.5 alone may build full candidate subtrees.
- */
 import { Chess } from "chessops/chess";
 import { makeFen, parseFen } from "chessops/fen";
 import { makeSan } from "chessops/san";
@@ -44,7 +36,6 @@ export const REPLACEMENT_ENGINE_EVIDENCE_STATES = [
 ] as const;
 export type ReplacementEngineEvidenceState = (typeof REPLACEMENT_ENGINE_EVIDENCE_STATES)[number];
 
-/** Matches the bounded MultiPV capability of the current engine hosts. */
 export const REPLACEMENT_ENGINE_MAX_MULTIPV = 10;
 
 export const REPLACEMENT_ENGINE_ITEM_STATUSES = [
@@ -137,7 +128,6 @@ export interface ReplacementEnginePositionEvidence {
   readonly fen: string;
 }
 
-/** Optional inspectable observations. Missing values must stay null. */
 export interface ReplacementEngineDynamicObservations {
   readonly tactical_volatility: number | null;
   readonly evaluation_sensitivity_cp: number | null;
@@ -146,7 +136,6 @@ export interface ReplacementEngineDynamicObservations {
   readonly king_safety_risk: number | null;
 }
 
-/** One raw MultiPV line. cp/mate are explicitly White-POV transport values. */
 export interface ReplacementEngineLineEvidence {
   readonly line_id: string;
   readonly multipv_rank: number;
@@ -159,7 +148,6 @@ export interface ReplacementEngineLineEvidence {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Provider output and cache input. Domain code treats this object as immutable. */
 export interface ReplacementEngineAnalysisEvidence extends StrategicFitReplacementVersioned {
   readonly evidence_id: string;
   readonly state: ReplacementEngineEvidenceState;
@@ -182,7 +170,6 @@ export interface ReplacementEngineProviderRequest {
   readonly multipv: number;
 }
 
-/** Host boundary. Browser/Node adapters may wrap their current engine without entering this domain. */
 export interface ReplacementEngineProvider {
   readonly identity: ReplacementEngineIdentity;
   analyse(
@@ -261,7 +248,6 @@ export interface GenerateReplacementEngineCandidatesInput {
   readonly pivot_result: ReplacementPivotSelectionResult;
   readonly candidate_generation: ReplacementCandidateGenerationResult;
   readonly provider?: ReplacementEngineProvider | null;
-  /** Read-only compatible cache evidence. Returned cache_write may be stored by a host. */
   readonly cache_evidence?: readonly ReplacementEngineAnalysisEvidence[];
   readonly signal?: AbortSignal;
   readonly shouldCancel?: () => boolean;
@@ -352,8 +338,6 @@ function jsonKey(value: JsonValue): string {
   return `{${Object.keys(record)
     .sort(compareStrings)
     .map((key) => {
-      // record[key] can legitimately be `null` (JsonValue includes it) — only the
-      // noUncheckedIndexedAccess `| undefined` from the index signature is the artifact to rule out.
       const item = record[key];
       if (item === undefined) {
         throw new Error("strategic_fit_replacement_engine_json_key_missing");
@@ -371,8 +355,6 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Plain boolean (no `arg is any[]` type predicate) so a readonly-typed array reference doesn't get
- *  narrowed and widened to `any[]` for every subsequent reference in the same scope. */
 function isPlainArray(value: unknown): boolean {
   return Array.isArray(value);
 }
@@ -588,8 +570,6 @@ function compatibleCacheEvidence(
         typeof entry.evidence_id !== "string"
       )
         return false;
-      // entry is caller/cache-supplied and only structurally checked above (isRecord); the version
-      // fields are declared literal-typed but must be revalidated at runtime, not trusted from the type.
       /* eslint-disable @typescript-eslint/no-unnecessary-condition */
       return (
         entry.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
@@ -727,8 +707,6 @@ function compatibilityError(
       "Maximum repertoire-POV loss must be null or a finite non-negative number.",
     ];
   }
-  // pivotResult/pivot are caller-supplied Task 8.2 evidence; their status/version/owner fields are
-  // declared literal-typed but must be revalidated at runtime, not trusted from the static type.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (pivotResult.status !== "selected" || pivotResult.pivot.status !== "actionable") {
     /* eslint-enable @typescript-eslint/no-unnecessary-condition */
@@ -801,8 +779,6 @@ function compatibilityError(
       "Semantic pivot decision no longer matches the current graph.",
     ];
   }
-  // generation is caller-supplied Task 8.3 evidence; version fields are declared literal-typed but
-  // must be revalidated at runtime, not trusted from the static type.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     generation.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||
@@ -954,7 +930,6 @@ function scoreForColor(
   };
 }
 
-/** Positive means left is objectively better from repertoire POV. */
 function compareScores(
   left: { cp: number | null; mate: number | null },
   right: { cp: number | null; mate: number | null },
@@ -1383,7 +1358,6 @@ function aborted(error: unknown): boolean {
   );
 }
 
-/** Generate and merge bounded engine candidates without constructing Task 8.5 subtrees. */
 export async function generateReplacementEngineCandidates(
   input: GenerateReplacementEngineCandidatesInput,
 ): Promise<ReplacementEngineCandidateGenerationResult> {
@@ -1586,8 +1560,6 @@ export async function generateReplacementEngineCandidates(
         input.signal,
       );
     } catch (error) {
-      // Genuine boolean OR-of-conditions, not a nullish-default: each operand can be a meaningful
-      // `false`, and `??` would short-circuit on that `false` instead of checking the next signal.
       // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
       const cancelled = input.signal?.aborted || input.shouldCancel?.() || aborted(error);
       return nonEngineResult(
@@ -1682,8 +1654,6 @@ export async function generateReplacementEngineCandidates(
     evidence.requested_depth < input.request.budget.engine_depth ||
     evidence.requested_multipv < input.request.budget.engine_multipv;
   const identityMismatch = !sameIdentity(evidence.engine, identity);
-  // evidence is caller/cache-supplied; version fields are declared literal-typed but must be
-  // revalidated at runtime, not trusted from the static type.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   const versionMismatch =
     evidence.schema_version !== STRATEGIC_FIT_SCHEMA_VERSION ||

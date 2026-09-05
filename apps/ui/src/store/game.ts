@@ -1,8 +1,3 @@
-/**
- * Single-window reactive game store. Wraps the mutable GameTree from chess-tools and
- * exposes SolidJS signals. GameTree mutates in place; a `version` signal is bumped after
- * each mutation so derived reads (fen, dests, move list) recompute.
- */
 import { batch, createSignal } from "solid-js";
 import { GameTree, type Path } from "@chess-mcp/chess-tools";
 import { isChildNode } from "chessops/pgn";
@@ -19,13 +14,6 @@ export type Color = "white" | "black";
 const [tree, setTree] = createSignal<GameTree>(new GameTree());
 const [version, setVersion] = createSignal(0);
 const [path, setPathSignal] = createSignal<Path>([]);
-/**
- * WP-028 AC-3: the single point where board position changes, and therefore the single point that
- * clears the `Showing on board` marker. Clearing here — rather than enumerating navigation
- * sources — is what makes the marker safe by default: `goto`, arrow keys, `back`/`forward`,
- * playing a move, and history undo/redo all funnel through here, so any route that does not
- * deliberately re-set the marker in the same tick clears it.
- */
 const setPath = (value: Parameters<typeof setPathSignal>[0]) => {
   setLastNavigationSource(null);
   return setPathSignal(value);
@@ -38,45 +26,35 @@ const [documentId, setDocumentId] = createSignal<BrowserDocumentId>(createBrowse
 
 const bump = () => setVersion((v) => v + 1);
 
-/** Record a repertoire mutation without counting navigation-only revision changes as exports. */
 function recordDocumentChange() {
   setDirty(true);
   setChangesSinceExport((count) => count + 1);
   bump();
 }
 
-/**
- * WP-005: describe what a prune would remove, for the delete confirmation and the undo toast.
- * Returns undefined unless the target actually owns alternatives worth warning about.
- */
 function describePrunedBranch(
   sanPath: readonly string[],
 ): { firstMove: string; continuationCount: number } | undefined {
   const indexPath = tree().indexPathOfSan(sanPath);
   if (!indexPath) return undefined;
-  // nodeAt returns the root for [], and the root carries no move data — only a ChildNode does.
   const node = tree().nodeAt(indexPath);
   if (!isChildNode(node)) return undefined;
   if (node.children.length <= 1) return undefined;
   return { firstMove: node.data.san, continuationCount: node.children.length };
 }
 
-/** Current FEN — depends on version + path. */
 export const fen = () => {
   version();
   return tree().fenAt(path());
 };
 
-/** Legal-move destinations for chessground. */
 export const dests = () => {
   version();
   return tree().destsAt(path());
 };
 
-/** Side to move at the current node, from the FEN. */
 export const turnColor = (): Color => (fen().split(" ")[1] === "b" ? "black" : "white");
 
-/** Last move as [orig, dest] for chessground highlight. */
 export const lastMove = () => {
   version();
   return tree().lastMoveAt(path());
@@ -84,11 +62,6 @@ export const lastMove = () => {
 
 export { color, path, dirty, changesSinceExport, fileName, version, documentId };
 
-/**
- * WP-005: restore a tree snapshot WITHOUT rotating the document identity or clearing history.
- * This is the only restore path undo/redo may use — actions.loadPgn is a document boundary
- * (new browserDocumentId + clearHistory) and would destroy the stack mid-undo.
- */
 export function restoreSnapshotForHistory(pgn: string, nextPath: Path): void {
   batch(() => {
     setTree(GameTree.fromPgn(pgn));
@@ -97,10 +70,8 @@ export function restoreSnapshotForHistory(pgn: string, nextPath: Path): void {
   });
 }
 
-/** Module-level PGN read for history capture (avoids importing the actions object). */
 export const toPgn = () => tree().toPgn();
 
-/** Read-only handle to the tree for rendering the move list (read version() to subscribe). */
 export const currentTree = () => {
   version();
   return tree();
@@ -113,8 +84,6 @@ function replaceDocument(
   nextDocumentId: BrowserDocumentId,
   restoredRevision?: number,
 ) {
-  // Consumers derive FEN from both tree and path, so publish the replacement atomically. A shorter
-  // imported tree must never be observed with the previous document's deeper navigation path.
   batch(() => {
     setTree(nextTree);
     setPath([]);
@@ -133,7 +102,6 @@ function replaceDocument(
   });
 }
 
-/** Restore is the sole path allowed to resume an existing document identity. */
 export function restoreDocument(
   pgn: string,
   name: string | undefined,
@@ -151,11 +119,8 @@ export function restoreDocument(
 
 export const actions = {
   loadPgn(pgn: string, name?: string) {
-    // Parse before rotating identity: a failed explicit load leaves the current document intact.
     const nextTree = GameTree.fromPgn(pgn);
     replaceDocument(nextTree, name, createBrowserDocumentId());
-    // WP-005 AC-5: undo never crosses a document boundary. The previous document's entries
-    // describe a tree that no longer exists, so replacing the document discards them.
     clearHistory();
   },
 
@@ -171,20 +136,14 @@ export const actions = {
     else bump();
   },
 
-  /**
-   * WP-028 AC-3: `setPath` clears the marker for every navigation route (see its definition), so
-   * a card's `Go to line` re-sets the marker immediately after this call.
-   */
   goto(p: Path) {
     setPath(p);
   },
 
-  /** Direct access to setPath for history undo/redo. */
   setPath(p: Path) {
     setPath(p);
   },
 
-  /** Apply the canonical clone-on-write repertoire command. Chat and direct UI edits share this. */
   applyEdit(
     action: "prune" | "add" | "reorder",
     sanPath: readonly string[],
@@ -193,8 +152,6 @@ export const actions = {
   ): { ok: true; revision: number } | { ok: false; error: string } {
     if (expectedRevision != null && expectedRevision !== version())
       return { ok: false, error: "stale_revision" };
-    // WP-005: describe the branch before it is pruned — afterwards the nodes are gone. The
-    // delete confirmation and the undo toast both read this record.
     const prunedBranch = action === "prune" ? describePrunedBranch(sanPath) : undefined;
     const applyEditToTree = (): { ok: true; revision: number } | { ok: false; error: string } => {
       const result = tree().edit(action, sanPath, opts);
@@ -211,8 +168,6 @@ export const actions = {
       recordDocumentChange();
       return { ok: true, revision: version() };
     };
-    // recordMutation propagates the inner result, so a rejected edit reports failure here
-    // instead of being masked as success; it also drops the placeholder undo entry.
     return recordMutation(
       action === "prune" ? "deleteLine" : "play",
       applyEditToTree,
@@ -220,7 +175,6 @@ export const actions = {
     );
   },
 
-  /** Publish one already-validated clone as exactly one document revision. */
   applyStrategicFitSnapshot(
     nextTree: GameTree,
     nextPath: Path,
@@ -242,7 +196,6 @@ export const actions = {
     return { ok: true, revision: version() };
   },
 
-  /** Roll back a failed prepared Strategic Fit transaction without allocating a visible revision. */
   restoreStrategicFitSnapshot(
     priorTree: GameTree,
     priorPath: Path,
@@ -257,7 +210,6 @@ export const actions = {
     });
   },
 
-  /** Append a line through the same application command used by accepted chat edits. */
   appendLine(from: Path, sans: string[]) {
     const sanPath = tree().sanPathAt(from);
     return this.applyEdit("add", sanPath, { addMoves: sans });
@@ -268,13 +220,12 @@ export const actions = {
     if (p.length) setPath(p.slice(0, -1));
   },
 
-  /** Undo the current move: if at a leaf, remove that node and navigate to its parent. */
   undo() {
     const p = path();
     if (!p.length) return;
     const node = tree().nodeAt(p);
     if (node.children.length) {
-      setPath(p.slice(0, -1)); // not a leaf — just step back rather than delete a subtree
+      setPath(p.slice(0, -1));
       return;
     }
     const parent = tree().nodeAt(p.slice(0, -1));

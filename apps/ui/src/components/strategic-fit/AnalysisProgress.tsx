@@ -75,7 +75,6 @@ function phaseStatusLabel(
 
 export interface AnalysisProgressProps {
   readonly state: StrategicFitLifecycleSnapshot;
-  /** Completed-state disclosure. Active analysis always renders full size regardless. */
   readonly collapsed?: boolean;
   readonly onToggle?: () => void;
 }

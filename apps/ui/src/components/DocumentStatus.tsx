@@ -1,14 +1,3 @@
-/**
- * WP-018 DocumentStatus — visible indicators for file linkage, unexported changes, and browser
- * autosave.
- *
- * Two indicators, not one: the file indicator names the linked file and how many changes have not
- * been exported to it; the browser indicator says the working copy is stored locally and when it
- * was last autosaved. `dirty()` keeps its existing meaning — this adds a second concept.
- *
- * Every value is read through an accessor inside JSX so it stays reactive; reading a signal once
- * during setup would freeze the indicator at its mount-time value.
- */
 import { Show, createEffect, createMemo } from "solid-js";
 import { changesSinceExport, dirty, fileName, version } from "../store/game";
 import { announce } from "../store/announce";
@@ -20,8 +9,6 @@ export default function DocumentStatus() {
   const unexported = createMemo(() => changesSinceExport());
   const linkedFile = createMemo(() => fileName());
 
-  // AC-7: one polite announcement per change in the count, never per keystroke. Seeded on the
-  // first run so mounting an already-dirty document does not announce a change nobody made.
   let announcedCount: number | null = null;
   createEffect(() => {
     const count = unexported();
@@ -41,9 +28,6 @@ export default function DocumentStatus() {
     );
   });
 
-  // Nothing to report before the first autosave on an unlinked, unmodified document — and an
-  // empty status still occupies a flex slot plus its gap, which is enough to push the phone tab
-  // bar past the fold on a short viewport.
   const hasStatus = () => Boolean(linkedFile()) || dirty() || lastAutosaveAt() !== null;
 
   const autosavedAt = () => {
@@ -53,13 +37,6 @@ export default function DocumentStatus() {
       : new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  /**
-   * One phrase, not two clipped ones. The top bar had a "Stored in this browser · autosaved HH:MM"
-   * line, a "File: <name> — N changes not exported" line, and a third copy of the filename, all
-   * competing for one ellipsised strip. The state everything else hangs off is whether there is
-   * unexported work; the storage location and the autosave clock are reassurance, so they move to
-   * the tooltip where they cost no width.
-   */
   const state = () => {
     if (!linkedFile()) return dirty() ? "unlinked" : "browser";
     return unexported() > 0 ? "unexported" : "exported";

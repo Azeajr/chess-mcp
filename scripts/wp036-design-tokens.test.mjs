@@ -11,11 +11,6 @@ const tokenEnd = coreSource.indexOf("\n}", tokenRoot) + 2;
 const tokenSection = coreSource.slice(tokenStart, tokenEnd);
 const tokenBlock = tokenSection.slice(tokenSection.indexOf("{") + 1, -1);
 
-/**
- * AC-3 and AC-4 scan declarations, not prose. A comment may legitimately name a color or a
- * layer — the WebKit `#c0c0c0` default that the dialog button rules exist to override is the
- * standing example — and matching inside one reports a violation that no rule can fix.
- */
 const withoutComments = (css) => css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
 
 test("WP-036 AC-1 documents tokens for all nine design categories", () => {

@@ -94,8 +94,6 @@ test("WP-003 AC-2 AC-3 saves unexported work before starting a new document", as
     )
     .toEqual([changed]);
   await expect(dialog).toHaveCount(0);
-  // Continuing captures a before-replace snapshot (WP-004) before the resume runs, so the
-  // replacement lands a turn of the event loop after the dialog closes.
   await expect.poll(() => currentPgn(page)).not.toBe(changed);
 });
 
@@ -194,7 +192,6 @@ test("WP-003 AC-4 AC-7 guards Reopen and offers Open PGN after permission is den
   await expect(dialog).toBeVisible();
   await dialog.getByRole("button", { name: "Continue" }).click();
 
-  // Scoped to the visible file notice: WP-009's live region is also role="status".
   const notice = page.locator(".file-notice");
   await expect(notice).toContainText(
     "Permission to reopen denied-repertoire.pgn was denied. Choose Open PGN",
@@ -215,7 +212,6 @@ test("WP-003 AC-6 names the downloaded file when save cannot re-link it", async 
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   expect((await download).suggestedFilename()).toBe("rich-repertoire.pgn");
-  // Scoped to the visible file notice: WP-009's live region is also role="status".
   await expect(page.locator(".file-notice")).toContainText(
     "Downloaded rich-repertoire.pgn. This browser cannot re-link that file for future saves.",
   );
@@ -262,8 +258,6 @@ test("WP-004 AC-1 AC-2 recovers a replaced document as a new identity", async ({
 });
 
 test("UX-005 mutation application, undo, and redo preserve exact PGN", async ({ page }) => {
-  // Own the precondition instead of relying on openApp's large default repertoire, where
-  // d4 Nf6 -> Nf3 already existed and the former test's "mutation" changed nothing.
   await openApp(page, { pgn: `[Result "*"]\n\n1. d4 d5 *\n` });
   const original = await currentPgn(page);
   const mutation = await page.evaluate(() => {
@@ -288,8 +282,6 @@ test("UX-005 mutation application, undo, and redo preserve exact PGN", async ({ 
   expect(await currentPgn(page)).toBe(original);
   await page.keyboard.press("Control+Shift+z");
   expect(await currentPgn(page)).toBe(mutated);
-  // F4: redo() used to push an entry without `committed`, so this second undo silently did
-  // nothing even though the first undo and redo both appeared to work.
   await page.keyboard.press("Control+z");
   expect(await currentPgn(page)).toBe(original);
   await page.keyboard.press("Control+Shift+z");

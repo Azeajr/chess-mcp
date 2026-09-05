@@ -432,12 +432,6 @@ test("browser training state invalidates metrics only when observed mastery chan
   assert.equal(subject.performance().attempts.length, 1);
 });
 
-/**
- * The drill surface must never report recall for a drill that was only created. Registration and
- * attempt are deliberately separate — registration establishes an explicitly untrained target, and
- * only a move the user actually played may supply recall and response-time evidence — so creating
- * a training item has to leave the attempt log empty and the target untrained.
- */
 test("creating a training item registers targets but records no attempt", () => {
   const subject = fixture();
   const created = subject.state.create({
@@ -459,7 +453,6 @@ test("creating a training item registers targets but records no attempt", () => 
   );
 });
 
-/** A correct drill move and a wrong one must be distinguishable in the recorded evidence. */
 test("a recalled and a missed drill attempt record different evidence", () => {
   const subject = fixture();
   subject.state.create({
@@ -500,7 +493,6 @@ test("a recalled and a missed drill attempt record different evidence", () => {
   assert.equal(after?.recall_rate, 0.5);
 });
 
-/** An attempt naming a target that was never registered is refused rather than half-recorded. */
 test("an attempt against an unregistered target is rejected", () => {
   const subject = fixture();
   const rejected = subject.performanceState.recordAttempt({

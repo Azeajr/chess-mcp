@@ -1,7 +1,3 @@
-/**
- * Lichess tablebase lookup (port of the Python tablebase_lookup tool). Exact result for
- * positions with ≤7 pieces, or null on a miss / offline / too many pieces.
- */
 import { fetchJson } from "./apiclient.js";
 
 export interface TablebaseResult {
@@ -10,7 +6,6 @@ export interface TablebaseResult {
   dtm: number | null;
   checkmate: boolean;
   stalemate: boolean;
-  /** best moves, sorted by the API (UCI + resulting category). */
   moves: { uci: string; san: string; category: string; dtz: number | null }[];
 }
 

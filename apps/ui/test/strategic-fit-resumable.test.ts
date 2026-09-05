@@ -72,7 +72,6 @@ const checkpointsOf = (responses: readonly StrategicFitWorkerResponse[]) =>
 const recoveryOf = (responses: readonly StrategicFitWorkerResponse[]) =>
   responses.flatMap((response) => (response.type === "recovery" ? [response.recovery] : []))[0];
 
-/** A checkpoint as a reload leaves it: written by a worker that is gone, read as untrusted data. */
 function storedCheckpoint(
   options: AnalyzeStrategicFitOptions = OPTIONS,
   contentKey = PGN,
@@ -122,7 +121,6 @@ test("the worker checkpoints each completed stage of a job it is running", () =>
   assert.equal(checkpoints[0]?.compatibility.repertoire_revision, "revision:resumable");
   assert.equal(new Set(checkpoints.map((checkpoint) => checkpoint.job_id)).size, 1);
   assert.equal(recoveryOf(responses)?.state, "cold");
-  // A checkpoint is job state, not a report: nothing in it can stand in for findings.
   assert.equal("findings" in (checkpoints.at(-1) as unknown as Record<string, unknown>), false);
 });
 
@@ -130,7 +128,6 @@ test("a fresh worker resumes a compatible checkpoint and returns the cold result
   const cold = runThroughHandler().find((response) => response.type === "result");
   assert.ok(cold && cold.type === "result");
 
-  // The reload boundary: a new handler with an empty index, given only the stored record.
   const responses = runThroughHandler(storedCheckpoint(), "request:resumed");
   const recovery = recoveryOf(responses);
   assert.equal(recovery?.state, "resumed");
@@ -395,10 +392,8 @@ test("a reload resumes the interrupted job from its stored checkpoint", async ()
   const interrupted = checkpointingCache(persistence, { fail: true });
   await assert.rejects(interrupted.cache.getReport(PGN, OPTIONS), /fixture interruption/);
   await interrupted.port.settled();
-  // A failure the host observes is a decision to stop, so it drops its own checkpoint.
   assert.equal(records.size, 0);
 
-  // A reload is different: the job never settles, so the record written mid-run survives the page.
   records.set(STRATEGIC_FIT_CHECKPOINT_KEY, storedCheckpoint());
   const reloaded = checkpointingCache(persistence);
   const report = await reloaded.cache.getReport(PGN, OPTIONS);

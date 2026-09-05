@@ -217,7 +217,6 @@ test("unsafe blocked route enumeration withholds the incomplete-branch sentinel"
       value: "Unavailable",
       report_value: "",
       state: "unavailable",
-      // WP-034 renamed this user-facing reason; the underlying unavailable state is unchanged.
       reason:
         "Incomplete-branch count is unavailable because the evidence check could not enumerate routes safely.",
       review_filter: null,

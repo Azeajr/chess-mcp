@@ -1,5 +1,3 @@
-// Engine-free unit tests for the P5-P8 perf items and T5-T7 tools (mock engine where needed).
-// Run: node --import tsx apps/mcp-server/test/perftools.mjs   (needs chess-tools dist built)
 import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { makeUci } from "chessops/util";
@@ -20,7 +18,6 @@ const ok = (c, m) => (c ? pass++ : (fail++, console.log("FAIL:", m)));
 const posFromFen = (fen) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
 const legalUcis = (fen) => enumerateLegal(posFromFen(fen)).map(({ move }) => makeUci(move));
 
-// --- P6: someLegal early-exit parity with enumerateLegal ---
 for (const fen of [
   "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
   "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
@@ -38,7 +35,6 @@ for (const fen of [
     );
 }
 
-// --- P8: structural clone preserves data; edits stay clone-on-write ---
 {
   const pgn = '[White "A"]\n[Black "B"]\n\n1. e4 {main move} e5 $1 (1... c5 {sicilian}) 2. Nf3 *';
   const tree = GameTree.fromPgn(pgn);
@@ -60,11 +56,8 @@ for (const fen of [
   );
 }
 
-// --- P5: prune-scan pre-pass cache — chunked calls match a full call; appendSan invalidates ---
 {
-  // Two lines transposing at ply 4: A's Nc3 lands in B's prep and B's Nf3 lands in A's.
   const tree = GameTree.fromPgn("1. d4 Nf6 (1... e6 2. c4 Nf6 3. Nc3) 2. c4 e6 3. Nf3 *");
-  // Mock engine: every legal move, flat cp 50 — everything is near-best, so any transposer is found.
   const analyse = async (fen) => legalUcis(fen).map((uci) => ({ uci, cp: 50, mate: null }));
 
   const full = await tree.pruneTranspositions("white", {}, analyse);
@@ -94,16 +87,12 @@ for (const fen of [
     "whole-tree estimate identical on a cursor chunk (P5 cache serves it)",
   );
 
-  tree.appendSan([], "e4"); // new root branch → third leaf; the cached pre-pass must be dropped
+  tree.appendSan([], "e4");
   const after = await tree.pruneTranspositions("white", {}, analyse);
   ok(after.totalLeaves === 3, "appendSan invalidates the P5 pre-pass cache");
 }
 
-// --- T7: walk reports EVERY departure (continues past the first by transposition key) ---
 {
-  // White rep: 1. c4 e6 2. d4 d5 3. Nc3. Game: 1. d4 d5 2. c4 e6 3. Nf3 — deviation at move 1
-  // (played d4, prescribed c4), then the game TRANSPOSES back into prep after 2... e6, where
-  // 3. Nf3 deviates again (prescribed Nc3). The old first-departure walk saw only the first.
   const rep = GameTree.fromPgn("1. c4 e6 2. d4 d5 3. Nc3 *");
   const map = rep.moveMap();
   const w = walkGameVsRepertoire(map, "white", "1. d4 d5 2. c4 e6 3. Nf3 Nf6 *");
@@ -118,7 +107,6 @@ for (const fen of [
   );
   ok(w.player_deviations[1]?.ply === 5, "post-transposition departure carries its ply");
 
-  // Opponent novelty still reported on a clean game.
   const w2 = walkGameVsRepertoire(map, "white", "1. c4 c5 *");
   ok(
     w2.uncovered_opponents.length === 1 && w2.uncovered_opponents[0].played === "c5",
@@ -127,9 +115,8 @@ for (const fen of [
   ok(w2.in_book_plies === 1, "in-book plies before the novelty counted");
 }
 
-// --- T5: structural position search over leaves ---
 {
-  const tree = GameTree.fromPgn("1. e4 e6 2. d4 d5 3. e5 (3. exd5 exd5) *"); // French advance + exchange
+  const tree = GameTree.fromPgn("1. e4 e6 2. d4 d5 3. e5 (3. exd5 exd5) *");
   const leaves = tree
     .leaves()
     .map((l) => ({ path: l.path, board: l.pos.board, fen: makeFen(l.pos.toSetup()) }));
@@ -140,7 +127,6 @@ for (const fen of [
     "case-insensitive named-structure query hits the advance line",
   );
   const locked = searchStructures(leaves, "white", { center: "locked" });
-  // Both leaves lock the d-file pawn pair; the advance line additionally carries the French label.
   ok(
     locked.length === 2 && locked.some((l) => l.structure_class === "French"),
     "center query returns classifier context",
@@ -155,14 +141,9 @@ for (const fen of [
   );
 }
 
-// --- T6: annotated repertoire export (mock engine) ---
 {
   const tree = GameTree.fromPgn("1. e4 e5 2. Nf3 *");
   const sourcePgn = tree.toPgn();
-  // Mock: white-to-move multipv → a3 (+200) / h3 (0); black-to-move multipv → a6 (-200 white-POV,
-  // i.e. +200 mover) / h6 (0). Single-PV after-position probes → flat 0. So every prescribed move
-  // audits as a 200cp mistake, every your-turn node is a 200cp-margin only-move, and the covered
-  // e5 leaves a6 as a high-severity gap.
   const analyse = async (fen, mpv, depth) => {
     if (mpv === 1) return [{ uci: "", cp: 0, mate: null, depth, pv: [] }];
     const turn = fen.split(" ")[1];

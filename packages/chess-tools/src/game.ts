@@ -1,9 +1,3 @@
-/**
- * Game (single-line) walking + move classification — the engine-free half of analyze_game /
- * get_game_summary / export_annotated_pgn. The engine pass (evaluating each position) is the
- * caller's; these provide the mainline positions and the cp-loss → label/accuracy mapping
- * (exact thresholds from the Python server).
- */
 import { Chess } from "chessops/chess";
 import { makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
@@ -22,7 +16,6 @@ export interface MainlineMove {
   fenAfter: string;
 }
 
-/** The mainline moves of a PGN's first game (standard start; FEN-setup games throw). */
 export function mainline(pgn: string): MainlineMove[] {
   const game = parsePgn(pgn)[0];
   if (!game) throw new Error("no game found in PGN");
@@ -49,7 +42,6 @@ export function mainline(pgn: string): MainlineMove[] {
 
 export type MoveClass = "blunder" | "mistake" | "inaccuracy" | "good";
 
-/** Classify a move by centipawn loss (blunder >200, mistake >100, inaccuracy >50, else good). */
 export function classifyCpLoss(cpLoss: number): MoveClass {
   if (cpLoss > 200) return "blunder";
   if (cpLoss > 100) return "mistake";
@@ -57,7 +49,6 @@ export function classifyCpLoss(cpLoss: number): MoveClass {
   return "good";
 }
 
-/** Per-move accuracy in [0,1] from cp loss: exp(-loss/300). Averaged → accuracy_pct. */
 export function moveAccuracy(cpLoss: number): number {
   return Math.exp(-Math.max(0, cpLoss) / 300);
 }
@@ -76,22 +67,11 @@ export interface UncoveredOpponent {
   played: string;
 }
 export interface GameWalk {
-  /** plies the game stayed in the repertoire before its first departure. */
   in_book_plies: number;
-  /** every position where the user (repertoire side) left their own prep. */
   player_deviations: PlayerDeviation[];
-  /** every position where the opponent played a move the prep doesn't cover. */
   uncovered_opponents: UncoveredOpponent[];
 }
 
-/**
- * Walk a played game's mainline against a repertoire move-map (port of walk_game_vs_repertoire).
- * Records EVERY departure, not just the first (T7): after a departure the walk continues over the
- * remaining moves, checking each position against the map by transposition key — a game that
- * leaves book at ply 6 can wander back into prep and still contain an opponent novelty at ply 14
- * the prep should learn from. `in_book_plies` stays the consecutive-from-the-start count.
- * `repColor` is the side the repertoire is for.
- */
 export function walkGameVsRepertoire(
   map: RepertoireMoveMap,
   repColor: Color,
@@ -105,7 +85,7 @@ export function walkGameVsRepertoire(
   for (const m of moves) {
     const entry = map.get(positionKey(m.fenBefore));
     if (!entry) {
-      stillInBook = false; // position not in the prep — keep walking; a transposition may re-enter it
+      stillInBook = false;
       continue;
     }
     const covered = entry.sans.includes(m.san);
@@ -133,10 +113,6 @@ export interface GameRecord {
   blunders: { move: string; classification: MoveClass }[];
 }
 
-/**
- * Aggregate per-game records by group (port of _aggregate_games). Computes avg CPL, top blunders
- * by frequency, and — when `decided` (a user POV exists) — win/draw/loss rates + worst/best group.
- */
 export function aggregateGames(records: GameRecord[], decided: boolean) {
   if (!records.length) return { total_games: 0, groups: [], worst_group: null, best_group: null };
 
@@ -197,8 +173,6 @@ export function aggregateGames(records: GameRecord[], decided: boolean) {
     })
     .sort((a, b) => b.games - a.games);
 
-  // A 1-game group must not be crowned best/worst opening; require a minimal sample before the
-  // headline pick. Per-group stats (incl. games) are still reported for every group above.
   const MIN_HEADLINE_GAMES = 3;
   let worst_group = null;
   let best_group = null;

@@ -211,12 +211,10 @@ export const BLACK_REPLACEMENT_SUBTREE = {
 export const BLACK_REPLACEMENT_OBJECTIVE_QUALITY = {
   ...version,
   state: "available",
-  /** Negative favors Black in White-POV transport. */
   white_pov_evaluation_cp: -42,
   white_pov_mate_in: null,
   white_pov_best_evaluation_cp: -50,
   white_pov_best_mate_in: null,
-  /** Positive favors this Black repertoire. */
   repertoire_pov_evaluation_cp: 42,
   repertoire_pov_mate_in: null,
   repertoire_pov_loss_from_best_cp: 8,

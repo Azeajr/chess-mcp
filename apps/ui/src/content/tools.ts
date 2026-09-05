@@ -121,11 +121,6 @@ const NAVIGATION_LABELS: Readonly<Record<string, string>> = {
   variations: "Variation",
 };
 
-/**
- * User-facing label for a navigable result row. A known payload key becomes a chess description;
- * an unknown one becomes a bare ordinal rather than being called a "Line", because the row may not
- * be a line at all and a confident wrong noun is worse than an unspecific right one.
- */
 export function navigationLabel(key: string, index: number): string {
   const normalized = key
     .trim()

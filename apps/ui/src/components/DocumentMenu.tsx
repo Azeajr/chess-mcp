@@ -1,11 +1,3 @@
-/**
- * WP-017 DocumentMenu — the Repertoire menu (DV-3).
- *
- * `Save to file` stays visible in the top bar; Open, Re-link, New, and Recover move in here.
- * Menu-button pattern: Enter/Space/ArrowDown opens, arrows and Home/End traverse, Escape closes
- * and restores focus to the trigger, `aria-expanded` reflects state. Each group carries its own
- * accessible label so the three action families are distinguishable.
- */
 import { createEffect, createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import {
   clearHandle,
@@ -72,7 +64,6 @@ export default function DocumentMenu() {
     return list;
   };
 
-  /** Entries grouped in declaration order, so each group renders once with its own label. */
   const groups = () => {
     const order: string[] = [];
     const byGroup = new Map<string, MenuEntry[]>();
@@ -146,7 +137,6 @@ export default function DocumentMenu() {
     document.removeEventListener("pointerdown", onPointerDown, true);
   });
 
-  // Roving focus: the active item owns DOM focus while the menu is open.
   createEffect(() => {
     if (!open() || !listEl) return;
     const index = activeIndex();

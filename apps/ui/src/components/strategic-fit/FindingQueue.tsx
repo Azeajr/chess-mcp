@@ -82,7 +82,6 @@ export default function FindingQueue(props: {
   const selectedFindingLabel = () =>
     state().findings.find((finding) => finding.finding_id === state().selected_finding_id)
       ?.plain_language_category ?? null;
-  /** The selection is announced with its logical position, not with the row index this page mounts. */
   const selectedAnnouncement = () => {
     const label = selectedFindingLabel();
     if (label === null) return "No finding selected.";

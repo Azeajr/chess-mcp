@@ -1,4 +1,3 @@
-/** Explicit, document-bound Strategic Fit sidecar import workflow. */
 import { createSignal } from "solid-js";
 import {
   buildRepertoireGraph,
@@ -128,8 +127,6 @@ export function createStrategicFitSidecarImportState(
         currentError = parsed;
         return parsed;
       }
-      // Browser documents are RFC UUIDs. Rejecting a forged non-UUID binding here prevents a
-      // superficially valid shared envelope from bypassing the browser's stable identity contract.
       const sourceDocumentId = normalizeBrowserDocumentId(parsed.sidecar.document_id);
       if (!sourceDocumentId) {
         const invalid: StrategicFitSidecarError = {
@@ -232,16 +229,12 @@ const browserImportState = createStrategicFitSidecarImportState({
         now: new Date().toISOString(),
       }).metadata;
     } catch {
-      // Unsupported/custom starts have no canonical graph. The sidecar remains normalized and all
-      // already-stale imported records remain stale; normal preflight will disclose the graph issue.
       return metadata;
     }
   },
   replaceMetadata: replaceStrategicFitMetadata,
   invalidateReports: invalidateCachedStrategicFitReports,
   flush: async (targetDocumentId) => {
-    // Metadata is keyed by the working-document UUID. Confirm only after both the binding and the
-    // imported record are durable, otherwise a fast reload can restore a different document key.
     await flushWorkingRepertoire();
     await flushStrategicFitMetadata(targetDocumentId);
   },

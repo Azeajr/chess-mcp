@@ -1,9 +1,3 @@
-/**
- * WP-027 AC-1: a chip above the chat input summarising what the assistant is actually told.
- *
- * The summary and the disclosure both read from `chatContextSnapshot`/`chatContextBlock` — the same
- * functions `systemMessage()` uses — so the chip cannot claim a context the prompt does not carry.
- */
 import { Show, createSignal } from "solid-js";
 import { chatContextBlock, chatContextSnapshot } from "../store/chat";
 import { CHAT_CONTEXT } from "../content/chat";

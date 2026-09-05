@@ -1,9 +1,3 @@
-/**
- * Canonical public-tool inputs for Strategic Fit.
- *
- * Hosts inject document/handle metadata and may choose a worker or in-process execution boundary,
- * but both map the same bounded JSON input into the same deterministic analyzer options here.
- */
 import type { Color } from "../congruence.js";
 import type { ExplorerDb, ExplorerRatingBucket, ExplorerSpeed } from "../explorer.js";
 import type { OpeningTable } from "../openings.js";
@@ -69,9 +63,7 @@ export interface StrategicFitToolPopularityInput {
   readonly db?: ExplorerDb;
   readonly speeds?: readonly ExplorerSpeed[];
   readonly ratings?: readonly ExplorerRatingBucket[];
-  /** Lichess uses YYYY-MM; masters uses YYYY. */
   readonly since?: string;
-  /** Lichess uses YYYY-MM; masters uses YYYY. */
   readonly until?: string;
   readonly max_positions?: number;
 }
@@ -87,11 +79,8 @@ export interface StrategicFitToolPersonalHistoryInput {
 export interface StrategicFitToolArguments {
   readonly profile?: StrategicFitToolProfileInput;
   readonly weighting?: StrategicFitToolWeightingInput;
-  /** Optional host-collected population evidence. The deterministic core never performs I/O. */
   readonly popularity?: StrategicFitToolPopularityInput;
-  /** Optional host-fetched PGNs mapped to semantic route frequency outside the analyzer. */
   readonly personal_history?: StrategicFitToolPersonalHistoryInput;
-  /** Offset or cursor paging over the immutable report; the two are mutually exclusive. */
   readonly page?: StrategicFitCursorPageInput;
   readonly sort?: StrategicFitFindingSort;
   readonly cohort_overrides?: readonly StrategicFitToolCohortOverrideInput[];
@@ -102,7 +91,6 @@ export interface StrategicFitToolArguments {
   >[];
 }
 
-/** Map the public snake-case popularity request into the host-neutral bounded collector options. */
 export function strategicPopularityOptionsFromToolArguments(
   args: StrategicFitToolArguments,
 ): StrategicPopularityCollectionOptions | null {
@@ -114,7 +102,6 @@ export function strategicPopularityOptionsFromToolArguments(
   };
 }
 
-/** Resolve the public personal-history request into one deterministic host fetch identity. */
 export function strategicPersonalHistorySourceFromToolArguments(
   args: StrategicFitToolArguments,
 ): StrategicPersonalHistorySource | null {
@@ -193,7 +180,6 @@ function withToolProvenance<T extends object>(
   };
 }
 
-/** Map validated public arguments to the shared analyzer without introducing host decisions. */
 export function strategicFitOptionsFromToolArguments(
   args: StrategicFitToolArguments,
   metadata: StrategicFitToolHostMetadata,

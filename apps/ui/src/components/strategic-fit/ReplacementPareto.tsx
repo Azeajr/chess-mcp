@@ -136,10 +136,6 @@ export interface ReplacementParetoProps {
 
 export default function ReplacementPareto(props: ReplacementParetoProps) {
   const points = () => buildReplacementParetoPoints(props.rows);
-  /**
-   * The plot is bounded even if a future budget returns many more candidates. The candidate table
-   * beside it stays complete, so a withheld point is never a withheld candidate.
-   */
   const drawn = () => boundedWindow(points(), VISUALIZATION_RENDER_LIMITS.pareto_points);
   const activate = (event: KeyboardEvent, candidateId: string) => {
     if (event.key !== "Enter" && event.key !== " ") return;

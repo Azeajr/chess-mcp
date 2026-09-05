@@ -43,11 +43,6 @@ import { countLabel, diffValue, displayValue, numbered, titleCase } from "../con
 import { errorContent } from "../content/errors";
 import { navigationLabel } from "../content/tools";
 
-/**
- * WP-026 AC-4: Retry re-issues the last direct-panel command, tracked by the command store at
- * its single dispatch point — no component-local recording to forget.
- */
-
 type Data = Record<string, unknown>;
 interface Props {
   operation: string;
@@ -185,7 +180,6 @@ function asStrategicFitReport(data: Data): StrategicFitChatReport | null {
 
 export type StrategicFitChatState = "complete" | "provisional" | "incomplete" | "blocked";
 
-/** Pure report-state projection shared by the card and behavioral tests. */
 export function strategicFitChatState(
   preflight: Pick<StrategicFitPreflight, "state">,
   findings: readonly Pick<StrategicFinding, "provisional">[],
@@ -398,7 +392,6 @@ function RetrievalFindingRow(props: { row: StrategicFitConversationFindingRow })
   );
 }
 
-/** Bounded retrieval views. They never claim more evidence than the projection actually carried. */
 function StrategicFitRetrievalResult(props: { projection: RetrievalProjection }) {
   return (
     <section
@@ -507,11 +500,6 @@ function StrategicFitRetrievalResult(props: { projection: RetrievalProjection })
   );
 }
 
-/**
- * A profile proposal is staged, not applied. The card shows the exact before/after for every
- * changed field so the user confirms values rather than a summary of them, and it states plainly
- * that nothing has been saved yet.
- */
 function StrategicFitProposalResult(props: { data: Data }) {
   const id = () => displayValue(props.data.proposal_id);
   const proposal = () => strategicFitProfileProposal(id());
@@ -592,10 +580,6 @@ function StrategicFitProposalResult(props: { data: Data }) {
   );
 }
 
-/**
- * The deterministic basis a plan may rest on. It is shown as evidence, not as a result to act on,
- * and every bound states what it withheld so a shortened list is never read as the whole of it.
- */
 function StrategicFitPlanBasisResult(props: { data: Data }) {
   const list = (key: string) => (Array.isArray(props.data[key]) ? (props.data[key] as Data[]) : []);
   const strings = (key: string) =>
@@ -655,10 +639,6 @@ function StrategicFitPlanBasisResult(props: { data: Data }) {
   );
 }
 
-/**
- * A plan card is staged, not saved. Every section shows the deterministic evidence it rests on, so
- * the user confirms supported content rather than fluent prose.
- */
 function StrategicFitPlanCardResult(props: { data: Data }) {
   const id = () => displayValue(props.data.plan_id);
   const staged = () => strategicFitPlanCard(id());
@@ -719,10 +699,6 @@ function StrategicFitPlanCardResult(props: { data: Data }) {
   );
 }
 
-/**
- * Redesign bounds, shown before they bind anything. A contradiction is presented as the question it
- * is: confirming is the user's decision, and nothing about the bounds is relaxed on their behalf.
- */
 function StrategicFitPortfolioConstraintsResult(props: { data: Data }) {
   const id = () => displayValue(props.data.constraint_set_id);
   const staged = () => strategicFitPortfolioConstraintSet(id());
@@ -792,11 +768,6 @@ function StrategicFitPortfolioConstraintsResult(props: { data: Data }) {
   );
 }
 
-/**
- * The portfolio the confirmed bounds allow. Each option is one already-generated candidate with the
- * measured value behind every bound; an empty portfolio names the bound that emptied it rather than
- * offering something the evidence never supported.
- */
 function StrategicFitPortfolioResultCard(props: { data: Data }) {
   const options = createMemo(() =>
     Array.isArray(props.data.options)
@@ -915,10 +886,6 @@ function StrategicFitPortfolioResultCard(props: { data: Data }) {
   );
 }
 
-/**
- * WP-026 AC-3 consequences sentence, derived from the staged action so a prune or reorder card
- * never claims to "add moves". Only add carries a move count; line scope follows the data.
- */
 function stagedConsequences(action: string | undefined, line: unknown): string {
   const moves = Array.isArray(line) ? (line as unknown[]).length : 0;
   const scope = moves > 0 ? "this line" : "a new line";
@@ -1032,8 +999,6 @@ function ArtifactRows(props: { data: Data }) {
 function ErrorResult(props: { data: Data }) {
   const code = () => displayValue(props.data.error ?? "command_failed");
   const content = () => errorContent(code());
-  // WP-026 AC-4: retryable failures re-run their command; token-gated ones open Settings on the
-  // token field. Both only render for codes that declare an action.
   const onRetry = () => {
     const last = lastDirectCommandRequest();
     if (last) void executeCommand(last.command, last.args);
@@ -1199,7 +1164,6 @@ const byKind: Record<string, (data: Data) => unknown> = {
   strategic_fit_portfolio: (data) => <StrategicFitPortfolioResultCard data={data} />,
 };
 
-/** Typed renderer registry: operation overrides result kind, then navigation is the data fallback. */
 export default function ToolResult(props: Props) {
   const data = createMemo(() => parse(props.content));
   const renderer = (value: Data) =>

@@ -1,10 +1,3 @@
-/**
- * On-demand repertoire gap scan — a thin wrapper over the shared chess-tools
- * `find_repertoire_gaps` browser application command. This store only adapts the semantic result
- * to UI view models and drives `suggest_gap_fills` for an individual row.
- *
- * Engine-heavy, so it runs only when the user clicks Scan, is cancellable, and reports progress.
- */
 import { createSignal } from "solid-js";
 import { type Severity, type Path } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
@@ -22,7 +15,6 @@ export interface Gap {
   path: Path;
   sanPath: string[];
   uncoveredMove: string;
-  /** white-POV cp after the move (null if mate). */
   evalCp: number | null;
   mate: number | null;
   severity: Severity;
@@ -30,36 +22,24 @@ export interface Gap {
 export interface CoveredGap {
   path: Path;
   uncoveredMove: string;
-  /** the prepared line this reply transposes into (shallowest SAN path). */
   joinsPath: string[];
 }
 
-const MAX_POSITIONS = 12; // decision points scanned (shallowest first)
+const MAX_POSITIONS = 12;
 const MIN_SEVERITY: Severity = "medium";
 const LIMIT = 12;
 
 const [gaps, setGaps] = createSignal<Gap[]>([]);
 const [covered, setCovered] = createSignal<CoveredGap[]>([]);
 const [scanError, setScanError] = createSignal<string | null>(null);
-/**
- * WP-029 AC-1: whether a scan has completed in this session.
- *
- * Empty gaps alone cannot distinguish "not scanned yet" from "scanned and found nothing" — that
- * conflation is the audit finding. The panel needs this to tell those two states apart.
- */
 const [scanCompleted, setScanCompleted] = createSignal(false);
 export { gaps, covered, scanError, scanCompleted };
 
-/** WP-029 AC-2 test seam: put the scan into its failed state without an offline engine. */
 export function setScanErrorForTesting(message: string) {
   assertTestOnly();
   setScanError(message);
 }
 
-/**
- * WP-010: the scan's running state lives in the operation registry. The gaps operation is the
- * one running entry of kind "gaps-scan"; its progress rides the registry's done/total.
- */
 export const scanning = () =>
   runningOperations().some((operation) => operation.kind === "gaps-scan");
 export const progress = (): { done: number; total: number } | null => {
@@ -70,26 +50,18 @@ export const progress = (): { done: number; total: number } | null => {
   return operation ? { done: operation.done, total: operation.total } : null;
 };
 
-// --- per-gap fill suggestions (on-demand: best-eval + best-fit reply to the uncovered move) ---
-
-/** One suggested reply + the full line it stages (SAN, from the gap node). */
 export interface FillOption {
   reply: string;
-  /** the complete staged SAN line from the gap node: [uncoveredMove, reply, …engine tail]. */
   line: string[];
-  /** mover-POV cp after the reply (null if mate). */
   evalCp: number | null;
-  /** structural fit with the repertoire (blended structure+center+themes profile, 0..1). */
   fit: number;
 }
 export interface GapFill {
   bestEval: FillOption;
-  /** null when the best-fit reply is the same move as best-eval (deduped → single badge). */
   bestFit: FillOption | null;
 }
 type FillState = "loading" | { error: string } | GapFill;
 
-/** Stable identity for a gap row (path + the specific uncovered move). */
 export function gapKey(g: Gap): string {
   return `${g.path.join(",")}|${g.uncoveredMove}`;
 }
@@ -97,19 +69,12 @@ export function gapKey(g: Gap): string {
 const [fills, setFills] = createSignal<Record<string, FillState>>({});
 export { fills };
 
-// Generation token bumped ONLY on rescan, so a fill in flight from a previous scan is discarded.
-// It is NOT bumped per click — multiple gaps fill concurrently, each updating its own row.
 let fillGen = 0;
 
-/**
- * Suggest a line that fills `g`. Anchor is the position AFTER the gap's specific uncovered move (not
- * the decision-node FEN — that would suggest a reply to the engine's best opponent move instead).
- * Returns the user's best-eval and best-fit replies, deduped.
- */
 export async function fillGap(g: Gap) {
   const key = gapKey(g);
   if (fills()[key] === "loading") return;
-  const gen = fillGen; // capture (do NOT bump) — only a rescan invalidates this fill
+  const gen = fillGen;
   setFills((p) => ({ ...p, [key]: "loading" }));
 
   try {
@@ -128,7 +93,7 @@ export async function fillGap(g: Gap) {
             fit: number;
           }[];
         };
-    if (gen !== fillGen) return; // superseded by a rescan
+    if (gen !== fillGen) return;
     if ("error" in res) {
       setFills((p) => ({
         ...p,
@@ -178,7 +143,7 @@ export async function scanGaps() {
   setGaps([]);
   setCovered([]);
   setFills({});
-  fillGen++; // discard any in-flight fill from the previous scan
+  fillGen++;
   const id = registerOperation({
     kind: "gaps-scan",
     label: "Gaps scan",
@@ -247,9 +212,6 @@ export async function scanGaps() {
   } finally {
     if (scanController === controller) {
       scanController = null;
-      // The cancelled path already settled through cancelScan; only an unobserved settle
-      // (completed or failed) lands here. scanError() is read once as a plain value: this
-      // finally block runs outside any tracked scope.
       const failed = scanError() !== null;
       const opId = scanOperationId;
       if (typeof opId === "string") {

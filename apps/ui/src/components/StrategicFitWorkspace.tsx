@@ -101,23 +101,11 @@ export default function StrategicFitWorkspace() {
       lifecycle.status === "completed" ? (lifecycle.current_result?.report_id ?? null) : null,
     );
   });
-  /** Unresolved work left in the current report, shown on the Findings stage so the queue's size
-   * is legible from any stage. Null while there is no completed report to count. */
   const unresolvedCount = () => {
     const lifecycle = strategicFitLifecycle();
     const result = lifecycle.status === "completed" ? lifecycle.current_result : null;
     return result ? strategicFitFindingResolutionUnresolvedCount(result.result) : null;
   };
-  /**
-   * What the Resolution stage's forward step walks through: still-unresolved findings, in the sort
-   * and filters the reader chose, minus the one they are looking at.
-   *
-   * Scoped to `filtered_findings` rather than the whole report on purpose — a reader who narrowed
-   * the queue to "Review now" is working that subset, and a next-step that jumped outside it would
-   * silently widen the job they signed up for. The current selection is excluded by identity
-   * because the button also renders before a decision is saved, when this finding is still
-   * unresolved and would otherwise be offered as its own successor.
-   */
   const remainingUnresolved = () => {
     const selected = strategicFitFindingQueue.snapshot().selected_finding_id;
     return strategicFitFindingQueue
@@ -136,11 +124,6 @@ export default function StrategicFitWorkspace() {
       ? lifecycle.current_result.result
       : null;
   };
-  /**
-   * WP-031 AC-1/AC-4: the preflight payload behind the terminal state. Sourced from the completed
-   * result rather than re-derived, so the counts the terminal state prints are the same ones
-   * `PreflightResults` shows above it.
-   */
   const insufficientEvidencePreflight = () =>
     strategicFitLifecycle().current_result?.result.preflight ?? null;
   const currentQueueIntent = () => {
@@ -206,10 +189,6 @@ export default function StrategicFitWorkspace() {
           finding,
         };
   };
-  /**
-   * WP-033 AC-3: the stale case is rendered once, by the dedicated blocked alert in the resolution
-   * pane. This fallback therefore reports the ordinary region state and does not restate it.
-   */
   const resolutionFallbackState = (): StrategicFitWorkspaceRegionState =>
     strategicFitWorkspaceRegions().resolution;
   const resolveCurrentEvidenceLine = (
@@ -266,11 +245,6 @@ export default function StrategicFitWorkspace() {
       dialog.querySelector<HTMLElement>("#strategic-fit-pane-findings")?.focus();
     });
   };
-  /**
-   * The report retains route identities but not the decisions between them, so the flow needs the
-   * canonical graph of the working tree. It is built only while a completed report is displayed,
-   * and the flow itself rejects it whenever the revisions disagree.
-   */
   const decisionFlowGraph = createMemo(() => {
     if (!currentOverview()) return null;
     try {
@@ -337,10 +311,6 @@ export default function StrategicFitWorkspace() {
     updateStageSemantics();
     compactQuery.addEventListener("change", updateStageSemantics);
 
-    /**
-     * Task 10.4 print/export. Printing must not silently drop the rows a render cap withheld, so
-     * the browser's own print flow turns on the same complete-list mode the button exposes.
-     */
     const beforePrint = () => setStrategicFitPrintExportMode(true);
     const afterPrint = () => setStrategicFitPrintExportMode(false);
     window.addEventListener("beforeprint", beforePrint);
@@ -503,8 +473,6 @@ export default function StrategicFitWorkspace() {
                     >
                       <PanelHeader
                         class="strategic-fit-pane-heading"
-                        /* Not "Overview": the stage nav directly above already says that, and a
-                           heading that repeats its own tab teaches the reader nothing. */
                         kicker="Report"
                         title="Strategic map"
                         titleId="strategic-fit-pane-overview-title"

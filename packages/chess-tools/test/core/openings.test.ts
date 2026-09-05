@@ -11,7 +11,6 @@ import {
 } from "../../src/index.ts";
 import { AFTER_E4_E5_FEN, AFTER_E4_FEN, START_FEN } from "./fixtures.ts";
 
-/** A two-entry table covering 1. e4 and 1. e4 e5, keyed exactly as the generator keys them. */
 function openingTable(): OpeningTable {
   return parseOpeningsTsv(
     [
@@ -45,7 +44,6 @@ test("identifyAt names the position it is given and nothing else", () => {
   assert.equal(identifyAt(table, START_FEN), null, "the start position is not in this table");
 });
 
-/** The standard rule is walk-forward, last match wins — the deepest name, not the first. */
 test("identifyDeepest returns the deepest name the mainline reaches, with its ply", () => {
   const table = openingTable();
   const hit = identifyDeepest(table, '[Event "T"]\n\n1. e4 e5 2. Nf3 *\n');
@@ -67,7 +65,6 @@ test("identifyDeepest returns null for a PGN with no game in it", () => {
   assert.equal(identifyDeepest(openingTable(), ""), null);
 });
 
-/** Only the mainline is walked; a name reachable solely through a variation must not be reported. */
 test("identifyDeepest follows the mainline and ignores variations", () => {
   const table = parseOpeningsTsv(`${positionKey(AFTER_E4_FEN)}\tB00\tKing's Pawn`);
   assert.equal(identifyDeepest(table, '[Event "T"]\n\n1. d4 (1. e4) 1... d5 *\n'), null);
@@ -84,7 +81,6 @@ test("identifyDeepestFromMoves gives the same answer as identifyDeepest for the 
 
 test("identifyDeepestFromMoves stops at the first unplayable SAN and keeps what it found", () => {
   const table = openingTable();
-  // e4 is named; the illegal third move ends the walk without discarding the earlier hit.
   assert.deepEqual(identifyDeepestFromMoves(table, ["e4", "e5", "Qxq9"]), {
     eco: "C20",
     name: "King's Pawn Game",

@@ -1,17 +1,3 @@
-/**
- * Node-side Stockfish. Primary path (P1): a pool of `stockfish` npm wasm CHILD PROCESSES speaking
- * plain UCI over stdio — parallel searches, per-child wasm heaps, and MCP's JSON-RPC stdout is
- * never shared with engine output. Fallback path (spawn-restricted environments,
- * ENGINE_POOL_SIZE=0): the package's in-process Node loader, with two quirks handled here:
- *   1. Commands go through engine.sendCommand (not postMessage).
- *   2. The build emits UCI output through console.log (emscripten binds `out` to it at init).
- *      We override console.log BEFORE init so that output is captured — and, critically, kept
- *      off real stdout. MCP writes via process.stdout.write and our own logging uses
- *      console.error, so neither is affected.
- *
- * White-POV normalised scores — same contract as the browser engine. The eval cache + in-flight
- * dedupe front both paths; searches are parallel in pool mode, serialized in fallback mode.
- */
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { readFileSync } from "node:fs";
@@ -26,29 +12,11 @@ export interface MultiLine {
   cp: number | null;
   mate: number | null;
   depth: number;
-  /** full principal variation, UCI moves. */
   pv: string[];
 }
 
-/**
- * In-process eval cache. Key is transposition-friendly (P4): while the halfmove clock is below
- * HALFMOVE_EXACT the key is the first four FEN fields (placement+turn+castling+ep — the same rule
- * as chess-tools' positionKey), so the same position reached by a different move order hits; in
- * opening trees that is the common case. At clock >= HALFMOVE_EXACT the 50-move rule genuinely
- * changes the eval within search horizon, so the full FEN (clocks included) keys exactly. Depth is
- * a *compared value*, not part of the key: a result computed to depth >= the request satisfies
- * that request, so we serve it. FIFO eviction (Map preserves insertion order) at MAX_CACHE.
- * Exported for direct unit testing (hit / depth-miss / eviction) without touching the engine.
- *
- * Persistence (P3): write-through to an append-only JSONL file, loaded at boot, so a new session
- * doesn't re-search the repertoire it analysed yesterday. Evals are position-pure and the
- * depth-reuse rule makes stale-by-depth impossible, so entries never need invalidation. All disk
- * I/O is best-effort: any failure leaves the cache memory-only. `EVAL_CACHE_DIR` overrides the
- * directory (default `$XDG_CACHE_HOME/chess-mcp` or `~/.cache/chess-mcp`); `0` disables.
- */
 const MAX_CACHE = 1000;
 const HALFMOVE_EXACT = 50;
-// Highest MultiPV any tool requests (suggest_* pool) — bounds the cross-multipv cache probe.
 const MULTIPV_MAX = 10;
 
 const PERSIST_FILE = (() => {
@@ -58,8 +26,6 @@ const PERSIST_FILE = (() => {
   return dir === "0" ? null : join(dir, "evals.jsonl");
 })();
 
-// Serialize all file writes through one chain: appends never interleave, and a compaction
-// rewrite can't race an append. First link creates the cache dir.
 let writeQueue: Promise<unknown> | null = null;
 function queueWrite(fn: () => Promise<unknown>): Promise<void> {
   if (!PERSIST_FILE) return Promise.resolve();
@@ -80,7 +46,6 @@ function persistPut(key: string, entry: CacheEntry): void {
   );
 }
 
-/** Rewrite the JSONL file to exactly the current store (compaction after append-only growth). */
 function persistCompact(store: Map<string, CacheEntry>): void {
   if (!PERSIST_FILE) return;
   const body = [...store].map(([k, v]) => JSON.stringify({ k, d: v.depth, l: v.lines })).join("\n");
@@ -97,7 +62,6 @@ function loadPersisted(store: Map<string, CacheEntry>): void {
       try {
         const e = JSON.parse(line) as { k?: unknown; d?: unknown; l?: unknown };
         if (typeof e.k !== "string" || typeof e.d !== "number" || !Array.isArray(e.l)) continue;
-        // Delete-then-set so a later (newer) line for the same key takes the newer FIFO slot.
         store.delete(e.k);
         store.set(e.k, { depth: e.d, lines: e.l as MultiLine[] });
       } catch {
@@ -122,13 +86,9 @@ export const evalCache = {
     const pos = Number(f[4]) < HALFMOVE_EXACT ? f.slice(0, 4).join(" ") : fen;
     return `${pos}|${multipv}`;
   },
-  /** Stored lines iff present and computed to >= depth; else null (miss). */
   get(fen: string, multipv: number, depth: number): MultiLine[] | null {
     const hit = this.store.get(this.key(fen, multipv));
     if (hit && hit.depth >= depth) return hit.lines;
-    // Cross-multipv serve: a stored multipv-N result truncated to its top k IS the multipv-k
-    // answer at that depth (the lines are the engine's ranking either way) — so a gap scan's
-    // multipv-4 entry serves a later multipv-1/2 request at the same position.
     for (let m = multipv + 1; m <= MULTIPV_MAX; m++) {
       const wider = this.store.get(this.key(fen, m));
       if (wider && wider.depth >= depth) return wider.lines.slice(0, multipv);
@@ -145,15 +105,12 @@ export const evalCache = {
     }
     persistPut(key, entry);
   },
-  /** Clears memory only; the disk file is left for the next boot (test hook — see cache.mjs). */
   clear(): void {
     this.store.clear();
   },
-  /** Resolves when every queued disk write has settled (test hook). */
   flush(): Promise<void> {
     return Promise.resolve(writeQueue).then(() => undefined);
   },
-  /** Drops memory and re-reads the JSONL file — exercises the boot load path (test hook). */
   reload(): void {
     this.store.clear();
     loadPersisted(this.store);
@@ -162,20 +119,6 @@ export const evalCache = {
 
 loadPersisted(evalCache.store);
 
-// --- engine pool (P1) ---------------------------------------------------------------------------
-//
-// N Stockfish child processes speaking plain UCI over stdio. child_process, NOT worker_threads:
-// the emscripten build's UMD wrapper treats a node worker_thread as a WEB worker (`!isMainThread`
-// selects its `self.location` branch), so requiring it there leaves exports empty — but run
-// directly under node it has a first-class CLI mode (readline on stdin, output via console.log).
-// Children give true OS parallelism, per-child wasm heaps, and free stdout purity: each child's
-// stdout is a pipe we consume; MCP JSON-RPC on OUR stdout is untouched.
-//
-// If the first child fails to spawn (restricted environments), we fall back to the old in-process
-// single engine (require("stockfish") + console.log capture), serialized as before. Both paths sit
-// behind UciEndpoint so the search/parse/watchdog code is shared.
-
-/** Minimal UCI transport: pool child stdio or the in-process emscripten engine. */
 interface UciEndpoint {
   send: (cmd: string) => void;
   setHandler: (h: ((line: string) => void) | null) => void;
@@ -185,24 +128,14 @@ const WATCHDOG_MS = 30000;
 const DEEP_WATCHDOG_MS = 60000;
 const GRACE_MS = 2000;
 const BOOT_MS = 15000;
-// Consecutive failed (re)spawns before the pool stops trying (prevents a spawn storm).
 const MAX_BOOT_FAILURES = 2;
 
-// ENGINE_POOL_SIZE: 0 forces the in-process fallback (debug knob); otherwise clamped 1-8.
-// Default caps at 4 — each child carries a node runtime + wasm heap, and >4 rarely helps
-// depth-20 opening searches.
 const POOL_SIZE = (() => {
   const env = Number(process.env.ENGINE_POOL_SIZE);
   if (Number.isFinite(env)) return env <= 0 ? 0 : Math.min(8, Math.floor(env));
   return Math.min(availableParallelism(), 4);
 })();
 
-/**
- * One search on an endpoint. Watchdog is stop-then-grace (the browser fix, mirrored — closes R1):
- * on timeout send `stop` and resolve on the imminent bestmove with whatever depth was reached;
- * only a truly hung engine trips the grace timer (→ null). `stopped` results are returned but
- * never cached — their reached depth is below what the cache key would claim.
- */
 type SearchOutcome = { lines: MultiLine[]; stopped: boolean } | null;
 
 function runSearch(
@@ -256,22 +189,16 @@ function runSearch(
         });
       }
     });
-    // multipv is a clamped integer (zod min/max); fen is always either chessops-generated
-    // (makeFen) or validateFen-gated at the tool boundary — validateFen rejects newlines/garbage,
-    // so no caller string can inject extra UCI commands through either interpolation.
     ep.send(`setoption name MultiPV value ${multipv}`);
     ep.send(`position fen ${fen}`);
     ep.send(movetime != null ? `go movetime ${movetime}` : `go depth ${depth}`);
   });
 }
 
-// --- pool children ---
-
 interface PoolChild {
   ep: UciEndpoint;
   child: ChildProcess;
   dead: boolean;
-  /** resolves when the process exits (races the in-flight search on a crash). */
   exited: Promise<void>;
 }
 
@@ -283,7 +210,6 @@ function enginePath(): string {
   );
 }
 
-/** Spawn + UCI handshake (uci → uciok, ucinewgame once per child — P2 warmth — isready → readyok). */
 function spawnChild(): Promise<PoolChild | null> {
   return new Promise((resolve) => {
     let child: ChildProcess;
@@ -334,7 +260,7 @@ function spawnChild(): Promise<PoolChild | null> {
       clearTimeout(boot);
       pc.dead = true;
       exitResolve();
-      resolve(null); // no-op if the handshake already resolved
+      resolve(null);
     });
     handler = (line) => {
       if (line.startsWith("uciok")) pc.ep.send("ucinewgame\nisready");
@@ -347,8 +273,6 @@ function spawnChild(): Promise<PoolChild | null> {
     pc.ep.send("uci");
   });
 }
-
-// --- pool front: queue, dispatch, respawn ---
 
 interface Job {
   fen: string;
@@ -363,11 +287,8 @@ const queue: Job[] = [];
 const idle: PoolChild[] = [];
 let liveChildren = 0;
 let bootFailures = 0;
-// null until first use; resolves true = pool mode, false = in-process fallback.
 let poolInit: Promise<boolean> | null = null;
 
-/** Idle children don't hold the event loop open (ad-hoc scripts exit naturally after their last
- *  search); a child with a job in flight must. ChildProcess.ref/unref don't cover piped stdio. */
 function setIdleRefs(pc: PoolChild, isIdle: boolean): void {
   const m = isIdle ? "unref" : "ref";
   pc.child[m]();
@@ -387,7 +308,6 @@ function addChild(pc: PoolChild): void {
         if (next) {
           addChild(next);
         } else if (++bootFailures >= MAX_BOOT_FAILURES && liveChildren === 0) {
-          // Pool is gone for good — fail pending jobs instead of leaving them queued forever.
           for (const job of queue.splice(0)) job.resolve(null);
         }
       });
@@ -416,7 +336,6 @@ async function runOnChild(pc: PoolChild, job: Job): Promise<void> {
     pc.exited.then(() => "died" as const),
   ]);
   if (outcome === "died") {
-    // Crash mid-search: requeue once (a transient), fail on the second attempt.
     if (!job.retried) {
       job.retried = true;
       queue.unshift(job);
@@ -427,8 +346,6 @@ async function runOnChild(pc: PoolChild, job: Job): Promise<void> {
     return;
   }
   if (outcome === null) {
-    // Hung past stop+grace: this child is wedged — kill it (exit handler respawns). Don't retry
-    // the job; a search that hung 30s will hang again.
     pc.child.kill();
     job.resolve(null);
     return;
@@ -457,7 +374,6 @@ function poolSearch(
   });
 }
 
-/** First child booting decides the mode; the rest of the pool fills in the background. */
 function ensurePool(): Promise<boolean> {
   poolInit ??= (async () => {
     if (POOL_SIZE === 0) return false;
@@ -478,8 +394,6 @@ function ensurePool(): Promise<boolean> {
   return poolInit;
 }
 
-// --- in-process fallback (the pre-pool engine, unchanged semantics, searches serialized) ---
-
 interface Engine {
   sendCommand: (cmd: string) => void;
 }
@@ -491,7 +405,6 @@ let captureInstalled = false;
 function installCapture() {
   if (captureInstalled) return;
   captureInstalled = true;
-  // Route engine stdout (console.log) to the current line handler; swallow it otherwise.
   // eslint-disable-next-line no-console -- Stockfish's in-process Emscripten fallback emits UCI here.
   console.log = (...args: unknown[]) => {
     lineHandler?.(args.map((a) => (typeof a === "string" ? a : String(a))).join(" "));
@@ -502,14 +415,11 @@ async function getEngine(): Promise<Engine | null> {
   enginePromise ??= (async () => {
     try {
       installCapture();
-      // The emscripten build clobbers globalThis.fetch (its browser asset loader) during init.
-      // Save Node's real fetch and restore it after, so the network tools keep working.
       const savedFetch = globalThis.fetch;
       const initEngine = require("stockfish") as (path: string) => Promise<Engine>;
       const engine = await initEngine(enginePath());
       globalThis.fetch = savedFetch;
       engine.sendCommand("uci");
-      // Once per process, NOT per search (P2) — see the pool handshake for the trade-off note.
       engine.sendCommand("ucinewgame");
       engine.sendCommand("isready");
       return engine;
@@ -545,9 +455,6 @@ function inProcessSearch(
     };
     const outcome = await runSearch(ep, fen, multipv, depth, movetime);
     if (outcome === null) {
-      // Grace expired with no bestmove: this engine is wedged. Unlike a pool child it can't be
-      // killed, so quit it and drop the cached instance — without this, `enginePromise` kept
-      // serving the same hung engine forever, so one true hang failed every later fallback search.
       try {
         engine.sendCommand("quit");
       } catch {
@@ -559,23 +466,14 @@ function inProcessSearch(
   });
 }
 
-// --- public API ---
-
-// In-flight dedupe (R4): two concurrent misses for the same cache key share one search. Depth is
-// part of the JOIN condition, not the key — a depth-16 request must not silently adopt a pending
-// depth-12 search (mirrors the cache's depth-reuse rule; movetime requests join anything).
 const inFlight = new Map<string, { depth: number; promise: Promise<MultiLine[] | null> }>();
 
-/** Top-`multipv` lines for `fen` to `depth`. White-POV cp/mate. null if engine unavailable. */
 export function analyseMulti(
   fen: string,
   multipv = 1,
   depth = 20,
   movetime?: number,
 ): Promise<MultiLine[] | null> {
-  // movetime is a soft effort target (time, not depth-deterministic) — any cached eval for this
-  // position is acceptable (get at depth 0); we store the depth actually reached so depth requests
-  // can still reuse it.
   const wanted = movetime != null ? 0 : depth;
   const cached = evalCache.get(fen, multipv, wanted);
   if (cached) return Promise.resolve(cached);

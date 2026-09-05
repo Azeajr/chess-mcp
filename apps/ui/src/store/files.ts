@@ -1,9 +1,3 @@
-/**
- * PGN open/save via the File System Access API (download/upload fallback). The FileHandle is kept
- * in a module variable so Save writes back to the same file, and persisted to IndexedDB so the
- * last file can be re-opened across sessions (auto-loaded when permission is still granted,
- * otherwise via a user-gesture "Reopen" button). Shared by TopBar + the Cmd/Ctrl+S shortcut.
- */
 import { createSignal } from "solid-js";
 import { actions, fileName } from "./game";
 import type { Color } from "./game";
@@ -31,7 +25,6 @@ let handle: FilePickerHandle | null = null;
 let reopenHandleForTesting: FilePickerHandle | null = null;
 const PGN_TYPES = [{ description: "PGN", accept: { "application/x-chess-pgn": [".pgn"] } }];
 
-// Name of a persisted handle that hasn't been (re-)opened yet → drives the TopBar "Reopen" button.
 const [storedFileName, setStoredFileName] = createSignal<string | null>(null);
 export { storedFileName };
 
@@ -61,7 +54,6 @@ export function dismissFileNotice() {
   setFileNotice(null);
 }
 
-// Pending PGN load waiting for color selection.
 interface PendingLoad {
   pgn: string;
   name?: string;
@@ -71,8 +63,6 @@ interface PendingLoad {
 const [pendingLoad, setPendingLoad] = createSignal<PendingLoad | null>(null);
 export { pendingLoad };
 
-// Shown in the color-picker modal when the chosen file fails to parse (illegal SAN, no game) —
-// GameTree.fromPgn throws, and without catching it the Load click died silently in the console.
 const [loadError, setLoadError] = createSignal<string | null>(null);
 export { loadError };
 
@@ -83,7 +73,7 @@ export function resolvePendingLoad(color: Color) {
     actions.loadPgn(p.pgn, p.name);
   } catch (e) {
     setLoadError(e instanceof Error ? e.message : String(e));
-    return; // keep the modal open so the error is visible; Cancel dismisses
+    return;
   }
   actions.setColor(color);
   if (p.sourceHandle) remember(p.sourceHandle);
@@ -108,14 +98,12 @@ export function clearHandle() {
   void idbDel(HANDLE_KEY);
 }
 
-/** DEV-only callers expose this through window.__chess for the denied-permission browser check. */
 export function setReopenHandleForTesting(nextHandle: FilePickerHandle | null) {
   assertTestOnly();
   reopenHandleForTesting = nextHandle;
   setStoredFileName(nextHandle?.name ?? null);
 }
 
-/** Queue one document-replacing action until its consequence has been acknowledged. */
 export function requestDocumentClose(
   intent: DocumentCloseIntent,
   resume: () => void | Promise<void>,
@@ -136,8 +124,6 @@ async function resumeDocumentClose(pending: PendingDocumentClose) {
   setSavingDocumentClose(false);
   setDocumentCloseError(null);
   setPendingDocumentClose(null);
-  // The snapshot has to be taken here, before the resume replaces the tree: this is the one moment
-  // where the working document stops being reachable any other way.
   await captureSnapshot("before-replace");
   await Promise.resolve(pending.resume()).catch((error: unknown) => {
     setFileNotice({
@@ -268,17 +254,11 @@ export async function saveAndContinueDocumentClose() {
   await resumeDocumentClose(pending);
 }
 
-/**
- * On startup: surface the last file as a "Reopen" affordance. We do NOT auto-load it — the
- * working repertoire is restored from autosave (store/persist), which holds the latest unsaved
- * edits; re-syncing to the on-disk file is an explicit user action (reopenLast).
- */
 export async function restoreLastFile() {
   const h = await idbGet<FilePickerHandle>(HANDLE_KEY);
   if (h) setStoredFileName(h.name);
 }
 
-/** User-gesture re-open: request permission for the stored handle, then load it. */
 export async function reopenLast() {
   const h = (await idbGet<FilePickerHandle>(HANDLE_KEY)) ?? reopenHandleForTesting;
   if (!h) return;

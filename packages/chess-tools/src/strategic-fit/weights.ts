@@ -1,13 +1,3 @@
-/**
- * Deterministic route weighting for Strategic Fit.
- *
- * Opponent choices are normalized conditionally at their source position. A route therefore
- * carries the product of the opponent-choice probabilities on its path, rather than one unit per
- * editorial leaf. Routes that finish at the same canonical position form one independent
- * weighting unit: their aggregate evidence receives one unit of weight and is then divided among
- * the source routes. This keeps deeper annotation, duplicate leaves, and transposed move orders
- * from manufacturing additional strategic evidence.
- */
 import { assertDefined } from "../assert.js";
 import type { RepertoireGraph, RepertoireGraphDecision } from "./graph.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
@@ -37,7 +27,6 @@ export type StrategicWeightEvidenceKind = (typeof STRATEGIC_WEIGHT_EVIDENCE_KIND
 
 export type StrategicWeightEvidenceState = "available" | "partial" | "unavailable";
 
-/** One independently normalized route-frequency estimate supplied outside the analyzer. */
 export interface StrategicWeightEvidenceInput {
   readonly state: StrategicWeightEvidenceState;
   readonly route_weights?: readonly StrategicRouteWeightInput[];
@@ -52,19 +41,12 @@ export interface StrategicWeightSourceCoefficients {
 }
 
 export interface StrategicRouteWeightingOptions {
-  /** Equal weighting is the deterministic engine-free default. */
   readonly mode?: StrategicRouteWeightingMode;
-  /** Multiplicative adjustments after conditional opponent-decision weighting. */
   readonly route_weights?: readonly StrategicRouteWeightInput[];
-  /** Raw sibling weights, normalized at each opponent-owned source position. */
   readonly decision_weights?: readonly StrategicDecisionWeightInput[];
-  /** Source-level evidence retained even when no usable per-route weight was available. */
   readonly provenance?: readonly StrategicFitSourceProvenance[];
-  /** Population estimate collected by a host. It remains separate until profile composition. */
   readonly market?: StrategicWeightEvidenceInput;
-  /** Empirically shrunk personal estimate collected by a host. */
   readonly personal?: StrategicWeightEvidenceInput;
-  /** Profile preferences applied by the analyzer; usable coefficients are normalized to one. */
   readonly source_coefficients?: StrategicWeightSourceCoefficients;
 }
 
@@ -82,7 +64,6 @@ export interface StrategicNormalizedDecisionWeight {
 export interface StrategicNormalizedRouteWeight {
   readonly route_id: string;
   readonly terminal_position_id: string;
-  /** Terminal canonical position; used as the independent evidence identity. */
   readonly weighting_unit_id: string;
   readonly opponent_probability: number;
   readonly route_factor: number;
@@ -145,7 +126,6 @@ export interface StrategicRouteWeightingReport {
   readonly weighting_units: readonly StrategicRouteWeightingUnit[];
   readonly effective_sample_size: number;
   readonly fallbacks: readonly StrategicWeightFallback[];
-  /** Deterministic source coverage and the effective normalized profile mix. */
   readonly evidence_sources: readonly StrategicWeightEvidenceCoverage[];
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
@@ -194,18 +174,10 @@ function total(values: readonly number[]): number {
   return values.reduce((sum, value) => sum + value, 0);
 }
 
-/**
- * Convert finite non-negative magnitudes to shares without summing the raw scale. Dividing by the
- * maximum first preserves every ratio while bounding the intermediate sum to `values.length`:
- * two contract-valid 1e308 values therefore become [0.5, 0.5] instead of 1e308 / Infinity = 0.
- * An all-zero set has no ratio, so its explicit fallback is equal shares.
- */
 function normalizedShares(values: readonly number[]): number[] {
   if (values.length === 0) return [];
   const maximum = values.reduce((current, value) => Math.max(current, value), 0);
   if (maximum === 0) return values.map(() => 1 / values.length);
-  // Preserve the established arithmetic (and its observable bit patterns such as exactly 0.9)
-  // whenever the raw sum is safe. Scale only on overflow.
   const rawTotal = total(values);
   const result = Number.isFinite(rawTotal)
     ? values.map((value) => value / rawTotal)
@@ -220,7 +192,6 @@ function normalizedShares(values: readonly number[]): number[] {
   return result;
 }
 
-/** Mean of finite non-negative magnitudes without an overflowing raw sum. */
 function scaledMean(values: readonly number[]): number {
   if (values.length === 0) return 0;
   const maximum = values.reduce((current, value) => Math.max(current, value), 0);
@@ -276,14 +247,11 @@ function mergeProvenance(
   return result;
 }
 
-/** Frozen effective-sample formula. Zero total weight has no effective observations. */
 export function calculateEffectiveSampleSize(weights: readonly number[]): number {
   for (const [index, weight] of weights.entries()) validateWeight(weight, `sample:${index}`);
   if (weights.length === 0) return 0;
   const maximum = weights.reduce((current, weight) => Math.max(current, weight), 0);
   if (maximum === 0) return 0;
-  // ESS is scale invariant. Work on values divided by the maximum so neither Σw nor Σw² can
-  // overflow for contract-valid finite inputs such as [1e308, 1e308].
   const scaled = weights.map((weight) => weight / maximum);
   const weightSum = total(scaled);
   const squaredSum = total(scaled.map((weight) => weight * weight));
@@ -447,13 +415,6 @@ function reportState(
   return "partial";
 }
 
-/**
- * Calculate normalized route weights without engine, network, host, or mutable global state.
- *
- * Supplied route weights multiply the conditional opponent-path probability. Supplied decision
- * weights apply only to opponent-owned sibling decisions. Missing or unusable supplied evidence
- * resolves to equal weighting and is always disclosed in `fallbacks`.
- */
 function calculateBaseStrategicRouteWeights(
   graph: RepertoireGraph,
   options: StrategicRouteWeightingOptions = {},
@@ -550,7 +511,6 @@ function calculateBaseStrategicRouteWeights(
     .map(([terminalPositionId, members]) => ({
       terminalPositionId,
       members: members.sort((left, right) => compareStrings(left.routeId, right.routeId)),
-      // An equivalent move order may redistribute weight, but cannot create another observation.
       score: scaledMean(members.map((member) => member.score)),
     }))
     .sort((left, right) => compareStrings(left.terminalPositionId, right.terminalPositionId));
@@ -898,10 +858,6 @@ function graphOpponentDecisionResults(
     .sort((left, right) => compareStrings(left.decision_id, right.decision_id));
 }
 
-/**
- * Calculate route weights, optionally composing independently normalized market, personal, and
- * manual estimates under the current profile. Equal mode deliberately ignores every enrichment.
- */
 export function calculateStrategicRouteWeights(
   graph: RepertoireGraph,
   options: StrategicRouteWeightingOptions = {},

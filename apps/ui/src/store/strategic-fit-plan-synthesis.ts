@@ -1,19 +1,3 @@
-/**
- * Staged AI plan synthesis for a retained exception (Task 11.4).
- *
- * The assistant writes the plan card that belongs with an exception the user keeps and trains. Two
- * steps, on purpose: first it asks for the finding's deterministic evidence basis, then it writes a
- * card whose every section cites that basis. Anything it could otherwise invent — a plan line, a
- * pawn break, a model position — has to be one of the concepts, checkpoints, drills, or validated
- * moves the analysis already produced.
- *
- * A pending card is session-only state that writes nothing. Acceptance owns no persistence of its
- * own either: it calls the Task 6.3 training writer, the single path that records a training
- * reference, the train-as-exception resolution, the Task 7.3 performance targets, and the drill
- * artifact. A card is bound to the document, revision, and exact evidence identity it was validated
- * against, and any of them moving refuses the write rather than saving a card whose support has
- * changed under the user.
- */
 import {
   StrategicFitPlanError,
   resolveStrategicFitPlanCard,
@@ -47,14 +31,12 @@ interface StrategicFitStagedPlanCard {
   readonly created_at: string;
 }
 
-/** Model-facing evidence result. It is the same object the proposal is validated against. */
 export interface StrategicFitPlanBasisResult extends StrategicFitPlanEvidence {
   readonly kind: "strategic_fit_plan_basis";
   readonly persisted: false;
   readonly next_step: string;
 }
 
-/** Model-facing proposal result. It carries the handle and the card, never a host identity. */
 export interface StrategicFitPlanProposalResult {
   readonly kind: "strategic_fit_plan_card";
   readonly plan_id: string;
@@ -83,12 +65,7 @@ type StrategicFitPlanDecisionResult =
 export interface StrategicFitPlanSynthesisBoundary {
   currentDocumentId(): string;
   currentRevision(): number;
-  /**
-   * The bounded deterministic basis for one finding, derived from the training record without
-   * saving anything; null when the report, finding, or its evidence is unavailable.
-   */
   planEvidence(subject: StrategicFitPlanSubject): StrategicFitPlanEvidence | null;
-  /** The existing training writer. Plan synthesis adds no second path to training metadata. */
   saveTraining(
     subject: StrategicFitPlanSubject,
     card: StrategicFitPlanCard,
@@ -99,9 +76,7 @@ export interface StrategicFitPlanSynthesisBoundary {
 export interface StrategicFitPlanSynthesisState {
   plans(): readonly StrategicFitStagedPlanCard[];
   plan(planId: string): StrategicFitStagedPlanCard | undefined;
-  /** Throws `StrategicFitPlanError`; hosts map it to a structured result. */
   basis(subject: StrategicFitPlanSubject): StrategicFitPlanBasisResult;
-  /** Throws `StrategicFitPlanError`; hosts map it to a structured result. */
   propose(
     subject: StrategicFitPlanSubject,
     plan: StrategicFitPlanCardInput,
@@ -221,8 +196,6 @@ export function createStrategicFitPlanSynthesisState(
         return stale("The deterministic evidence behind this plan changed after it was written.");
       }
       const saved = boundary.saveTraining(staged.subject, staged.card);
-      // The training writer is the arbiter of whether anything was recorded. If it declined, the
-      // plan has not been saved and must not be reported to the user as accepted.
       if (saved.state === "blocked" || saved.record === null) {
         update(planId, "stale");
         return {
@@ -287,7 +260,6 @@ export const strategicFitPlanCard = (planId: string) => browserPlanSynthesis.pla
 export const acceptStrategicFitPlanCard = (planId: string) => browserPlanSynthesis.accept(planId);
 export const rejectStrategicFitPlanCard = (planId: string) => browserPlanSynthesis.reject(planId);
 
-/** Browser command boundary: a validation failure becomes one structured, code-bearing result. */
 export function proposeStrategicFitPlan(input: {
   readonly report_id: string;
   readonly finding_id: string;

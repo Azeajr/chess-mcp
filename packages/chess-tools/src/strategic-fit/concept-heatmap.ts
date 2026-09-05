@@ -1,13 +1,3 @@
-/**
- * Deterministic cohort-by-concept heatmap projection over a completed Strategic Fit report.
- *
- * Like the strategic map, this is a presentation projection: it consumes only retained report
- * evidence plus optionally injected host training mastery, never re-runs analysis, and never
- * participates in cache identity. Concepts are re-derived from the retained trajectory snapshots
- * with the canonical Task 1.8 classifier, so every cell reconciles exactly with the evidence the
- * analyzer saw. Mastery comes only from injected training-performance evidence; a concept without
- * observations stays explicitly untrained or unavailable and is never presented as zero mastery.
- */
 import {
   deriveStrategicRouteConcepts,
   type StrategicConceptCategory,
@@ -24,7 +14,6 @@ import type {
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
 import { assertDefined } from "../assert.js";
 
-/** Bump when cell semantics change so persisted or compared heatmaps never mix silently. */
 export const CONCEPT_HEATMAP_PROJECTION_VERSION = "1.0.0";
 
 export const CONCEPT_HEATMAP_STATES = ["available", "unavailable"] as const;
@@ -48,7 +37,6 @@ export const CONCEPT_HEATMAP_EXCLUSION_REASONS = [
 export type ConceptHeatmapExclusionReason = (typeof CONCEPT_HEATMAP_EXCLUSION_REASONS)[number];
 
 export interface ConceptHeatmapMastery {
-  /** Calibrated mastery in the range 0-1. Null means no usable observation, never zero mastery. */
   readonly value: number | null;
   readonly state: ConceptHeatmapMasteryState;
   readonly attempt_count: number;
@@ -61,24 +49,19 @@ export interface ConceptHeatmapColumn {
   readonly category: StrategicConceptCategory;
   readonly intent: ConceptHeatmapIntentState;
   readonly mastery: ConceptHeatmapMastery;
-  /** Number of heatmap rows in which this concept is observed. */
   readonly cohort_count: number;
-  /** Largest per-cohort expected frequency; a deterministic sort key for the presentation. */
   readonly max_expected_frequency: number;
 }
 
 export interface ConceptHeatmapRow {
   readonly cohort_id: string;
-  /** Routes with retained trajectories that contribute cells for this cohort. */
   readonly route_count: number;
 }
 
 export interface ConceptHeatmapCell {
   readonly cohort_id: string;
   readonly concept_id: string;
-  /** Sum of the supporting routes' canonical normalized weights inside the cohort, 0-1. */
   readonly expected_frequency: number;
-  /** Route-weight-weighted mean classifier confidence of the supporting observations, 0-1. */
   readonly confidence: number;
   readonly route_ids: readonly string[];
   readonly finding_ids: readonly string[];
@@ -106,7 +89,6 @@ export interface ConceptHeatmapProjection {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** The report fields the heatmap consumes; both a report and an analysis result satisfy it. */
 export interface ConceptHeatmapReportInput {
   readonly report_id: string;
   readonly repertoire_revision: string;
@@ -118,12 +100,7 @@ export interface ConceptHeatmapReportInput {
 }
 
 export interface ConceptHeatmapOptions {
-  /**
-   * Complete finding set when the input carries only one page. Findings decide cell finding
-   * references only; frequencies and concepts never depend on them.
-   */
   readonly findings?: readonly StrategicFinding[];
-  /** Host-injected document-bound training mastery. Omitted or null means mastery is unavailable. */
   readonly mastery?: StrategicFitTrainingMasteryReport | null;
 }
 
@@ -250,7 +227,6 @@ interface MutableCell {
   routeIds: string[];
 }
 
-/** Build the deterministic cohort-by-concept heatmap projection from one completed report. */
 export function buildConceptHeatmapProjection(
   input: ConceptHeatmapReportInput,
   options: ConceptHeatmapOptions = {},

@@ -1,12 +1,3 @@
-/**
- * Deterministic Strategic Fit trajectory construction and persistence classification.
- *
- * Trajectories retain every selected checkpoint as evidence, including the editorial endpoint,
- * but only comparable checkpoints after distinct repertoire turns can establish persistence.
- * Historical facts such as castling and completed exchanges are irreversible as soon as they are
- * observed. Position features caused by an irreversible move are not automatically irreversible:
- * doubled pawns, files, and center states can still change at the next checkpoint.
- */
 import { assertDefined } from "../assert.js";
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
@@ -35,12 +26,7 @@ import type {
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
 export interface StrategicTrajectoryBuildOptions extends StrategicCheckpointSelectionOptions {
-  /** A precomputed selection may be injected by the analyzer to avoid selecting twice. */
   readonly checkpointSelection?: StrategicCheckpointSelection;
-  /**
-   * Optional incremental index. It only memoizes deterministic per-route and per-position
-   * extraction, so a build with an index is identical to a build without one.
-   */
   readonly signalIndex?: StrategicFitSignalIndex;
 }
 
@@ -94,11 +80,6 @@ function isObject(value: JsonValue): value is Readonly<Record<string, JsonValue>
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/**
- * Reads a property that a preceding `Object.keys` check already proved is present. `JsonValue`
- * legitimately includes `null`, so `assertDefined` (which also rejects `null`) is not safe here —
- * only `undefined` (the index-signature artifact for a genuinely absent key) is an error.
- */
 function requireProperty(value: Readonly<Record<string, JsonValue>>, key: string): JsonValue {
   const result = value[key];
   if (result === undefined) {
@@ -126,15 +107,10 @@ function signalSlot(signal: StrategicSignal): string {
   return subject === null ? signal.feature_id : `${signal.feature_id}:${subject}`;
 }
 
-/**
- * Array.isArray narrows to `any[]` per lib.d.ts; this predicate narrows to JsonValue's own array
- * member instead, so an inline `.map()` callback over the result stays precisely typed.
- */
 function isJsonArray(value: JsonValue | undefined): value is readonly JsonValue[] {
   return Array.isArray(value);
 }
 
-/** Metadata about repetition does not change which recurring placement was observed. */
 function persistenceValue(signal: StrategicSignal): JsonValue {
   if (signal.feature_id !== "piece.recurring-placements" || !isObject(signal.value)) {
     return signal.value;
@@ -164,7 +140,6 @@ function pairHas(
   return false;
 }
 
-/** True only when the signal itself records an event that cannot be undone later in the route. */
 function isHistoricalIrreversible(signal: StrategicSignal): boolean {
   switch (signal.feature_id) {
     case "king.castling-history":
@@ -263,8 +238,6 @@ function makeSnapshot(
       selected.position_id,
     ].join(ID_SEPARATOR),
   )}`;
-  // Pawn signal value interfaces are JSON-safe but intentionally retain their narrower named
-  // shapes, which TypeScript does not infer as the recursive JsonValue index signature.
   const sourceSignals: StrategicSignal[] = [
     ...pawnReport.signals.map(
       (sourceSignal): StrategicSignal => ({
@@ -456,7 +429,6 @@ function buildTrajectory(
   };
 }
 
-/** Build ordered, persistence-bearing trajectories for every canonical repertoire route. */
 export function buildStrategicTrajectories(
   graph: RepertoireGraph,
   options: StrategicTrajectoryBuildOptions = {},

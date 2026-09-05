@@ -15,11 +15,6 @@ import {
   type StrategicFitPlanEvidence,
 } from "../../src/index.ts";
 
-/**
- * A plan card is the one part of a training record no tool can produce, so every claim it makes is
- * checked against evidence that already exists. These tests assert the rejection, not the wording:
- * unsupported material must be impossible to save, whatever the prose around it says.
- */
 const EVIDENCE: StrategicFitPlanEvidence = {
   report_id: "report:plan",
   finding_id: "finding:plan",
@@ -351,8 +346,6 @@ test("a resolved card is re-checked against current evidence and fails closed wh
     (error: { code?: string }) => error.code === "strategic_fit_plan_unsupported_drill",
   );
 
-  // Evidence that still supports every citation but is no longer the same basis: the identity, not
-  // the citations alone, is what binds a card to the analysis the user was shown.
   const reanalyzed: StrategicFitPlanEvidence = { ...EVIDENCE, moves: [...EVIDENCE.moves, "d4"] };
   assert.throws(
     () => assertStrategicFitPlanCardSupported(card, reanalyzed),

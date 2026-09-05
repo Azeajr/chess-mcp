@@ -1,11 +1,3 @@
-/**
- * Versioned, document-scoped Strategic Fit metadata.
- *
- * This module owns only the deterministic sidecar contract and its migrations. It deliberately
- * has no document identity or persistence behavior: browser identity begins in Task 4.2 and
- * IndexedDB storage begins in Task 4.3. Every normalization path constructs output from an
- * explicit whitelist so host credentials and unknown fields cannot enter the durable contract.
- */
 import type {
   StrategicCohortExclusionOverride,
   StrategicCohortMergeOverride,
@@ -47,7 +39,6 @@ import {
   STRATEGIC_FIT_COMMENT_INTENT_KINDS,
 } from "./intent-comments.js";
 
-/** This version advances independently from analysis reports and component manifests. */
 export const STRATEGIC_FIT_DOCUMENT_METADATA_VERSION = "1.5.0";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_KIND = "chess-mcp/strategic-fit-document-metadata";
 export const STRATEGIC_FIT_DOCUMENT_METADATA_LEGACY_VERSIONS = [
@@ -98,7 +89,6 @@ export type StrategicFitPersistedStructuralCohortOverride =
 export type StrategicFitPersistedExclusionOverride = StrategicCohortExclusionOverride &
   StrategicFitMetadataRecordLifecycle;
 
-/** Display-only user label for one canonical cohort. It never changes analyzer grouping. */
 export interface StrategicFitPersistedCohortLabel extends StrategicFitMetadataRecordLifecycle {
   readonly label_id: string;
   readonly cohort_id: string;
@@ -110,9 +100,7 @@ export interface StrategicFitPersistedResolution
     Omit<FindingResolution, "state" | "provenance" | "semantic_finding_id">,
     StrategicFitMetadataRecordLifecycle {
   readonly state: StrategicFitPersistedResolutionState;
-  /** Null only on migrated stale records that predate semantic finding identity. */
   readonly semantic_finding_id: string | null;
-  /** Canonical profile snapshot used only when `profile-changed` invalidation is requested. */
   readonly profile_snapshot: string | null;
 }
 
@@ -125,7 +113,6 @@ export interface StrategicFitManualWeights {
   readonly decision_weights: readonly StrategicFitPersistedDecisionWeight[];
 }
 
-/** Archive payloads remain outside this contract; metadata stores semantic references only. */
 export interface StrategicFitArchiveReference {
   readonly archive_id: string;
   readonly repertoire_revision: string;
@@ -135,7 +122,6 @@ export interface StrategicFitArchiveReference {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Training records remain outside this contract; metadata stores semantic references only. */
 export interface StrategicFitTrainingReference {
   readonly training_id: string;
   readonly finding_id: string | null;
@@ -149,7 +135,6 @@ export const STRATEGIC_FIT_COMMENT_INTENT_DISPOSITIONS = ["confirmed", "rejected
 export type StrategicFitCommentIntentDisposition =
   (typeof STRATEGIC_FIT_COMMENT_INTENT_DISPOSITIONS)[number];
 
-/** Exact-source decision: changing the comment/path yields a new suggestion identity. */
 export interface StrategicFitCommentIntentDecision {
   readonly decision_id: string;
   readonly suggestion_id: string;
@@ -216,7 +201,6 @@ export interface StrategicFitMetadataNormalizationResult {
   readonly issues: readonly StrategicFitMetadataIssue[];
 }
 
-/** Explicit migration graph; no best-effort migration is attempted for unknown versions. */
 export const STRATEGIC_FIT_DOCUMENT_METADATA_MIGRATIONS: Readonly<Record<string, string>> =
   Object.freeze({
     "0.1.0": STRATEGIC_FIT_DOCUMENT_METADATA_VERSION,
@@ -274,7 +258,6 @@ const COMMENT_INTENT_DISPOSITIONS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT
 const COMMENT_INTENT_KINDS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_KINDS);
 const COMMENT_INTENT_DETECTIONS = new Set<string>(STRATEGIC_FIT_COMMENT_INTENT_DETECTIONS);
 
-/** Stable canonical profile snapshot for persisted `profile-changed` invalidation. */
 export function strategicFitProfileSnapshot(input: StrategicFitProfile): string {
   return JSON.stringify({
     schema_version: input.schema_version,
@@ -312,7 +295,6 @@ function defaultProfile(): StrategicFitProfile {
   };
 }
 
-/** A fresh, complete default object suitable for one document. */
 export function createDefaultStrategicFitDocumentMetadata(): StrategicFitDocumentMetadata {
   return {
     metadata_kind: STRATEGIC_FIT_DOCUMENT_METADATA_KIND,
@@ -1628,12 +1610,6 @@ function fallbackResult(
   };
 }
 
-/**
- * Normalize trusted or untrusted structured-clone input without throwing.
- *
- * Unknown versions fall back as a whole. Known versions are reconstructed field-by-field; invalid
- * sections fall back to their empty/default value and are disclosed through `state` and `issues`.
- */
 export function normalizeStrategicFitDocumentMetadata(
   input: unknown,
 ): StrategicFitMetadataNormalizationResult {
@@ -1685,7 +1661,6 @@ export interface StrategicFitMetadataReconciliationInput {
   readonly graph: RepertoireGraph;
   readonly profile: StrategicFitProfile;
   readonly repertoire_revision: string;
-  /** Injectable ISO timestamp keeps expiry reconciliation deterministic in tests and hosts. */
   readonly now: string;
 }
 
@@ -1722,12 +1697,6 @@ function missingReferences(
   return (ids ?? []).some((id) => !available.has(id)) ? [reason] : [];
 }
 
-/**
- * Reconcile persisted identities against one canonical graph.
- *
- * Staleness is monotonic: restoring a deleted move cannot silently reactivate old user intent.
- * The user must explicitly update the record to reaffirm it against the current graph.
- */
 export function reconcileStrategicFitDocumentMetadata(
   metadata: StrategicFitDocumentMetadata,
   input: StrategicFitMetadataReconciliationInput,
@@ -1856,7 +1825,6 @@ function resolutionRouteIds(
   return [];
 }
 
-/** Project only active persisted settings into the framework-free analyzer contract. */
 export function strategicFitAnalysisInputsFromMetadata(
   metadata: StrategicFitDocumentMetadata,
   graph: RepertoireGraph,

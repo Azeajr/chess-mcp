@@ -31,10 +31,6 @@ export interface StrategicFitProfileSetupState {
   ): StrategicFitProfileMutationResult;
 }
 
-/**
- * First-run completion is deliberately session-only. Durable setup is represented exclusively by
- * an explicit canonical profile; skipping must never turn an inference into persisted user intent.
- */
 export function createStrategicFitProfileSetupState(
   boundary: StrategicFitProfileSetupBoundary,
 ): StrategicFitProfileSetupState {

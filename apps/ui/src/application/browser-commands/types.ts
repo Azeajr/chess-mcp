@@ -70,11 +70,6 @@ export const BROWSER_COMMAND_NAMES = [
 
 export type BrowserCommandName = (typeof BROWSER_COMMAND_NAMES)[number];
 
-/**
- * Error codes the browser registry can return, including errors forwarded from its domain and
- * staged-action dependencies. Keep this inventory beside the exhaustive command-name registry so
- * the content gate can require user-facing copy without importing browser runtime modules.
- */
 export const BROWSER_COMMAND_ERROR_CODES = [
   "invalid_arguments",
   "invalid_fen",
@@ -152,9 +147,7 @@ export interface BrowserCommandDependencies {
     readonly identity: string;
     readonly inputs: StrategicFitMetadataAnalysisInputs;
   };
-  /** Optional browser-local mastery evidence, injected before crossing the analysis Worker boundary. */
   currentStrategicFitTrainingEvidence?: () => StrategicTrainingMetricEvidence | null;
-  /** Browser preference: depth 20 normally, or 30 when the user enables Deep analysis. */
   analysisDepth: () => number;
   analyse: (
     fen: string,
@@ -192,7 +185,6 @@ export interface BrowserCommandDependencies {
     options: AnalyzeStrategicFitOptions,
     execution?: { signal?: AbortSignal; onProgress?: (progress: StrategicFitProgress) => void },
   ) => Promise<StrategicFitReport>;
-  /** Identity-only lookup over the bounded report cache; it never starts an analysis. */
   strategicFitReportById: (reportId: string) => StrategicFitReport | null;
   createArtifact: (format: "pgn" | "csv" | "json", content: string, name: string) => unknown;
   stageEdit: (
@@ -206,26 +198,17 @@ export interface BrowserCommandDependencies {
   }) => Promise<unknown>;
   discardReplacementChangeSet: (stageId: string) => Promise<unknown>;
   proposeLine: (moves: string[], comment?: string) => unknown;
-  /** Stages a profile proposal for explicit acceptance; it never writes profile metadata itself. */
   proposeStrategicFitProfile: (input: {
     readonly mode?: unknown;
     readonly preferences?: unknown;
     readonly rationale?: unknown;
   }) => unknown;
-  /**
-   * Returns one finding's deterministic plan evidence, or stages a plan card validated against it.
-   * It never writes training metadata itself; acceptance goes through the training writer.
-   */
   proposeStrategicFitPlan: (input: {
     readonly report_id: string;
     readonly finding_id: string;
     readonly semantic_finding_id: string;
     readonly plan?: { readonly title?: unknown; readonly sections?: unknown };
   }) => unknown;
-  /**
-   * Stages redesign bounds for confirmation, returns the portfolio those confirmed bounds allow, or
-   * stages one option's already-generated change set. It generates no candidate and applies nothing.
-   */
   proposeStrategicFitPortfolio: (input: {
     readonly constraints?: unknown;
     readonly rationale?: unknown;
@@ -246,7 +229,5 @@ export const commandAnalyse =
 
 export const requestedDepth = (args: BrowserCommandArgs, context: BrowserCommandContext) => {
   const preferred = context.analysisDepth();
-  // Deep mode is a global browser promise: even an LLM-supplied shallower value cannot silently
-  // downgrade one task while the UI says every engine operation is running at depth 30.
   return preferred === 30 ? 30 : ((args.depth as number | undefined) ?? preferred);
 };

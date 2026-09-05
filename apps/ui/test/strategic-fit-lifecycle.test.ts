@@ -209,7 +209,6 @@ test("navigation-equivalent synchronization stays current while every analysis i
   subject.calls[0]!.result.resolve(report("report:current"));
   await pending;
 
-  // Navigation is intentionally absent from StrategicFitRequestSnapshot.
   subject.state.synchronize();
   assert.equal(subject.state.snapshot().status, "completed");
 

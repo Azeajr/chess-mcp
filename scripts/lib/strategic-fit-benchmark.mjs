@@ -1,63 +1,23 @@
-/**
- * Task 12.4 — Strategic Fit performance budgets and the gate that enforces them.
- *
- * This module is deliberately free of chess and analysis imports: it turns an already-measured
- * benchmark record into pass/fail checks, so the gate itself is testable without running a scan.
- *
- * Two layers decide the outcome.
- *
- *  1. Portable budgets always apply. Absolute budgets are used only where the acceptance criterion
- *     is itself absolute (one animation frame of main-thread work, a peak heap ceiling, a cache or
- *     page bound). Everything whose cost depends on the machine is expressed as a ratio — against
- *     the same run's cold scan, or against a reference workload measured on the same machine in the
- *     same process — so the same budgets hold on a laptop and on CI.
- *  2. A recorded baseline applies only when it is comparable. A benchmark result names its
- *     environment, its analysis manifest, and the digest of the exact fixture it measured; two
- *     results that disagree on any of those are not compared at all, and the gate says so rather
- *     than reporting a meaningless regression.
- */
-
 export const STRATEGIC_FIT_BENCHMARK_FORMAT_VERSION = 1;
 
-/** One 60 Hz animation frame. Main-thread work during a worker scan must fit inside it. */
 const ANIMATION_FRAME_MS = 1000 / 60;
 
-/**
- * Ratio budgets are chosen with headroom over measured behavior so ordinary timing noise never
- * fails the gate, while an algorithmic regression — a lost index, a scan that grew a quadratic
- * term, a projection that stopped paging — moves the number far enough to fail it.
- */
 const STRATEGIC_FIT_BENCHMARK_BUDGETS = Object.freeze({
-  /** Worst single main-thread operation the host performs while the worker scans. */
   frame_ms: ANIMATION_FRAME_MS,
-  /** Time between a cancellation becoming observable and the scan actually stopping. */
   cancellation_observed_ms: 5,
-  /** Regression tolerance against a comparable recorded baseline. */
   baseline_tolerance: 0.4,
-  /**
-   * Rebuilding the repertoire graph is what a replacement safety simulation pays for repertoire
-   * size; it must stay a small fraction of a full scan rather than growing into one.
-   */
   graph_rebuild_ratio: 0.15,
   scales: Object.freeze({
     small: Object.freeze({
-      /** The reference workload itself, so a self-relative cold budget would prove nothing. */
       cold_reference_multiple: null,
       warm_ratio: 1.05,
       incremental_ratio: 1.05,
-      /** Worst phase — the longest a mid-phase cancellation can go unobserved. */
       cancellation_latency_reference_multiple: 1.0,
       peak_heap_mb: 512,
     }),
     standard: Object.freeze({
       cold_reference_multiple: 12,
       warm_ratio: 0.9,
-      /**
-       * A local edit is not a cheap scan at this size: the default index bound is smaller than the
-       * working set, and the phases after trajectory building are not indexed at all, so nearly all
-       * of a cold scan's cost returns. What the gate holds is the invariant that matters — reusing
-       * an index across an edit must never cost more than discarding it.
-       */
       incremental_ratio: 1.02,
       cancellation_latency_reference_multiple: 8,
       peak_heap_mb: 1024,
@@ -86,11 +46,6 @@ function round(value) {
   return typeof value === "number" && Number.isFinite(value) ? Number(value.toFixed(3)) : value;
 }
 
-/**
- * Environment and manifest identity. Two records are comparable only when everything a measured
- * duration depends on is the same: the machine, the runtime, the analysis manifest, the record
- * format, and the digest of every fixture that was measured.
- */
 function benchmarkComparability(record, baseline) {
   const reasons = [];
   if (!baseline) return { comparable: false, reasons: ["no recorded baseline"] };
@@ -117,7 +72,6 @@ function benchmarkComparability(record, baseline) {
   return { comparable: reasons.length === 0, reasons };
 }
 
-/** Portable budget checks over one measured record. */
 function budgetChecks(record, budgets) {
   const checks = [];
   const reference = record.reference_ms;
@@ -278,7 +232,6 @@ function budgetChecks(record, budgets) {
   return checks;
 }
 
-/** Tolerance-based regression checks against a comparable recorded baseline. */
 function regressionChecks(record, baseline, tolerance) {
   const checks = [];
   const baselineScales = new Map(baseline.scales.map((scale) => [scale.id, scale]));
@@ -306,10 +259,6 @@ function regressionChecks(record, baseline, tolerance) {
   return checks;
 }
 
-/**
- * Evaluate one measured record. `baseline` is optional; when it is present but not comparable the
- * regression layer is reported as skipped with its reasons rather than silently ignored.
- */
 export function evaluateStrategicFitBenchmark(
   record,
   { budgets = STRATEGIC_FIT_BENCHMARK_BUDGETS, baseline = null } = {},
@@ -328,11 +277,6 @@ export function evaluateStrategicFitBenchmark(
   };
 }
 
-/**
- * A synthetic record that passes every portable budget. The gate is only trustworthy if it can be
- * shown to fail, so the self-check perturbs this record one metric at a time and requires a
- * failure; measuring a real scan would prove nothing about the gate itself.
- */
 export function syntheticStrategicFitBenchmarkRecord(
   manifest = { schema_version: "0", analysis_version: "0" },
 ) {
@@ -378,10 +322,6 @@ export function syntheticStrategicFitBenchmarkRecord(
   };
 }
 
-/**
- * Perturbations the self-check requires the gate to reject. Each one is a regression the budgets
- * exist to catch, expressed as the smallest edit to an otherwise passing record.
- */
 export const STRATEGIC_FIT_BENCHMARK_SELF_CHECKS = Object.freeze([
   [
     "a cold scan that outgrew the reference workload",
@@ -445,7 +385,6 @@ export const STRATEGIC_FIT_BENCHMARK_SELF_CHECKS = Object.freeze([
   ],
 ]);
 
-/** Run the gate against itself: a passing record must pass and every perturbation must fail. */
 export function runStrategicFitBenchmarkSelfCheck() {
   const failures = [];
   const passing = evaluateStrategicFitBenchmark(syntheticStrategicFitBenchmarkRecord());

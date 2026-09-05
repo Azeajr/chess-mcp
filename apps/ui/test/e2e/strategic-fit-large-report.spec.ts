@@ -53,7 +53,6 @@ const FIFTH = [
   "Qd2",
 ];
 
-/** The same 416-branch fixture the Task 10.4 hardening suite uses, well past every render bound. */
 function largeRepertoire(): string {
   const games: string[] = [];
   for (const first of FIRST) {
@@ -83,8 +82,6 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 25_000
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout });
-  // Both scenarios in this file are about the finding queue, and the workspace shows one stage at
-  // a time at every width — so open the stage the queue lives on, as a reader would.
   await dialog.locator("#strategic-fit-stage-findings").click();
   await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
     "data-stage",
@@ -93,12 +90,6 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 25_000
   return dialog;
 }
 
-/*
- * @engine-bound: both scenarios below run a real Strategic Fit scan over LARGE_REPERTOIRE. On
- * WebKit that scan does not reach `completed` inside the 25 s analysis budget, so the tests fail on
- * scan throughput rather than on the paging behaviour they assert. Chromium and Firefox cover the
- * behaviour; re-measure before widening.
- */
 test(
   "a large report bounds mounted finding rows while the queue reports its logical totals",
   {
@@ -119,7 +110,6 @@ test(
     expect(mounted).toBeLessThanOrEqual(6);
     await expect(list.locator("> li")).toHaveCount(mounted);
 
-    // Screen readers navigate the logical total, not the mounted rows.
     await expect(list).toHaveAttribute("aria-label", new RegExp(`of ${total} matching`, "u"));
     await expect(list.locator("> li").first()).toHaveAttribute("aria-setsize", String(total));
     await expect(list.locator("> li").first()).toHaveAttribute("aria-posinset", "1");
@@ -142,9 +132,6 @@ test(
     await expect(queue).toHaveAttribute("data-queue-status", "ready", { timeout: 20_000 });
     const list = queue.locator("[data-finding-list]");
     const total = Number(await list.getAttribute("data-finding-rows-total"));
-    // The scenario is paging behaviour, so multiple pages are a precondition of the test, not a
-    // condition to skip on. A runtime `test.skip(total <= 6, …)` would let the whole scenario
-    // silently stop running — still reporting green — if the fixture ever produced one page.
     expect(total, "fixture must produce multiple pages of findings").toBeGreaterThan(6);
 
     const firstCard = list.locator("[data-finding-id]").first();
@@ -155,10 +142,8 @@ test(
       "true",
     );
 
-    // Selecting a finding moves to the Evidence stage; paging happens back in the queue.
     await dialog.locator("#strategic-fit-stage-findings").click();
     await queue.getByRole("button", { name: "Next findings" }).click();
-    // The selection survives the page change and is disclosed rather than silently dropped.
     const note = queue.locator("[data-queue-selection-note]");
     await expect(note).toBeVisible();
     await expect(queue.locator("[data-queue-selection-announcement]")).toContainText(
@@ -187,7 +172,6 @@ test(
     const dialog = await bootstrap(page, LARGE_REPERTOIRE, "large-report-visuals.pgn");
     const before = await chess(page, (api) => api.toPgn());
 
-    // The strategic map is on the Overview stage; `bootstrap` lands on the queue.
     await dialog.locator("#strategic-fit-stage-overview").click();
     const map = dialog.locator(".strategic-map");
     const listTable = map.locator("[data-map-list]");
@@ -199,7 +183,6 @@ test(
     expect(mountedRows).toBeLessThanOrEqual(60);
     await expect(listTable.locator("tbody tr[data-map-row]")).toHaveCount(mountedRows);
 
-    // Scrolling reaches rows that were never mounted at the top of the list.
     const firstRoute = await listTable
       .locator("tbody tr[data-map-row]")
       .first()

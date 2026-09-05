@@ -1,8 +1,3 @@
-/**
- * ECO opening lookup (port of openings.py). Pure: the caller supplies the table text (the
- * server reads data/openings.tsv; chess-tools stays env-agnostic). Keyed by positionKey so the
- * table and the lookup share one identity — see scripts/build-openings.mjs.
- */
 import { Chess } from "chessops/chess";
 import { parseSan } from "chessops/san";
 import { makeFen } from "chessops/fen";
@@ -10,7 +5,6 @@ import { parsePgn } from "chessops/pgn";
 import { positionKey } from "./congruence.js";
 import { assertDefined } from "./assert.js";
 
-/** Like identifyDeepest but over a SAN move list (for addressing a tree leaf by its path). */
 export function identifyDeepestFromMoves(
   table: OpeningTable,
   sans: readonly string[],
@@ -36,7 +30,6 @@ export interface OpeningEntry {
 
 export type OpeningTable = Map<string, OpeningEntry>;
 
-/** Parse the generated TSV (positionKey<TAB>eco<TAB>name) into a lookup map. */
 export function parseOpeningsTsv(text: string): OpeningTable {
   const table: OpeningTable = new Map();
   for (const line of text.split("\n")) {
@@ -47,15 +40,10 @@ export function parseOpeningsTsv(text: string): OpeningTable {
   return table;
 }
 
-/** The named opening at exactly this position, or null. */
 export function identifyAt(table: OpeningTable, fen: string): { eco: string; name: string } | null {
   return table.get(positionKey(fen)) ?? null;
 }
 
-/**
- * The deepest named opening the PGN mainline passes through (standard "walk forward, last match
- * wins"), with the ply it is reached at, or null.
- */
 export function identifyDeepest(
   table: OpeningTable,
   pgn: string,

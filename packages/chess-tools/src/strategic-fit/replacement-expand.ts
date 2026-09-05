@@ -1,10 +1,3 @@
-/**
- * Framework-free Task 8.5 candidate-subtree expansion.
- *
- * Hosts inject completed explorer and engine evidence providers. This module owns deterministic
- * scheduling, legality, coverage, transposition, budget, cancellation, and progress semantics; it
- * never performs network, filesystem, Worker, process, MCP, or UI work.
- */
 import { Chess } from "chessops/chess";
 import { chessgroundDests } from "chessops/compat";
 import { makeFen, parseFen } from "chessops/fen";
@@ -167,15 +160,12 @@ export interface ReplacementExplorerReplyEvidence {
   readonly move_id: string;
   readonly san: string;
   readonly uci: string;
-  /** Fraction in [0, 1], never a percentage. */
   readonly played_probability: number;
   readonly games: number;
-  /** Optional UCI PV beginning with this reply. */
   readonly pv: readonly string[];
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Completed host evidence; domain code revalidates every field and move. */
 export interface ReplacementExplorerExpansionEvidence extends StrategicFitReplacementVersioned {
   readonly evidence_id: string;
   readonly state: ReplacementExpansionEvidenceState;
@@ -306,7 +296,6 @@ export interface ReplacementIncompleteCandidateExpansion extends ReplacementCand
     | null;
 }
 
-/** Task 8.5 output. It intentionally cannot satisfy the Task 8.6+ `ReplacementCandidate`. */
 export type ReplacementCandidateExpansion =
   | ReplacementCompleteCandidateExpansion
   | ReplacementIncompleteCandidateExpansion;
@@ -438,8 +427,6 @@ function sortedUnique(values: readonly string[]): string[] {
   return [...new Set(values)].sort(compareStrings);
 }
 
-// JSON.stringify's lib.d.ts signature claims `string`, but it really returns `undefined` for
-// undefined/function/symbol values — this annotation reflects the true runtime type.
 function stringifyOrUndefined(value: unknown): string | undefined {
   return JSON.stringify(value);
 }
@@ -750,9 +737,6 @@ function compatibilityError(input: ExpandReplacementCandidatesInput): Compatibil
   if (typeof request.budget.include_all_forcing_replies !== "boolean") {
     return ["invalid-request", "invalid-reply-policy", "Forcing-reply policy must be boolean."];
   }
-  // pivot.status/owner are typed as single literals because every construction path sets them
-  // that way, but this function revalidates a pivot result that may have crossed a request
-  // boundary, so recheck them as real values rather than trust the type.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (pivotResult.status !== "selected" || pivotResult.pivot.status !== "actionable") {
     return [
@@ -845,9 +829,6 @@ function compatibilityError(input: ExpandReplacementCandidatesInput): Compatibil
       !sameRequestIdentity(seed, request) ||
       seed.pivot.pivot_id !== pivot.pivot_id ||
       seed.mover_color !== request.repertoire_color ||
-      // These fields are typed as single literals because every construction path sets them that
-      // way, but this loop revalidates Task 8.4 seeds that may have crossed a boundary — see the
-      // matching note earlier in this function.
       /* eslint-disable @typescript-eslint/no-unnecessary-condition */
       seed.expansion.status !== "full-subtree-required" ||
       !seed.expansion.full_subtree_required ||
@@ -2384,9 +2365,6 @@ function subtreeValid(
   )
     return false;
   if (subtree.status === "complete") {
-    // These fields are typed as fixed/non-null for the "complete" variant because every
-    // construction path sets them that way, but this function revalidates a subtree that may
-    // have crossed a checkpoint/cache boundary — see the matching note earlier in this file.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (subtree.truncation_reasons.length !== 0 || subtree.completion === null) return false;
     if (
@@ -3168,9 +3146,6 @@ async function expandCandidate(
     (left, right) => compareStrings(left.risk_id, right.risk_id),
   );
   const finalOmissions = sortedOmissions(omissions);
-  // TS proves candidateStatus is always "complete" by this point given the closure's actual call
-  // sites and control flow, but the check documents the real completion contract and stays in
-  // case that control flow changes.
   const complete =
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     candidateStatus === "complete" &&
@@ -3271,10 +3246,6 @@ async function expandCandidate(
   };
 }
 
-/**
- * Expand only current Task 8.4 engine-enriched seeds into bounded coverage-aware subtrees.
- * Every provider failure, malformed item, stale identity, budget stop, and cancellation is data.
- */
 export async function expandReplacementCandidates(
   input: ExpandReplacementCandidatesInput,
 ): Promise<ReplacementCandidateExpansionResult> {

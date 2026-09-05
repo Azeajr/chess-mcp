@@ -22,7 +22,6 @@ test("normalizeExplorerFilters fills in the lichess defaults when given nothing"
   assert.equal(normalized.until, null);
 });
 
-/** Canonicalisation is what makes the cache key stable, so order and duplicates must not survive. */
 test("normalizeExplorerFilters sorts and de-duplicates speeds and ratings", () => {
   const normalized = normalizeExplorerFilters({
     speeds: ["classical", "blitz", "blitz"],
@@ -57,12 +56,6 @@ test("normalizeExplorerFilters bounds movesLimit to a whole number in 0..30", ()
   assert.throws(() => normalizeExplorerFilters({ movesLimit: 1.5 }), /invalid_moves_limit/u);
 });
 
-/**
- * Regression guard. Validation lived inside the sort comparator, and `Array.prototype.sort` does
- * not invoke a comparator for a list of fewer than two elements — so exactly one bad value was
- * accepted while two were caught, and the bad value reached the request URL as `speeds=hyperbullet`.
- * Each case below is asserted at length one specifically.
- */
 test("normalizeExplorerFilters rejects an unknown speed or rating bucket, even on its own", () => {
   assert.throws(
     () => normalizeExplorerFilters({ speeds: ["hyperbullet" as "blitz"] }),
@@ -96,7 +89,6 @@ test("normalizeExplorerFilters rejects an empty lichess population", () => {
   assert.throws(() => normalizeExplorerFilters({ ratings: [] }), /explorer_empty_ratings/u);
 });
 
-/** lichess buckets by month, masters by year, so the same string is valid for only one of them. */
 test("normalizeExplorerFilters applies the recency format each database actually uses", () => {
   assert.equal(normalizeExplorerFilters({ since: "2024-01" }).since, "2024-01");
   assert.equal(normalizeExplorerFilters({ db: "masters", since: "2024" }).since, "2024");
@@ -122,7 +114,6 @@ test("normalizeExplorerFilters rejects a recency range that runs backwards", () 
   );
 });
 
-/** The key is population identity only — two orderings of the same population are one population. */
 test("explorerFilterKey is stable across equivalent filter spellings", () => {
   assert.equal(
     explorerFilterKey({ speeds: ["classical", "blitz"], ratings: [2200, 1800] }),
@@ -168,10 +159,6 @@ test("explorerRequest appends recency bounds only when they were given", () => {
   assert.match(bounded.url, /&until=2024-06/u);
 });
 
-/**
- * The cache key carries the position as a transposition key, so two FENs that differ only in their
- * clocks share a cache entry — the explorer's answer does not depend on the move number.
- */
 test("explorerRequest keys the cache by transposition, ignoring the clocks", () => {
   const early = explorerRequest("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
   const later = explorerRequest("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 9 30");

@@ -14,13 +14,6 @@ test("positionKey makes two routes to the same position compare equal despite di
   assert.equal(positionKey(early), positionKey(later));
 });
 
-/**
- * The en-passant field is part of the key, and the library normalises an unavailable en-passant
- * target away (`makeFen` of the position after 1. e4 ends `KQkq -`, not `KQkq e3`, because no
- * capture is legal). Every FEN produced inside the library is therefore consistent, but a FEN
- * handed in from outside that still carries the stale target keys differently and its
- * transposition will be missed. Pinned here because the mismatch is silent. See ROADMAP.md.
- */
 test("positionKey treats a stale en-passant target as a different position", () => {
   const normalised = AFTER_E4_FEN;
   const withStaleTarget = AFTER_E4_FEN.replace(" - ", " e3 ");
@@ -41,7 +34,6 @@ test("classifyUciMove reports in-book when the move is a stored continuation her
 });
 
 test("classifyUciMove reports adjacent when the move transposes into the repertoire", () => {
-  // Not a child here, but the position it reaches is one the tree already knows.
   const result = classifyUciMove(START_FEN, "e2e4", ["d4"], new Set([positionKey(AFTER_E4_FEN)]));
   assert.equal(result.fit, "adjacent");
 });
@@ -66,14 +58,12 @@ test("weightFor reads the score from White's side for White", () => {
   assert.equal(weightFor(-200, null, "white"), "thin");
 });
 
-/** Scores arrive White-POV, so Black's weights are the mirror image of White's. */
 test("weightFor flips the score for Black", () => {
   assert.equal(weightFor(-120, null, "black"), "thick");
   assert.equal(weightFor(120, null, "black"), "thin");
   assert.equal(weightFor(0, null, "black"), "medium");
 });
 
-/** thick is `>= 50`, thin is `< -30`; the two boundary values themselves must not move. */
 test("weightFor puts its thresholds exactly at +50 and -30", () => {
   assert.equal(weightFor(50, null, "white"), "thick", "+50 is thick");
   assert.equal(weightFor(49, null, "white"), "medium", "just below is medium");

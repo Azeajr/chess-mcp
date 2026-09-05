@@ -1,8 +1,3 @@
-/**
- * Validate a sequence of SAN moves from a FEN, returning canonical SANs and the first move's
- * UCI (for an arrow). Used to vet chat-proposed lines before they touch the GameTree — an
- * illegal move must never be grafted in (it would later throw on replay).
- */
 import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseSan, makeSan } from "chessops/san";
@@ -14,13 +9,9 @@ import { assertDefined } from "./assert.js";
 
 export interface LineCheck {
   ok: boolean;
-  /** canonical SANs up to the first illegal move (all of them when ok). */
   canonical: string[];
-  /** UCI of the first move (incl. any promotion suffix), for a board arrow. */
   firstUci?: string;
-  /** FEN after the whole line (when ok). */
   finalFen?: string;
-  /** index of the first illegal SAN, when !ok. */
   badIndex?: number;
 }
 
@@ -31,14 +22,13 @@ export function validateLine(fen: string, sans: readonly string[]): LineCheck {
   for (let i = 0; i < sans.length; i++) {
     const move = parseSan(pos, assertDefined(sans[i]));
     if (!move) return { ok: false, canonical, badIndex: i };
-    if (i === 0 && "from" in move) firstUci = makeUci(move); // makeUci keeps a promotion suffix; a from+to concat dropped it
+    if (i === 0 && "from" in move) firstUci = makeUci(move);
     canonical.push(makeSan(pos, move));
     pos.play(move);
   }
   return { ok: true, canonical, firstUci, finalFen: makeFen(pos.toSetup()) };
 }
 
-/** Validate a FEN. Returns the normalised FEN when legal. */
 export function validateFen(fen: string): { valid: boolean; fen?: string; reason?: string } {
   const setup = parseFen(fen);
   if (setup.isErr) return { valid: false, reason: String(setup.error) };
@@ -47,7 +37,6 @@ export function validateFen(fen: string): { valid: boolean; fen?: string; reason
   return { valid: true, fen: makeFen(pos.value.toSetup()) };
 }
 
-/** Validate a PGN. Returns the game count when parseable. */
 export function validatePgn(pgn: string): { valid: boolean; games?: number; reason?: string } {
   try {
     const games = parsePgn(pgn);
@@ -58,7 +47,6 @@ export function validatePgn(pgn: string): { valid: boolean; games?: number; reas
   }
 }
 
-/** Whether a board move (orig→dest squares) is a pawn promotion at `fen`. */
 export function isPromotion(fen: string, orig: string, dest: string): boolean {
   const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
   const from = parseSquare(orig);
@@ -68,7 +56,6 @@ export function isPromotion(fen: string, orig: string, dest: string): boolean {
   return pos.board.get(from)?.role === "pawn" && (toRank === 0 || toRank === 7);
 }
 
-/** Legal moves (SAN) at a FEN — pawns to the last rank are listed as queen promotions. */
 export function legalMoves(fen: string): string[] {
   const pos = Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
   const out: string[] = [];

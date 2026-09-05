@@ -1,11 +1,3 @@
-/**
- * Framework-free Task 8.6 replacement trajectory scoring and Pareto assessment.
- *
- * Only current Task 8.5 expansions enter this boundary. Complete subtrees are projected onto one
- * canonical prefix and any prepared transposition continuations before the existing trajectory,
- * concept, distance, and route-weight semantics are reused. Incomplete expansions remain visible
- * but unscored. This module does not simulate edits, build change sets, or mutate source evidence.
- */
 import { Chess } from "chessops/chess";
 import { makeFen, parseFen } from "chessops/fen";
 import { makeSan } from "chessops/san";
@@ -118,7 +110,6 @@ export interface ReplacementScoredCandidate extends StrategicFitReplacementVersi
   readonly repertoire_color: Color;
   readonly state: ReplacementScoreState;
   readonly reason: string | null;
-  /** Full Task 8.5 value, including its Task 8.3 seed, Task 8.4 evidence, and Task 8.5 subtree. */
   readonly expansion: ReplacementCandidateExpansion;
   readonly objective_quality: ReplacementObjectiveQuality;
   readonly strategic_score: ReplacementStrategicScore;
@@ -210,9 +201,6 @@ function clamp(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-/** Thrown when a projection invariant that upstream validation should already guarantee doesn't
- *  hold — caught at the projection boundary and treated as an unprojectable candidate, never
- *  a crash. */
 class ProjectionInvariantError extends Error {}
 
 function assertDefined<T>(value: T | null | undefined): T {
@@ -742,9 +730,6 @@ function validCandidateIdentity(
     seed.mover_color !== request.repertoire_color ||
     seed.pivot.pivot_id !== expectedPivotId ||
     seed.pivot.repertoire_color !== request.repertoire_color ||
-    // These fields are typed as single literals because every construction path sets them that
-    // way — but this function's job is revalidating an expansion that may have crossed a
-    // checkpoint/cache boundary, so recheck them as real values rather than trust the type.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     seed.pivot.status !== "actionable" ||
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -794,8 +779,6 @@ function validCompleteExpansion(
     !sameVersions(expansion.subtree) ||
     expansion.subtree.root_position_id !== expansion.seed.pivot.position_id ||
     expansion.subtree.strategic_horizon_ply !== expectedHorizonPly ||
-    // Revalidating a boundary-crossed value against its claimed shape, not internal construction —
-    // see the matching note in validCandidateIdentity above.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     expansion.subtree.status !== "complete" ||
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -1020,9 +1003,6 @@ function compatibilityFailure(input: ScoreReplacementCandidatesInput): Compatibi
     expansion.strategic_horizon_ply !== request.budget.strategic_horizon_ply ||
     expansion.minimum_reply_popularity !== request.budget.minimum_reply_popularity ||
     expansion.include_all_forcing_replies !== request.budget.include_all_forcing_replies ||
-    // These "unchanged" flags are typed `true` because every construction path sets them that
-    // way, but this function revalidates an expansion crossing a checkpoint/cache boundary — see
-    // the matching note in validCandidateIdentity above.
     /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     !expansion.source_repertoire_unchanged ||
     !expansion.source_graph_unchanged ||
@@ -1642,8 +1622,6 @@ function fitForRoutes(
         : avoided.length > 0
           ? 1
           : null;
-    // Confirmed semantic concept intent precedes an inferred cohort mode; it is never blended with
-    // an arbitrary coefficient. Without explicit concept intent, canonical mode distance controls.
     values.push({ routeId: trajectory.route_id, value: round(intentFit ?? modeFit) });
     if (available.length !== distances.length) incomplete = true;
   }
@@ -2291,8 +2269,6 @@ function dominates(
 ): boolean {
   let better = false;
   for (const axisId of axes) {
-    // dominates() is only called with candidates from assessPareto's `eligible` set, which
-    // already guarantees every active axis has a non-null normalized value for every candidate.
     const leftValue = assertDefined(left.paretoValues.get(axisId)).normalized;
     const rightValue = assertDefined(right.paretoValues.get(axisId)).normalized;
     if (leftValue === null || rightValue === null) throw new ProjectionInvariantError();
@@ -2431,7 +2407,6 @@ function baseResult(
   };
 }
 
-/** Score complete Task 8.5 candidate trajectories and retain every incomplete or dominated entry. */
 export function scoreReplacementCandidates(
   input: ScoreReplacementCandidatesInput,
 ): ReplacementCandidateScoringResult {

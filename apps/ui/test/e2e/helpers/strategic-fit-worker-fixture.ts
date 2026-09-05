@@ -1,13 +1,5 @@
 import type { Page } from "playwright/test";
 
-/**
- * Deterministic Strategic Fit worker fixture: 12 findings across every classification, with the
- * frozen field values the finding-queue and stage-layout suites assert against.
- *
- * Extracted from strategic-fit-findings.spec.ts so more than one suite can reach a report that
- * actually has findings. Without it a spec can only ever observe the empty overview stage, which
- * is how WP-033 AC-2's duplicate-render assertions came to run against zero rendered controls.
- */
 export async function installFindingWorkerFixture(page: Page, replacementLabFixture = false) {
   await page.addInitScript((replacementLabFixture) => {
     const NativeWorker = window.Worker;

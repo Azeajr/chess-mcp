@@ -32,11 +32,6 @@ export const STRATEGIC_FIT_LIFECYCLE_LABELS: Readonly<Record<StrategicFitLifecyc
 const isActive = (status: StrategicFitLifecycleStatus) =>
   status === "running" || status === "provisional";
 
-/**
- * WP-031 AC-2/AC-3: the completed header states the evidence the report rests on, not just that
- * the run finished. `STRATEGIC_FIT_LIFECYCLE_LABELS` is left intact — other callers use it as the
- * lifecycle vocabulary, and this is a display concern layered over it.
- */
 const STRATEGIC_FIT_LIMITED_EVIDENCE_LABEL = "Analysis finished — limited evidence";
 
 export function lifecycleLabel(
@@ -59,7 +54,6 @@ export default function AnalysisLifecycle() {
   const state = strategicFitLifecycle;
   const run = () => {
     const status = state().status;
-    // A fresh completed report starts compact regardless of how the previous report was inspected.
     setStrategicFitAnalysisPhasesExpanded(false);
     setStrategicFitPreflightExpanded(false);
     void (status === "cancelled" || status === "failed" || status === "stale"

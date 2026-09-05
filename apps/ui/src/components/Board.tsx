@@ -1,8 +1,3 @@
-/**
- * Chessground wrapper for SolidJS. No maintained solidjs-chessground exists, so this is the
- * one-time custom bridge (UI_DESIGN.md tech-stack note): init the vanilla board on mount,
- * push store state through a reactive effect, tear down on cleanup.
- */
 import { onMount, onCleanup, createEffect } from "solid-js";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
@@ -45,8 +40,6 @@ export default function Board() {
       highlight: { lastMove: true, check: true },
     });
     motionPreference.addEventListener("change", syncAnimationPreference);
-    // "gold" is the Feature 1 preview brush — added to the default set (green/red/blue/yellow)
-    // after init so we don't have to re-declare the built-ins the Config type demands.
     const brushes = cg.state.drawable.brushes as Record<string, DrawBrush>;
     brushes.gold = {
       key: "gold",
@@ -54,7 +47,6 @@ export default function Board() {
       opacity: 0.95,
       lineWidth: 10,
     };
-    // Register the analysis palette explicitly so Chessground and the legend share one source.
     for (const brush of [
       ...Object.values(ANALYSIS_ARROW_BRUSHES.fit),
       ANALYSIS_ARROW_BRUSHES.repertoire,
@@ -68,8 +60,6 @@ export default function Board() {
     }
   });
 
-  // Re-sync the board whenever the store position changes. Also depends on the pending-promotion
-  // signal so that opening/closing the promotion modal reverts chessground's optimistic piece move.
   createEffect(() => {
     if (!cg) return;
     pendingPromo();
@@ -88,13 +78,10 @@ export default function Board() {
 
   const arrowKey = (a: Arrow) => `${a.orig}${a.dest}`;
 
-  // Repertoire, engine, and suggestion arrows: redraw whenever their stores update. setShapes replaces the
-  // overlay, so it co-exists with the lastMove highlight (a board feature, not a shape).
   createEffect(() => {
     if (!cg) return;
     const book = repertoireArrows();
     const preview = previewArrow();
-    // Gold preview wins its square: drop any book/engine arrow sharing the same orig→dest.
     const taken = new Set([...book, ...preview].map(arrowKey));
     const shapes = [
       ...book.filter((a) => !preview.some((p) => arrowKey(p) === arrowKey(a))),

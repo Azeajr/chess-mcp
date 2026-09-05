@@ -38,7 +38,6 @@ test("groundPosition reads the side to move from the FEN rather than assuming Wh
   assert.equal(grounded.turn, "black");
 });
 
-/** Grounding is the boundary in front of the walkers, so it must answer, never throw. */
 test("groundPosition reports an unusable FEN as a named error instead of throwing", () => {
   for (const fen of [MALFORMED_FEN, KINGLESS_FEN, ""]) {
     const grounded = groundPosition(fen);
@@ -87,7 +86,6 @@ test("shapeEvaluation preserves a mate score and a null centipawn score side by 
   assert.equal(shaped.lines[0]?.mate, 3);
 });
 
-/** The host injects the SAN conversion, so a conversion that fails must survive as a null. */
 test("shapeEvaluation keeps a line whose SAN could not be derived", () => {
   const shaped = shapeEvaluation(START_FEN, [engineLine()], () => null);
   assert.equal(shaped.lines.length, 1, "the line is not dropped");
@@ -100,7 +98,6 @@ test("shapeEvaluation shapes an empty line list without inventing one", () => {
   assert.deepEqual(shaped.lines, []);
 });
 
-/** Every truncating result reports the true total separately, so a caller can tell it was cut. */
 test("transpositionResult separates how many exist from how many it returned", () => {
   const tree = GameTree.fromPgn(TRANSPOSITION_PGN);
 

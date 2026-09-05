@@ -173,10 +173,6 @@ test("F6 an explicit working-copy flush writes through a reactive autosave pause
     revision: 7,
   };
   try {
-    // This is the exact state the browser creates when the document changes while a transaction
-    // holds its pause: scheduleAutosave records the latest payload but deliberately starts no
-    // debounce timer. The old flush loop called the pause-respecting executor, which returned an
-    // already-settled promise without clearing this payload and spun forever.
     persist.queueWorkingRepertoireAutosaveForTesting(saved);
     await persist.flushWorkingRepertoire();
     assert.deepEqual(await idb.idbGet(persist.WORKING_REPERTOIRE_STORAGE_KEY), saved);
@@ -226,8 +222,6 @@ test("a malformed index entry is not listed and never disables the byte budget",
   assert.equal(listed.find((entry) => entry.id === "malformed")?.readable, false);
   assert.ok(listed.every((entry) => Number.isFinite(entry.byteSize)));
 
-  // The malformed row survives normalization with byteSize 0; the budget must still bind on the
-  // real entries rather than summing to NaN and retaining everything.
   game.actions.loadPgn("1. d4 d6 *", "budget-2.pgn");
   const secondId = await persist.captureSnapshot("manual");
   assert.ok(secondId);

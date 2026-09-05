@@ -1,23 +1,3 @@
-/**
- * Deterministic half of constrained portfolio redesign (Task 11.5).
- *
- * A user can ask for a redesign in their own terms — "reduce unique pawn structures by 20% without
- * losing more than 0.15 and keep at least 95% popularity-weighted coverage" — and the assistant may
- * translate that into structured bounds. It may not decide which alternatives exist, what they cost,
- * or which one wins. This module owns the boundary that must not depend on a host: strict validation
- * of the requested bounds, deterministic conflict detection against declared intent, and a bounded
- * portfolio whose every option is one already-produced Task 8.7 candidate with its own Task 8.8
- * change set attached.
- *
- * Two rules make the portfolio impossible to fake. Every reported number is read out of retained
- * domain evidence rather than accepted as an argument, so the schema has nowhere to put a fabricated
- * evaluation or coverage figure. And missing evidence never passes a check: a candidate whose
- * constrained metric is unavailable is eliminated with that reason, exactly as Task 8.7 refuses to
- * convert an absent value into a passing safety claim.
- *
- * Nothing here selects, stages, applies, or persists. Pareto status comes from Task 8.6 and is
- * carried through unchanged rather than recomputed for the constrained subset.
- */
 import type {
   ReplacementCandidateSafetySimulation,
   ReplacementSafetySimulationResult,
@@ -33,7 +13,6 @@ import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_FIT_PORTFOLIO_VERSION = "1.0.0";
 
-/** Fixed bounds for a model-authored request and the portfolio returned for it. */
 export const STRATEGIC_FIT_PORTFOLIO_LIMITS = Object.freeze({
   constraints: 7,
   options: 6,
@@ -41,11 +20,6 @@ export const STRATEGIC_FIT_PORTFOLIO_LIMITS = Object.freeze({
   rationale_characters: 400,
 });
 
-/**
- * The bounds a request may express. Each one names a metric the deterministic chain already
- * produces, so a constraint can be checked rather than believed. There is deliberately no way to
- * state a legality claim, an evaluation, a coverage figure, or a candidate move here.
- */
 export const STRATEGIC_FIT_PORTFOLIO_CONSTRAINT_KINDS = [
   "maximum_engine_loss_cp",
   "minimum_expected_opponent_coverage",
@@ -91,7 +65,6 @@ export interface StrategicFitPortfolioErrorResult {
   readonly reason: string;
 }
 
-/** Shared host mapping from a validation failure to one structured, code-bearing result. */
 export function strategicFitPortfolioErrorResult(error: unknown): StrategicFitPortfolioErrorResult {
   if (error instanceof StrategicFitPortfolioError)
     return { error: error.code, reason: error.message };
@@ -152,9 +125,6 @@ const CONSTRAINT_DEFINITIONS: Readonly<
   },
   maximum_memorization_burden: {
     direction: "maximum",
-    // Task 8.6 reports this as unnormalized burden points (expected new concepts plus added
-    // positions weighted by the profile's memorization tolerance), so the bound uses the same
-    // scale. A 0-1 bound would silently exclude every candidate.
     unit: "burden points",
     label: "Memorization burden",
     minimum: 0,
@@ -176,7 +146,6 @@ export interface StrategicFitPortfolioConstraint {
   readonly direction: "maximum" | "minimum";
   readonly value: number;
   readonly unit: string;
-  /** Plain text for the confirmation the user sees before anything binds. */
   readonly label: string;
 }
 
@@ -197,17 +166,11 @@ function invalidValue(field: string, requirement: string): never {
   );
 }
 
-/**
- * Validate the requested bounds. Rejection rather than repair, for the same reason as the intent
- * interview: a number the user typed has a witness, a number the model produced does not.
- */
 export function resolveStrategicFitPortfolioConstraints(
   input: StrategicFitPortfolioConstraintInput,
 ): StrategicFitPortfolioConstraintSet {
   if (
     typeof input !== "object" ||
-    // input's declared type promises an object, but this is a model-authored request from an
-    // untrusted external caller at runtime — this revalidates it.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     input === null ||
     Array.isArray(input)
@@ -296,7 +259,6 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-/** Stable identity of one confirmed constraint set; a changed bound is a different request. */
 export function strategicFitPortfolioConstraintIdentity(
   set: StrategicFitPortfolioConstraintSet,
 ): string {
@@ -309,7 +271,6 @@ export interface StrategicFitPortfolioConflict {
   readonly source: StrategicFitPortfolioConflictSource;
   readonly constraint_kinds: readonly StrategicFitPortfolioConstraintKind[];
   readonly explanation: string;
-  /** The decision to put to the user. Nothing here resolves the contradiction on their behalf. */
   readonly question: string;
 }
 
@@ -317,15 +278,6 @@ export interface StrategicFitPortfolioConflictContext {
   readonly profile: StrategicFitProfile;
 }
 
-/**
- * Contradictions between what the user declared and what they just requested. Detection stops at
- * naming the contradiction: relaxing a bound, dropping one, or preferring the profile would all be
- * the assistant deciding something the user has to decide.
- *
- * The two sources here are the ones a constraint set alone can prove. Contradictions with existing
- * repertoire choices show up later, against retained evidence, as an elimination that names the
- * binding constraint — asserting one before that evidence exists would be a guess.
- */
 export function detectStrategicFitPortfolioConflicts(
   set: StrategicFitPortfolioConstraintSet,
   context: StrategicFitPortfolioConflictContext,
@@ -399,9 +351,7 @@ export interface StrategicFitPortfolioMeasurement {
   readonly value: number | null;
   readonly state: StrategicFitPortfolioMeasurementState;
   readonly reason: string | null;
-  /** The requested bound, or null when this metric was not constrained. */
   readonly constraint_value: number | null;
-  /** Null when unconstrained; false whenever the evidence could not prove the bound was met. */
   readonly satisfies_constraint: boolean | null;
 }
 
@@ -433,13 +383,11 @@ export interface StrategicFitPortfolioOption {
   readonly change_set_id: string;
   readonly action: "add-alternative" | "replace";
   readonly action_label: string;
-  /** Task 8.6 status, carried through unchanged; the constrained subset is not re-raced. */
   readonly pareto_status: ReplacementParetoStatus;
   readonly dominated_by_candidate_ids: readonly string[];
   readonly measurements: readonly StrategicFitPortfolioMeasurement[];
   readonly safety_checks: readonly StrategicFitPortfolioSafetyCheckSummary[];
   readonly unresolved_risk_count: number;
-  /** Identity of the exact retained evidence this option came from; a change voids it. */
   readonly evidence_identity: string;
 }
 
@@ -456,7 +404,6 @@ export interface StrategicFitPortfolioResult {
   readonly omitted_option_count: number;
   readonly eliminations: readonly StrategicFitPortfolioElimination[];
   readonly omitted_elimination_count: number;
-  /** The bounds that alone kept a candidate out. Empty when constraints are not what eliminated. */
   readonly binding_constraint_kinds: readonly StrategicFitPortfolioConstraintKind[];
   readonly request_id: string;
   readonly report_id: string;
@@ -465,7 +412,6 @@ export interface StrategicFitPortfolioResult {
   readonly cohort_id: string;
   readonly repertoire_revision: string;
   readonly repertoire_color: "white" | "black";
-  /** No option is preselected and none is applied; both are the user's explicit action. */
   readonly automatic_selection: false;
   readonly applied: false;
 }
@@ -477,7 +423,6 @@ export interface StrategicFitPortfolioInput {
   readonly limit?: number;
 }
 
-/** Identity over the retained evidence one option stands on. */
 export function strategicFitPortfolioEvidenceIdentity(
   safety: ReplacementSafetySimulationResult,
   candidate: ReplacementCandidateSafetySimulation,
@@ -547,12 +492,6 @@ function measurementsFor(
 const compareStrings = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
-/**
- * Build the bounded portfolio. Options are the candidates that already survived Task 8.7 safety and
- * have a validated Task 8.8 change set, restricted to those the requested bounds can be shown to
- * admit. When nothing survives, the result names the bounds that alone kept candidates out so the
- * user can decide which one to move; it never relaxes a bound to produce a portfolio.
- */
 export function buildStrategicFitPortfolio(
   input: StrategicFitPortfolioInput,
 ): StrategicFitPortfolioResult {
@@ -583,7 +522,6 @@ export function buildStrategicFitPortfolio(
   const previewById = new Map(previews.map((item) => [item.candidate_id, item]));
   const eliminations: StrategicFitPortfolioElimination[] = [];
   const admitted: StrategicFitPortfolioOption[] = [];
-  /** Candidates kept out by exactly one bound; that bound is what the user would have to move. */
   const soleFailures = new Map<StrategicFitPortfolioConstraintKind, number>();
 
   for (const candidate of [...safety.candidates].sort((left, right) =>

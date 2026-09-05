@@ -1,9 +1,3 @@
-/**
- * Deterministic, read-only intent suggestions from ordinary PGN comments.
- *
- * Detection never changes the tree or profile. A host must present a suggestion and record an
- * explicit user decision before any text becomes structured Strategic Fit metadata.
- */
 import type { ChildNode, PgnNodeData } from "chessops/pgn";
 import type { GameTree } from "../pgn.js";
 import type { RepertoireGraph } from "./graph.js";
@@ -23,7 +17,6 @@ export type StrategicFitCommentIntentDetection =
 export interface StrategicFitCommentIntentSuggestion {
   readonly suggestion_id: string;
   readonly kind: StrategicFitCommentIntentKind;
-  /** Canonical machine value; display copy always retains and quotes the original text separately. */
   readonly intent_value: string;
   readonly detection: StrategicFitCommentIntentDetection;
   readonly source_comment: string;
@@ -151,7 +144,6 @@ function matchesInComment(comment: string): CandidateMatch[] {
   );
 }
 
-/** Find supported tags/phrases without changing comments, nodes, headers, or variation ordering. */
 export function suggestStrategicFitIntentFromComments(
   tree: GameTree,
   graph: RepertoireGraph,

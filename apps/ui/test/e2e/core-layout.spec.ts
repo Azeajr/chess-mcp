@@ -3,39 +3,6 @@ import { LONG_FILENAME, openApp } from "./helpers/app";
 import { overflowViolations, touchTargetViolations } from "./helpers/accessibility";
 import { VIEWPORTS } from "./helpers/viewports";
 
-/*
- * Chromium-only by construction: the `@visual` tag keeps this test off firefox and webkit (see the
- * grepInvert in playwright.config.ts), so baselines for those engines were never exercised. They
- * are omitted rather than carried as numbers nothing checks; the test skips any engine without an
- * entry.
- *
- * Measure these in the container (`pnpm test:e2e:container`), never on the host. The two
- * environments have different fonts, and the difference lands on this fixture: the same build
- * reports a 63px top bar on an Arch host and 66px in the Playwright image, which is outside the
- * 2px tolerance in both directions. Host-measured numbers here fail CI.
- *
- * Re-measured for the UX pass. All four moved, all deliberately:
- *   .topbar      79.375 → 66          the top bar no longer wraps a row on the phone: the filename
- *                                     was painted twice, once by the status prose and once by
- *                                     `.moveno`, with the prose clipping between them.
- *   .board-wrap  318/348 → 308/338    the evaluation bar went 16px → 26px so its score stops
- *                                     being clipped to "+0."; the board reserve went 26px → 36px.
- *   .side-panel  255.6/329.6 → 275.6/349.6  inherits the row the top bar gave back.
- *   .mobile-tabs 33 → 36.4            the tab bar became one segmented control on a track rather
- *                                     than three buttons with a saturated fill on the selected one.
- *
- * Re-measured again for the interaction pass. Two moved, both deliberately:
- *   .topbar      66 → 68              the "Chess Repertoire" wordmark is visually hidden at every
- *                                     phone width, not only short ones, so the filename stops
- *                                     truncating, and the decorative separator went; against that
- *                                     the repertoire-colour control gained a side disc and a
- *                                     wrapper that owns the control's box, which is the two pixels.
- *   .side-panel  275.6/349.6 → 275.2/349.2  the remainder, after the top bar took its two.
- *
- * The warning above is not decorative — these numbers were first taken on the host, where the same
- * build reports a 65px top bar for the change that measures 68px here, so the direction of the
- * drift inverted. Take them from a container run (`pnpm test:e2e:container`), never from a host one.
- */
 const NORMAL_PHONE_BASELINES: Partial<Record<string, Record<string, Record<string, number>>>> = {
   chromium: {
     "360×740": {
@@ -66,13 +33,6 @@ const panelDimensions = (page: import("playwright/test").Page) =>
 test("the move list sits with the board, and the side panel is analysis then tools", async ({
   page,
 }) => {
-  // The deliberate diff WP-015's pin was written to catch. WP-015 planned a move-tree-first *side
-  // panel*; that ordering was superseded, and so is the assumption underneath it that the move
-  // list belongs in the side panel at all. Measured before this change at 1600x950: `.move-tree`
-  // started at y=1040 — below the fold of a 950px viewport, reachable only by scrolling a 300px
-  // column past every collapsed tool — while `.board-panel` was 868px tall around a 665px board
-  // and wasted the 185px underneath it. The move list is the board's other half, so it now shares
-  // the board column and the side panel keeps analysis over tools.
   await openApp(page, { width: 1280, height: 800 });
   const sideOrder = await page.evaluate(() =>
     [...document.querySelectorAll(".side-panel .analysis, .side-panel .rep-panel")].map(
@@ -95,7 +55,6 @@ test("the move list sits with the board, and the side panel is analysis then too
     };
   });
   expect(placement, "the move list renders in the board column").not.toBeNull();
-  // Fully on screen, and below the board rather than beside it.
   expect(placement!.treeTop).toBeGreaterThanOrEqual(placement!.boardBottom);
   expect(placement!.treeBottom).toBeLessThanOrEqual(placement!.viewportHeight);
 
@@ -107,11 +66,6 @@ test("the move list sits with the board, and the side panel is analysis then too
 });
 
 test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
-  // Four full app loads plus tab switches and geometry reads in one test. Measured at 32.3s on a
-  // developer machine, against the 30s default — every assertion passing, the budget expiring
-  // mid-navigation and reporting itself as a `page.goto` timeout. The loop has a single `openApp`
-  // call site, so that stack cannot even say which iteration ran out of time. This asks for the
-  // room the test actually needs instead of leaving a green run one slow machine away from red.
   test.slow();
   for (const viewport of [
     { width: 640, height: 400 },
@@ -161,13 +115,6 @@ test(
   async ({ page, browserName }) => {
     const baselines = NORMAL_PHONE_BASELINES[browserName];
     test.skip(!baselines, `no phone baseline is measured for ${browserName}`);
-    /*
-     * Every drifted number in one report, rather than throwing on the first. Eight numbers are
-     * pinned here, and a layout change usually moves several of them together; failing on the
-     * first meant re-running the container once per number to find out what the new geometry
-     * actually is. The message carries both values so an intended change can be told apart from a
-     * regression without re-instrumenting the test.
-     */
     const drift: string[] = [];
     for (const [label, expected] of Object.entries(baselines ?? {})) {
       const [width, height] = label.split("×").map(Number);
@@ -423,7 +370,6 @@ test("UX-014 all core controls meet pointer target minimums", async ({ page }) =
 test("WP-017 AC-1 AC-2 the top bar stays compact on a phone and single-row on desktop", async ({
   page,
 }) => {
-  // AC-1: 360x740 with a 40-character filename fits in 96px.
   await openApp(page, {
     width: 360,
     height: 740,
@@ -434,7 +380,6 @@ test("WP-017 AC-1 AC-2 the top bar stays compact on a phone and single-row on de
     .evaluate((element) => element.getBoundingClientRect().height);
   expect(compactHeight).toBeLessThanOrEqual(96);
 
-  // AC-2: 1280x800 with a 20-character filename is exactly one row.
   await openApp(page, { width: 1280, height: 800, fileName: "twenty-character.pgn" });
   const rowCenters = await page
     .locator(".topbar > :not(.analysis-notice)")
@@ -454,12 +399,8 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
 }) => {
   await openApp(page, { width: 1280, height: 800, fileName: "twenty-character.pgn" });
 
-  // Save is one interaction: visible without opening anything.
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
 
-  // Everything else is two: open the menu, then activate the option.
-  // Exact: the chat panel's starter prompts mention "repertoire", and a substring match on
-  // an accessible name cannot tell the document menu apart from a sentence about repertoires.
   const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
@@ -468,7 +409,6 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
   for (const label of ["Open PGN", "New repertoire", "Recover an earlier repertoire"]) {
     await expect(menu.getByRole("menuitem", { name: label })).toBeVisible();
   }
-  // AC-5: the groups carry distinct accessible labels.
   const groupLabels = await menu
     .getByRole("group")
     .evaluateAll((groups) => groups.map((group) => group.getAttribute("aria-label")));
@@ -478,8 +418,6 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
 
 test("WP-017 AC-4 the document menu is keyboard-operable and restores focus", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
-  // Exact: the chat panel's starter prompts mention "repertoire", and a substring match on
-  // an accessible name cannot tell the document menu apart from a sentence about repertoires.
   const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
 
   await trigger.focus();
@@ -519,7 +457,6 @@ test("WP-017 AC-6 AC-7 a 120-character filename never overflows and Cmd/Ctrl+S s
     );
   }
 
-  // AC-7: the save shortcut still fires from inside a text field.
   await openApp(page, { width: 1280, height: 800 });
   await page.evaluate(() => {
     (window as unknown as { __wp017Saves: number }).__wp017Saves = 0;

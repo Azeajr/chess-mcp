@@ -1,11 +1,3 @@
-/**
- * Framework-free Task 8.7 replacement safety simulation.
- *
- * Current Task 8.6 results are recomputed from their retained Task 8.3-8.6 evidence before any
- * candidate enters this boundary. Candidate routes are then applied only to a structural GameTree
- * clone. This module reports safety evidence; it does not create Task 8.8 operations, change sets,
- * archive payloads, staged edits, or an applied tree.
- */
 import type { Color } from "../congruence.js";
 import type { GameTree } from "../pgn.js";
 import { buildRepertoireGraph, type RepertoireGraph } from "./graph.js";
@@ -91,7 +83,6 @@ export type ReplacementSafetyCandidateAction =
   | {
       readonly candidate_id: string;
       readonly action: "replace";
-      /** Pruning is never inferred or selected by default. */
       readonly prune_explicitly_confirmed: true;
     };
 
@@ -99,7 +90,6 @@ export interface SimulateReplacementSafetyInput {
   readonly source_tree: GameTree;
   readonly request: ReplacementRequest;
   readonly scoring: ReplacementCandidateScoringResult;
-  /** Unlisted candidates use the non-pruning `Add alternative` action. */
   readonly candidate_actions?: readonly ReplacementSafetyCandidateAction[];
 }
 
@@ -118,7 +108,6 @@ export interface ReplacementCandidateSafetySimulation extends StrategicFitReplac
   readonly status: ReplacementSafetyCandidateStatus;
   readonly error_code: ReplacementSafetyErrorCode | null;
   readonly explanation: string;
-  /** Complete Task 8.6 value, retaining Task 8.3-8.5 evidence and Pareto status. */
   readonly scored_candidate: ReplacementScoredCandidate;
   readonly before_graph_id: string;
   readonly simulated_graph_id: string | null;
@@ -280,9 +269,6 @@ function mergeProvenance(
 }
 
 function sameVersions(value: StrategicFitReplacementVersioned): boolean {
-  // `value` is a caller-supplied/persisted Task 8.6+ result; its version fields are typed as
-  // exact literals, but that's a static declaration, not a runtime guarantee — stale or
-  // cross-version data must be caught here, so the literal-vs-literal checks stay.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   return (
     value.schema_version === STRATEGIC_FIT_SCHEMA_VERSION &&
@@ -382,9 +368,6 @@ function boundaryFailure(
   if (
     (scoring.status !== "complete" && scoring.status !== "partial") ||
     scoring.error_code !== null ||
-    // `scoring` is the caller-supplied prior Task 8.6 result; these fields are typed as literal
-    // `true`, but that's only the declared shape — the actual persisted/passed-in value must be
-    // revalidated at runtime since it may be stale or hand-edited.
     /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     !scoring.source_graph_unchanged ||
     !scoring.source_context_unchanged ||
@@ -499,10 +482,6 @@ function candidateBoundaryError(
         "Unscored Task 8.6 candidates remain inspectable but cannot masquerade as safety simulations.",
     };
   }
-  // `candidate` is a caller-supplied/persisted Task 8.5-8.6 result; the discriminated-union
-  // and literal types declare that a "complete" expansion always has a "complete" subtree, but
-  // that's only the compile-time shape of freshly-built data — retained/passed-in evidence must
-  // be revalidated at runtime in case it's stale, truncated, or otherwise doesn't match.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (
     candidate.expansion.status !== "complete" ||
@@ -792,8 +771,6 @@ function weightedCoverage(
       : null;
   });
   if (frequencies.some((value) => value === null)) return null;
-  // Safe to treat as number[] from here: the check above already ruled out any null entry, and
-  // `numericFrequencies` is `replies.map(...)`, so it is index-parallel with `replies` below.
   const numericFrequencies = frequencies as number[];
   const total = numericFrequencies.reduce((sum, value) => sum + value, 0);
   if (total <= EPSILON) return null;
@@ -1446,7 +1423,6 @@ function baseResult(
   };
 }
 
-/** Simulate every current scored candidate; pruning occurs only for explicitly confirmed actions. */
 export function simulateReplacementSafety(
   input: SimulateReplacementSafetyInput,
 ): ReplacementSafetySimulationResult {

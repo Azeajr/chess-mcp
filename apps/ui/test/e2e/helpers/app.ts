@@ -11,10 +11,6 @@ type ChessHarness = {
 export const LONG_FILENAME = `${"long-repertoire-file-name-".repeat(5)}.pgn`;
 
 export const RICH_PGN = [
-  // Each line ends on White's 7th move (13 ply), leaving Black to move. This is intentional:
-  // Strategic Fit preflight excludes a route as incomplete when it is the repertoire colour's
-  // turn. The former 14-ply fixture ended after Black's reply, which made all 12 routes incomplete
-  // for the default White repertoire and therefore could not serve as WP-031's positive control.
   "1. d4 Nf6 2. Nf3 e6 3. Bf4 c5 4. e3 Nc6 5. c3 d5 6. Nbd2 Bd6 7. Bg3 *",
   "1. d4 Nf6 2. Nf3 d6 3. Bf4 Nbd7 4. e3 e6 5. h3 Be7 6. Bd3 O-O 7. O-O *",
   "1. d4 d5 2. Nf3 e6 3. Bf4 c5 4. e3 Nc6 5. c3 Nf6 6. Nbd2 Bd6 7. Bg3 *",
@@ -73,6 +69,5 @@ export async function openApp(
 export const currentPath = (page: Page) => chess(page, (api) => api.currentPath());
 export const currentPgn = (page: Page) => chess(page, (api) => api.toPgn());
 
-/** Move the app to an existing node of the loaded tree, so a spec can start from a real position. */
 export const goToPath = (page: Page, path: number[]) =>
   chess(page, (api, next) => api.goto(next), path);

@@ -48,7 +48,6 @@ function isPayload(value: unknown): value is StrategicFitWorkerPayload {
   )
     return false;
   if (!isObject(value.options) || !isObject(value.metadata)) return false;
-  // A resumed checkpoint is only shape-checked here; the shared validator owns its compatibility.
   if (value.resume !== undefined && value.resume !== null && !isObject(value.resume)) return false;
   return (
     typeof value.metadata.repertoire_revision === "string" &&
@@ -106,13 +105,6 @@ function analyzerOptions(
   };
 }
 
-/**
- * Restore an interrupted job's completed stages, or state why they were refused.
- *
- * The checkpoint arrives from persistent browser storage, so it is treated as untrusted: the shared
- * validator compares content, revision, settings, and index generation before anything is seeded,
- * and a refusal is posted rather than swallowed.
- */
 function recoverJob(
   request: StrategicFitWorkerAnalyzeRequest,
   compatibility: ReturnType<typeof strategicFitJobCompatibility>,
@@ -129,19 +121,6 @@ function recoverJob(
   post({ type: "recovery", request_id: requestId, recovery });
 }
 
-/**
- * Pure message dispatcher exported so the worker protocol can be exercised without browser globals.
- *
- * The handler owns one bounded incremental index for the lifetime of the worker. It only memoizes
- * deterministic stages under a content identity, so a reused entry cannot change a result: a later
- * analysis of the same document with different settings, or of an edited document, returns exactly
- * what a cold worker would have produced.
- *
- * A reload destroys that index, so a job may also arrive with a checkpoint of the stages an earlier
- * interrupted run completed. It is seeded into the same index under the same content identities and
- * is therefore governed by the same guarantee: resuming changes the work, never the result. Every
- * request answers with a recovery record saying what was resumed or why a checkpoint was refused.
- */
 export function createStrategicFitWorkerHandler(post: PostResponse) {
   const cancelled = new Set<string>();
   const index = new StrategicFitIndexCache();

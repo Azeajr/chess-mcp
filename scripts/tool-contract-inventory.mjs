@@ -10,7 +10,6 @@ import { schemaSemanticDifferences } from "./lib/schema-semantics.mjs";
 const root = new URL("../", import.meta.url);
 const mcpSource = await readFile(new URL("apps/mcp-server/src/index.ts", root), "utf8");
 const names = (source, pattern) => [...source.matchAll(pattern)].map((match) => match[1]);
-// registerTool(name, {...}) since f4981867 migrated off the deprecated server.tool() API.
 const registrations = {
   mcp: names(mcpSource, /server\.registerTool\(\s*[\r\n ]*"([a-z_]+)"/g),
   browser: browserCommandRegistrations.map(([name]) => name),
@@ -40,9 +39,6 @@ if (unregisteredBrowserKeys.length) {
 }
 const mcpCanonicalDescriptions = names(
   mcpSource,
-  // Match registerTool(name, { ... description: toolContract("name").description ... }) without
-  // assuming where `description` sits in the options object or that it contains no nested braces:
-  // scan forward from each registration to its description line, bounded by the next registration.
   /server\.registerTool\(\s*"([a-z_]+)"[\s\S]*?description:\s*toolContract\("\1"\)\.description/g,
 );
 if (mcpCanonicalDescriptions.length !== actual.mcp.size) {

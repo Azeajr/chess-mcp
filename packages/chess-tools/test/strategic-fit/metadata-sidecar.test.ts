@@ -130,20 +130,6 @@ function metadata(label: string): StrategicFitDocumentMetadata {
   };
 }
 
-/**
- * F19: the deterministic ordering must be stable across *environments*, not just across repeated
- * calls in one process.
- *
- * The envelope's own key names are fixed ASCII, so `stableJson`'s key sort is not where this can
- * bite — the reachable surface is the sorts over caller-supplied identifiers (finding IDs,
- * resolution identities), which can hold any Unicode. `localeCompare` reads the runtime's default
- * collation, and locales genuinely disagree here: given "semantic:Alpha", "semantic:zulu",
- * "semantic:ärende", an sv-SE runtime emits ärende last while en-US emits it second. Two
- * installations would then produce different bytes for identical input.
- *
- * The three IDs below are chosen so that code-unit order and en-US collation order differ, which
- * is what makes this test fail if the sort regresses to localeCompare.
- */
 test("finding comment order follows code units, not the runtime's locale collation", () => {
   const tree = GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *");
   const report = completeStrategicFitReport(
@@ -158,8 +144,6 @@ test("finding comment order follows code units, not the runtime's locale collati
   const base = report.findings[0];
   assert.ok(base);
 
-  // Code-unit order: "Alpha" (U+0041) < "zulu" (U+007A) < "ärende" (U+00E4).
-  // en-US collation instead groups "ä" with "a", yielding Alpha, ärende, zulu.
   const findings = ["finding:zulu", "finding:Alpha", "finding:ärende"].map((findingId) => ({
     ...base,
     finding_id: findingId,

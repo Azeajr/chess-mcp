@@ -1,19 +1,3 @@
-/**
- * Deterministic, explainable strategic-map projection over a completed Strategic Fit report.
- *
- * The map is a presentation projection like `report-projection.ts`: it consumes only retained
- * report evidence, never re-runs analysis, and never participates in cache identity. Coordinates
- * are anchor distances, not an opaque embedding: the horizontal axis is the canonical explainable
- * strategic distance from the heaviest strategic mode's representative route, and the vertical
- * axis is the distance from the second anchor mode. Every point retains the exact per-family and
- * per-feature contributions of both axis distances, so proximity is always explainable with the
- * same arithmetic that produced the coordinates.
- *
- * Routes without comparable shared evidence receive no fabricated position: they are listed as
- * explicit exclusions with a structured reason. Route concepts are not retained inside the report,
- * so the learning-concepts family never contributes to map coordinates; that limitation is
- * recorded on the axes rather than silently ignored.
- */
 import { assertDefined } from "../assert.js";
 import {
   computeStrategicTrajectoryDistance,
@@ -34,7 +18,6 @@ import type {
 import { STRATEGIC_SIGNAL_FAMILIES } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
-/** Bump when coordinate semantics change so persisted or compared coordinates never mix silently. */
 export const STRATEGIC_MAP_PROJECTION_VERSION = "1.0.0";
 
 export const STRATEGIC_MAP_STATES = ["available", "single-axis", "unavailable"] as const;
@@ -62,7 +45,6 @@ export type StrategicMapAnchorSource = (typeof STRATEGIC_MAP_ANCHOR_SOURCES)[num
 export interface StrategicMapAxisAnchor {
   readonly axis: StrategicMapAxisId;
   readonly source: StrategicMapAnchorSource;
-  /** Null when no cohort produced a strategic mode and a weighted route anchors the axis instead. */
   readonly mode_id: string | null;
   readonly cohort_id: string;
   readonly representative_route_id: string;
@@ -93,14 +75,10 @@ export interface StrategicMapPoint {
   readonly route_id: string;
   readonly cohort_id: string;
   readonly trajectory_id: string;
-  /** Anchor distances in the range 0-1; the exact contribution arithmetic is retained per axis. */
   readonly x: number;
   readonly y: number;
-  /** Canonical report route weight inside its cohort; drives point size. */
   readonly normalized_weight: number;
-  /** Trajectory evidence coverage in the range 0-1; drives point opacity. */
   readonly confidence: number;
-  /** Deterministic categorical color index over the sorted cohort identifiers. */
   readonly color_index: number;
   readonly resolution: StrategicMapResolutionState;
   readonly finding_ids: readonly string[];
@@ -143,7 +121,6 @@ export interface StrategicMapProjection {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** The report fields the map consumes; both a report and a paged analysis result satisfy it. */
 export interface StrategicMapReportInput {
   readonly report_id: string;
   readonly repertoire_revision: string;
@@ -156,12 +133,7 @@ export interface StrategicMapReportInput {
 }
 
 export interface StrategicMapOptions {
-  /**
-   * Complete finding set when the input carries only one page. Findings decide border/resolution
-   * presentation only; coordinates never depend on them.
-   */
   readonly findings?: readonly StrategicFinding[];
-  /** Feature contributions retained per axis breakdown, largest first. */
   readonly top_feature_count?: number;
 }
 
@@ -200,7 +172,6 @@ interface AnchorCandidate {
   readonly score: number;
 }
 
-/** An anchor must carry comparable non-final evidence or every distance to it would be null. */
 function canAnchor(trajectory: StrategicTrajectory | undefined): boolean {
   return (
     trajectory?.snapshots.some(
@@ -211,12 +182,6 @@ function canAnchor(trajectory: StrategicTrajectory | undefined): boolean {
   );
 }
 
-/**
- * Deterministic anchor preference: real strategic-mode representatives ordered by expected weight,
- * then — only when no cohort produced a mode at all, as happens for small repertoires with
- * single-route cohorts — the cohorts' heaviest routes themselves. Both stay explainable because an
- * anchor is always a real repertoire route, never a synthetic centroid.
- */
 function anchorCandidates(
   cohorts: readonly StrategicCohort[],
   trajectoriesByRoute: ReadonlyMap<string, StrategicTrajectory>,
@@ -282,9 +247,6 @@ function excludedFamilies(profile: StrategicFitProfile): StrategicMapExcludedFam
   ];
   for (const family of STRATEGIC_SIGNAL_FAMILIES) {
     if (family === "learning-concepts") continue;
-    // profile is caller-supplied/persisted (see metadata.ts's `as Record<...>` cast on load); a
-    // stale or malformed profile could be missing a family key despite the static type promising
-    // completeness, so this re-checks rather than trusting the type.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if ((profile.preferences.feature_family_weights[family] ?? 0) <= 0) {
       excluded.push({
@@ -348,12 +310,6 @@ function snapshotSequence(
     .map((snapshot) => ({ ply: snapshot.checkpoint.ply, position_id: snapshot.position_id }));
 }
 
-/**
- * Two plotted routes are transposition-linked only when their retained snapshots prove observable
- * divergence before convergence: some earlier snapshot pair differs in both routes and a later
- * snapshot position is shared. Routes that merely share a common prefix never qualify, and
- * convergence that happens between retained checkpoints stays conservatively unlinked.
- */
 function transpositionEdges(
   points: readonly StrategicMapPoint[],
   trajectoriesByRoute: ReadonlyMap<string, StrategicTrajectory>,
@@ -404,7 +360,6 @@ function transpositionEdges(
   );
 }
 
-/** Build the deterministic strategic-map projection from one completed report. */
 export function buildStrategicMapProjection(
   input: StrategicMapReportInput,
   options: StrategicMapOptions = {},

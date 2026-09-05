@@ -1,10 +1,3 @@
-/**
- * Deterministic, transposition-aware repertoire graph for Strategic Fit.
- *
- * The source GameTree remains an editorial navigation tree. This projection keeps its SAN paths
- * while merging positions and decisions by chess semantics so later analysis is not biased by
- * variation ordering, duplicate branches, or move-order transpositions.
- */
 import { assertDefined } from "../assert.js";
 import { Chess } from "chessops/chess";
 import { INITIAL_FEN, makeFen, parseFen } from "chessops/fen";
@@ -20,9 +13,7 @@ export type RepertoireMoveOwner = "repertoire" | "opponent";
 export interface RepertoireGraphPosition {
   readonly analysis_version: string;
   readonly position_id: string;
-  /** Four-field FEN key: placement, turn, castling rights, and en-passant square. */
   readonly position_key: string;
-  /** Deterministically selected legal source FEN. IDs never depend on its clock fields. */
   readonly fen: string;
   readonly turn: Color;
   readonly source_san_paths: readonly (readonly string[])[];
@@ -41,7 +32,6 @@ export interface RepertoireGraphDecision {
   readonly uci: string;
   readonly mover_color: Color;
   readonly owner: RepertoireMoveOwner;
-  /** A semantic edge may occur at several depths after move-order convergence. */
   readonly plies: readonly number[];
   readonly source_san_paths: readonly (readonly string[])[];
   readonly route_ids: readonly string[];
@@ -65,12 +55,10 @@ export interface RepertoireGraphRoute {
   readonly repertoire_color: Color;
   readonly san_moves: readonly string[];
   readonly uci_moves: readonly string[];
-  /** Includes the initial position followed by every position reached on the route. */
   readonly position_ids: readonly string[];
   readonly decision_ids: readonly string[];
   readonly move_order_ids: readonly string[];
   readonly terminal_position_id: string;
-  /** Exact source paths are retained even when duplicate routes share one semantic ID. */
   readonly source_san_paths: readonly (readonly string[])[];
   readonly source_route_count: number;
 }
@@ -95,7 +83,6 @@ export interface RepertoireGraph {
   readonly move_orders: readonly RepertoireGraphMoveOrder[];
   readonly routes: readonly RepertoireGraphRoute[];
   readonly transposition_links: readonly RepertoireGraphTranspositionLink[];
-  /** Leaf occurrences in the editorial tree, before semantic duplicate-route collapse. */
   readonly source_route_count: number;
 }
 
@@ -194,12 +181,6 @@ function requireStandardStart(tree: GameTree): void {
   }
 }
 
-/**
- * Project a legal standard-start GameTree into the canonical Strategic Fit graph.
- *
- * This function is read-only: it clones positions while replaying moves and never writes to tree
- * nodes, headers, annotations, or child arrays.
- */
 export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): RepertoireGraph {
   requireStandardStart(tree);
 
@@ -256,8 +237,6 @@ export function buildRepertoireGraph(tree: GameTree, repertoireColor: Color): Re
     const rawChildren = (node as { children?: unknown }).children;
     if (!Array.isArray(rawChildren))
       throw new Error("strategic_fit_graph_invalid_tree: malformed children");
-    // Array.isArray narrows to `any[]` per lib.d.ts; re-type as `unknown[]` so `child` below stays
-    // safely typed until the runtime `typeof child === "object"` check narrows it for real.
     const children: readonly unknown[] = rawChildren;
 
     if (children.length === 0 && sourceSans.length > 0) {

@@ -7,7 +7,6 @@ import type {
   StrategicFitProgress,
 } from "@chess-mcp/chess-tools";
 
-/** The incremental index is worker-owned and not structured-cloneable, so it never crosses the port. */
 type StrategicFitSerializableOptions = Omit<
   AnalyzeStrategicFitOptions,
   | "repertoireColor"
@@ -33,11 +32,6 @@ export interface StrategicFitWorkerPayload {
   readonly opening_table_entries: readonly (readonly [string, OpeningEntry])[];
   readonly options: StrategicFitSerializableOptions;
   readonly metadata: StrategicFitWorkerMetadata;
-  /**
-   * A checkpoint an earlier interrupted job left behind. It is untrusted input: the worker restores
-   * it only when its content, revision, settings, and index generation all match this request, and
-   * discards it with a stated reason otherwise.
-   */
   readonly resume?: StrategicFitJobCheckpoint;
 }
 
@@ -93,7 +87,6 @@ export type StrategicFitWorkerResponse =
 export interface StrategicFitWorkerExecutionOptions {
   readonly signal?: AbortSignal;
   readonly onProgress?: (progress: StrategicFitProgress) => void;
-  /** A compatible checkpoint from an interrupted job; the worker still validates it. */
   readonly resume?: StrategicFitJobCheckpoint;
   readonly onCheckpoint?: (checkpoint: StrategicFitJobCheckpoint) => void;
   readonly onRecovery?: (recovery: StrategicFitJobRecovery) => void;
@@ -176,13 +169,6 @@ export class StrategicFitWorkerError extends Error {
   }
 }
 
-/**
- * Latest-request-wins client for the dedicated Strategic Fit worker.
- *
- * The synchronous deterministic core cannot observe a newly delivered worker message while it is
- * calculating. Cancellation therefore terminates the active worker as well as invalidating the
- * request ID. A late event from a test double or already-queued browser task is ignored.
- */
 export class StrategicFitWorkerClient {
   private readonly factory: StrategicFitWorkerFactory;
   private readonly clientId: number;
@@ -246,8 +232,6 @@ export class StrategicFitWorkerClient {
           execution.onProgress?.(response.progress);
           return;
         }
-        // Checkpoint and recovery messages are job bookkeeping: they never settle the request, and a
-        // message from a superseded or aborted request is discarded like any other stale result.
         if (response.type === "checkpoint") {
           execution.onCheckpoint?.(response.checkpoint);
           return;

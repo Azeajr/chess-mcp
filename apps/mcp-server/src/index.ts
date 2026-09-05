@@ -1,8 +1,3 @@
-/**
- * Node MCP server — exposes chess-tools + the Node Stockfish engine over MCP. One Node process: host
- * filesystem directly, bundled wasm engine, no Docker. (Supersedes an earlier Python chess-analysis +
- * chess-files stack, since removed.)
- */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -94,9 +89,6 @@ const notFound = () =>
     reason: "unknown or expired repertoire_id; call load_repertoire",
   });
 
-// Untrusted-input caps (the threat is caller-supplied PGN/FEN/path, not a network peer). The PGN
-// byte cap bounds parse/memory DoS on every PGN that enters; MAX_COMPARE_MOVES bounds compare_moves'
-// per-candidate engine work. confine() (paths.ts) is the file-path containment guard.
 const pgnTooLarge = (pgn: string) =>
   Buffer.byteLength(pgn, "utf8") > MAX_PGN_BYTES
     ? ok({ error: "pgn_too_large", reason: `PGN exceeds the ${MAX_PGN_BYTES}-byte limit` })
@@ -288,9 +280,6 @@ const strategicFitRouteAssessmentSchema = z
   })
   .strict();
 
-// The opening explorer requires a Lichess login since ~2026-03 (anonymous → 401). A personal API
-// token with no scopes is enough; without one the explorer tools return explorer_auth_required
-// instead of letting the 401 masquerade as "offline".
 setExplorerToken(process.env.LICHESS_TOKEN ?? null);
 const explorerAuthRequired = () =>
   ok({
@@ -299,7 +288,6 @@ const explorerAuthRequired = () =>
       "the Lichess opening explorer requires authentication; set LICHESS_TOKEN to a personal API token (no scopes needed, https://lichess.org/account/oauth/token)",
   });
 
-// --- validation / position (engine-free) ---
 server.registerTool(
   "validate_fen",
   { description: toolContract("validate_fen").description, inputSchema: { fen: z.string() } },
@@ -317,7 +305,6 @@ server.registerTool(
     inputSchema: { fen: z.string(), moves: z.array(z.string()) },
   },
   ({ fen, moves }) => {
-    // Gate the FEN: validateLine → parseFen().unwrap() throws a raw FenError on garbage input.
     const v = validateFen(fen);
     if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
     return ok(validateLine(v.fen, moves));
@@ -340,7 +327,6 @@ server.registerTool(
   },
 );
 
-// --- network (offline-safe) ---
 server.registerTool(
   "cloud_eval",
   { description: toolContract("cloud_eval").description, inputSchema: { fen: z.string() } },
@@ -398,7 +384,6 @@ server.registerTool(
   },
 );
 
-// --- engine ---
 server.registerTool(
   "evaluate_position",
   {
@@ -410,12 +395,8 @@ server.registerTool(
     },
   },
   async ({ fen, depth, lines }) => {
-    // Reject an illegal-but-parseable FEN up front (the same gate get_position/suggest_* apply):
-    // without it, moveSan below throws (chessops rejects the setup) instead of a closed-set error.
     const v = validateFen(fen);
     if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
-    // Hand the engine the NORMALISED FEN (v.fen), never the raw string: validateFen already rejects
-    // newlines/garbage, and this keeps the only caller-FEN that reaches `position fen ...` canonical.
     const res = await analyseMulti(
       v.fen,
       lines ?? toolDefault("evaluate_position", "lines", 3),
@@ -426,7 +407,6 @@ server.registerTool(
   },
 );
 
-// --- repertoire handles ---
 const colorSchema = z.enum(["white", "black"]);
 function loadSummary(id: string, tree: GameTree, color: Color) {
   const s = tree.stats();
@@ -505,8 +485,6 @@ server.registerTool(
     try {
       await writeFile(real, pgn, "utf8");
     } catch {
-      // Don't surface the raw fs error (it carries the absolute host path); a missing parent dir or
-      // permission failure is reported as a closed-set error instead.
       return ok({
         error: "write_failed",
         reason: "could not write under the repertoire directory",
@@ -516,7 +494,6 @@ server.registerTool(
   },
 );
 
-// --- gaps (engine scan) ---
 server.registerTool(
   "find_repertoire_gaps",
   {
@@ -554,8 +531,6 @@ server.registerTool(
           limit,
         },
         analyseMulti,
-        // movesLimit 30: a gap move outside the explorer's top list reads as ~never played, so
-        // ask deep enough that the approximation only bites on true rarities.
         popularity
           ? (fen) => explorerPosition(fen, { db: popularity_db, movesLimit: 30 })
           : undefined,
@@ -664,7 +639,6 @@ server.registerTool(
   async ({ repertoire_id, depth, min_margin, max_positions, limit, lines_limit, export_path }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    // Resolve the export path BEFORE the engine scan so a bad path fails in ms, not after it.
     let real: string | null = null;
     if (export_path !== undefined) {
       real = confine(export_path);
@@ -684,7 +658,6 @@ server.registerTool(
       try {
         await writeFile(real, csv, "utf8");
       } catch {
-        // Don't surface the raw fs error (it carries the absolute host path).
         return ok({
           error: "write_failed",
           reason: "could not write under the repertoire directory",
@@ -757,7 +730,6 @@ server.registerTool(
         leafCount: leaf_count,
         confirmDepth: confirm_depth,
       },
-      // depth override d (E1 deep confirm) uses fixed depth and bypasses movetime; else the scan effort.
       (fen, mpv, d) =>
         analyseMulti(
           fen,
@@ -896,9 +868,6 @@ server.registerTool(
     },
   },
   async ({ fen, moves, depth }) => {
-    // Gate the FEN (compareMoves → validateLine throws a raw FenError on garbage) and cap the
-    // candidate list — each candidate triggers a separate engine search, so an unbounded array is a
-    // per-call DoS.
     const v = validateFen(fen);
     if (!v.valid || v.fen === undefined) return ok({ error: "invalid_fen", reason: v.reason });
     if (moves.length > MAX_COMPARE_MOVES)
@@ -917,7 +886,6 @@ server.registerTool(
   },
 );
 
-// --- game analysis (engine) ---
 server.registerTool(
   "analyze_game",
   {
@@ -1025,7 +993,6 @@ server.registerTool(
   }) => {
     const e = get(repertoire_id);
     if (!e) return notFound();
-    // Resolve the export path BEFORE the engine scans so a bad path fails in ms, not after them.
     let real: string | null = null;
     if (export_path !== undefined) {
       real = confine(export_path);
@@ -1067,7 +1034,6 @@ server.registerTool(
       try {
         await writeFile(real, res.pgn, "utf8");
       } catch {
-        // Don't surface the raw fs error (it carries the absolute host path).
         return ok({
           error: "write_failed",
           reason: "could not write under the repertoire directory",
@@ -1084,7 +1050,6 @@ server.registerTool(
   },
 );
 
-// --- repertoire edit + illustrative lines ---
 server.registerTool(
   "modify_repertoire_line",
   {
@@ -1108,8 +1073,6 @@ server.registerTool(
     const id = store(tree, e.color);
     const s = tree.stats();
     const where = path.length ? path.join(" ") : "root";
-    // For add, report the prefix the graft actually anchored to (the path may have been
-    // re-split when it ran past the tree), not the raw input path.
     const addWhere = added?.from.length ? added.from.join(" ") : "root";
     const summary =
       action === "prune"
@@ -1147,7 +1110,6 @@ server.registerTool(
   },
 );
 
-// --- ECO opening lookup ---
 const openingsTable = parseOpeningsTsv(
   readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "data", "openings.tsv"), "utf8"),
 );
@@ -1160,7 +1122,6 @@ server.registerTool(
   },
 );
 
-// --- batch review (engine, multi-game) ---
 server.registerTool(
   "batch_review",
   {
@@ -1192,7 +1153,6 @@ server.registerTool(
   },
 );
 
-// --- game history (network) ---
 server.registerTool(
   "lichess_games",
   {
@@ -1235,7 +1195,6 @@ server.registerTool(
   },
 );
 
-// --- repertoire vs played games (network + handle) ---
 server.registerTool(
   "repertoire_vs_history",
   {
@@ -1272,7 +1231,6 @@ server.registerTool(
   },
 );
 
-// --- match prep vs a specific opponent (network + handle) ---
 server.registerTool(
   "prep_vs_opponent",
   {
@@ -1309,7 +1267,6 @@ server.registerTool(
   },
 );
 
-// --- structure (descriptive: named-structure classifier + themes/center) ---
 server.registerTool(
   "get_structural_profile",
   {
@@ -1493,10 +1450,6 @@ server.registerTool(
         personalHistoryProgressTotal +
         STRATEGIC_FIT_PROGRESS_PHASES.length;
       notifyProgress(popularityProgressTotal, total, "Fetching personal game history");
-      // year/month (chesscom) and max_games (lichess) are guaranteed by
-      // strategicPersonalHistorySourceFromToolArguments's construction for their respective
-      // platform, but the shared source type doesn't encode that — treat an unexpected gap the
-      // same as a failed fetch (null games) rather than asserting past it.
       const games =
         personalHistorySource.platform === "chesscom"
           ? personalHistorySource.year === undefined || personalHistorySource.month === undefined
@@ -1572,8 +1525,6 @@ server.registerTool(
       sort: args.sort,
     });
     if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
-    // Task 12.3: a large report is walked by cursor, so every page carries its own cursor and the
-    // successor cursor that continues the same report and sort order.
     return ok({
       ...projection.report,
       cursor: projection.cursor,
@@ -1582,7 +1533,6 @@ server.registerTool(
   },
 );
 
-// --- scoped Strategic Fit retrieval for conversation ---
 server.registerTool(
   "get_strategic_fit_report",
   {
@@ -1638,7 +1588,6 @@ server.registerTool(
   },
 );
 
-// --- suggest complementary lines (engine + structure) ---
 server.registerTool(
   "suggest_complementary_lines",
   {
@@ -1660,7 +1609,6 @@ server.registerTool(
   },
 );
 
-// --- suggest replacement line (pivot resolution + engine + structure) ---
 server.registerTool(
   "suggest_replacement_line",
   {

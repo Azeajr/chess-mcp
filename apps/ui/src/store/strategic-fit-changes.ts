@@ -132,7 +132,6 @@ export interface StrategicFitPersistedChangeState {
   readonly document_id: string;
   readonly archives: readonly StrategicFitStoredArchive[];
   readonly undo: readonly StrategicFitUndoRecord[];
-  /** Inert two-phase payload; canonical state remains the outer archive/undo snapshot until finalize. */
   readonly recovery: StrategicFitPreparedRecovery | null;
 }
 
@@ -245,7 +244,6 @@ export interface StrategicFitChangeControllerDependencies {
   ) =>
     | { readonly ok: true; readonly revision: number }
     | { readonly ok: false; readonly error: string };
-  /** Synchronous, non-failing restoration used only if final durable commit fails after publication. */
   readonly rollback: (snapshot: StrategicFitDocumentSnapshot) => void;
   readonly beforePersist?: (documentId: string) => Promise<void>;
   readonly afterPersist?: () => Promise<void> | void;
@@ -515,7 +513,6 @@ export function createStrategicFitChangeController(
       const value = stages.get(stageId);
       return value ? clone(value) : null;
     },
-    /** Development harness only; production callers stage through stageChangeSet. */
     registerStageForTesting: (stage: StrategicFitStagedChange) => {
       const registered = clone(stage);
       stages.set(registered.stage_id, registered);

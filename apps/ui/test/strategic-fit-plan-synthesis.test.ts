@@ -40,11 +40,6 @@ import type { StrategicFitCompletedResult } from "../src/store/strategic-fit.ts"
 
 const PGN = "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 *";
 
-/**
- * Plan synthesis is exercised over the real Task 6.3 training writer and the real Task 4.4/6.2
- * resolution state, so "nothing is persisted" and "acceptance goes through the existing writer"
- * are asserted against the same code paths the product uses.
- */
 function planFixture(options: { missingFinding?: boolean } = {}) {
   const tree = GameTree.fromPgn(PGN);
   const graph = buildRepertoireGraph(tree, "white");

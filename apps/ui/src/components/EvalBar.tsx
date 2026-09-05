@@ -1,14 +1,3 @@
-/**
- * EvalBar: white-POV score of the current position, taken from the top engine line in the
- * analysis store (one engine consumer — no second search racing the arrows). Shows a neutral
- * bar until the first line arrives, "—" if the engine is offline.
- *
- * While evaluation is off the bar is the switch that turns it on. It is the element that shows
- * the evaluation, so it is the element a user points at when they want one; routing that through
- * the Engine panel's button made the bar a dead decoration sitting beside a live board. Off state
- * therefore draws no fill at all — a half-filled grey column read as a rendering fault, not as
- * "no data".
- */
 import { createMemo, Show } from "solid-js";
 import { evaluationAriaLabel } from "../content/analysis";
 import { analysisState, engineLines, setEvalEnabled } from "../store/analysis";

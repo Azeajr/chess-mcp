@@ -29,15 +29,10 @@ function operationDiff(
   );
 }
 
-/**
- * Task 10.4 — a change set that touches a deep subtree can list thousands of descendant paths.
- * The first window is bounded and the remainder stays one explicit click away.
- */
 function Paths(props: { label: string; paths: readonly (readonly string[])[] }) {
   const [expanded, setExpanded] = createSignal(false);
   const window = () =>
     boundedWindow(props.paths, VISUALIZATION_RENDER_LIMITS.review_rows, expanded());
-  /** Task 12.3 — the window is mounted through a bounded scrolling viewport, expanded or not. */
   const rows = createVirtualRows({
     items: () => window().items,
     rowSize: VIRTUAL_TABLE_ROW_HEIGHT,

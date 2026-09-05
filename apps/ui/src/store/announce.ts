@@ -1,16 +1,3 @@
-/**
- * The app's single announcement policy.
- *
- * Every policy event produces exactly one message; progress ticks, streaming chat tokens,
- * hover/focus/navigation produce none. The store owns the queue, a 500 ms rate limit, and
- * consecutive de-duplication so callers never need their own bookkeeping. `AppLiveRegion`
- * renders what this store holds; nothing else writes to the live regions.
- *
- * Errors route to the assertive region (`announce(message, { assertive: true })`); everything
- * else is polite. The existing visible `role="alert"` metadata warnings in `App.tsx` stay as
- * they are and are deliberately NOT routed through here — they are visible text, not duplicated
- * announcements.
- */
 import { createSignal } from "solid-js";
 import { assertTestOnly } from "./test-seam";
 
@@ -29,19 +16,12 @@ export { politeMessage, assertiveMessage };
 let nextId = 0;
 let lastAnnouncedAt = 0;
 let lastMessage: string | null = null;
-/** Bounded observation log for tests/evidence — never rendered. */
 const announcementHistory: Announcement[] = [];
 
 export interface AnnounceOptions {
-  /** Route to the assertive region. Errors only — the default is polite. */
   readonly assertive?: boolean;
 }
 
-/**
- * Announce one message. Two identical consecutive messages within the rate-limit window are
- * collapsed to one announcement; a different message always gets through. Returns the stored
- * announcement, or null when de-duplicated.
- */
 export function announce(message: string, options: AnnounceOptions = {}): Announcement | null {
   if (message.trim() === "") return null;
   const now = Date.now();
@@ -53,9 +33,6 @@ export function announce(message: string, options: AnnounceOptions = {}): Announ
     message,
     assertive: options.assertive === true,
   };
-  // Replace rather than append: two queued messages in one region make screen readers read both
-  // on any later mutation. One region holding exactly the latest message keeps "exactly one
-  // message per event" true no matter how fast events arrive.
   const set = options.assertive === true ? setAssertiveMessage : setPoliteMessage;
   set(announcement);
   announcementHistory.push(announcement);
@@ -63,7 +40,6 @@ export function announce(message: string, options: AnnounceOptions = {}): Announ
   return announcement;
 }
 
-/** Test seam: reset the rate limiter, de-duplication state, and history between scenarios. */
 export function resetAnnouncementsForTesting() {
   assertTestOnly();
   lastAnnouncedAt = 0;
@@ -73,7 +49,6 @@ export function resetAnnouncementsForTesting() {
   setAssertiveMessage(null);
 }
 
-/** Test/evidence seam: every announcement since the last reset, in order. Never rendered. */
 export function announcementLogForTesting(): readonly Announcement[] {
   assertTestOnly();
   return [...announcementHistory];

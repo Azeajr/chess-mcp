@@ -62,7 +62,6 @@ import { registerStrategicFitTrainingEvidenceProvider } from "../application/str
 import { registerStrategicFitTrainingWriter } from "../application/strategic-fit-training-writer";
 
 export const STRATEGIC_FIT_TRAINING_ARTIFACT_KIND = "chess-mcp/strategic-fit-basic-drill";
-/** 1.2.0 adds the optional confirmed plan card; 1.1.0 added the semantic decision identity. */
 const STRATEGIC_FIT_TRAINING_ARTIFACT_VERSION = "1.2.0";
 
 interface StrategicFitTrainingCheckpoint {
@@ -108,11 +107,6 @@ export interface StrategicFitTrainingRecord {
   readonly causal_move: StrategicFitTrainingMove | null;
   readonly drills: readonly StrategicFitBasicDrill[];
   readonly user_notes: string | null;
-  /**
-   * A confirmed plan card (Task 11.4), or null for a purely deterministic training item. It is
-   * re-validated against this record's own evidence whenever the record is built, so a card can
-   * only be as current as the concepts, checkpoints, and drills it cites.
-   */
   readonly plan_card: StrategicFitPlanCard | null;
   readonly created_at: string;
   readonly provenance: readonly StrategicFitSourceProvenance[];
@@ -136,7 +130,6 @@ export interface StrategicFitTrainingCreationInput {
   readonly finding_id: string;
   readonly semantic_finding_id: string;
   readonly user_notes?: string | null;
-  /** Only an already validated card; the builder re-checks it against current evidence anyway. */
   readonly plan_card?: StrategicFitPlanCard | null;
 }
 
@@ -289,11 +282,6 @@ function causalMove(
   return null;
 }
 
-/**
- * The bounded deterministic basis a plan card may rest on, derived from one built record. The same
- * object is disclosed to the model and used to validate what it writes, so evidence withheld by
- * these bounds cannot be cited either; each bound reports what it withheld.
- */
 export function strategicFitPlanEvidenceForRecord(
   record: StrategicFitTrainingRecord,
   reportId: string,
@@ -490,8 +478,6 @@ function buildStrategicFitTrainingRecord(
     ],
   };
   if (planCard === undefined || planCard === null) return record;
-  // The writer, not only the staged proposal, is where support is proved: a card handed to it
-  // directly is validated against the evidence this very record just produced.
   const card = assertStrategicFitPlanCardSupported(
     planCard,
     strategicFitPlanEvidenceForRecord(record, report.report_id),
@@ -542,7 +528,6 @@ function artifactId(value: unknown): string | null {
 }
 
 function friendlyBuildError(error: unknown): { code: string; message: string } {
-  // A plan-card failure already carries its own code and a message written for the assistant.
   if (error instanceof StrategicFitPlanError) return { code: error.code, message: error.message };
   const code = error instanceof Error ? error.message : "strategic_fit_training_failed";
   const messages: Record<string, string> = {
@@ -561,11 +546,6 @@ function friendlyBuildError(error: unknown): { code: string; message: string } {
   };
 }
 
-/**
- * The durable note for a training resolution. A confirmed plan card belongs in document metadata,
- * not only in the exported artifact, so it is rendered alongside any note the user typed rather
- * than replacing it.
- */
 function trainingResolutionNote(record: StrategicFitTrainingRecord): string | null {
   const parts = [
     record.user_notes,
@@ -698,15 +678,9 @@ export interface StrategicFitTrainingPerformanceBoundary {
   replaceData(data: StrategicFitTrainingPerformanceData): void;
   createArtifact(format: "json", content: string, name: string): unknown;
   now(): string;
-  /** Called only when observed concept mastery supplied to report metrics actually changes. */
   onMetricEvidenceChanged?(): void;
 }
 
-/**
- * Host state for Task 7.3. Registering targets and recording attempts are intentionally separate:
- * creating a drill establishes an explicit untrained state, while only a real attempt supplies
- * recall, response-time, lapse, confidence, or spacing evidence.
- */
 export function createStrategicFitTrainingPerformanceState(
   boundary: StrategicFitTrainingPerformanceBoundary,
 ) {
@@ -944,7 +918,6 @@ function replaceBrowserTrainingPerformance(data: StrategicFitTrainingPerformance
   if (!("ok" in parsed) || parsed.data.document_id !== id) {
     throw new Error("strategic_fit_training_invalid_current_document_data");
   }
-  // An explicit attempt/import wins over any older IndexedDB read still in flight.
   performanceActivation += 1;
   performanceActiveLoad = Promise.resolve();
   setBrowserPerformanceSnapshot({
@@ -1109,13 +1082,6 @@ const browserTraining = createStrategicFitTrainingState({
 export const createStrategicFitTrainingItem = (input: StrategicFitTrainingCreationInput) =>
   browserTraining.create(input);
 
-/**
- * The registered target a drill belongs to, or null when the drill was never registered.
- *
- * Matched on the three fields the target is derived from rather than by recomputing its id: the
- * derivation (a stable hash over training/position/decision) is the library's own business, and a
- * second copy of it here would be a second thing to keep in step.
- */
 export function strategicFitTrainingTargetForDrill(
   trainingId: string,
   drill: Pick<StrategicFitBasicDrill, "position_id" | "decision_id">,
@@ -1130,14 +1096,6 @@ export function strategicFitTrainingTargetForDrill(
   );
 }
 
-/**
- * Record one drill attempt. `recalled` is decided by the caller comparing the move played against
- * the drill's `expected_san`; this only reports what happened.
- *
- * Registration and attempt stay separate on purpose — creating a drill establishes an untrained
- * target, and only a real attempt supplies recall and response-time evidence — so this must be
- * reached from a drill the user actually played, never from drill creation.
- */
 export function recordStrategicFitDrillAttempt(input: {
   trainingId: string;
   drill: Pick<StrategicFitBasicDrill, "position_id" | "decision_id">;
@@ -1154,13 +1112,6 @@ export function recordStrategicFitDrillAttempt(input: {
   });
 }
 
-/**
- * Whether a mutation result means the attempt reached the performance log.
- *
- * `unchanged` counts as recorded: it is returned when this exact attempt is already present, so the
- * evidence exists either way. `blocked` does not — the write was refused. A null result means the
- * drill's target was never registered, so nothing was even addressed.
- */
 export function strategicFitDrillAttemptWasRecorded(
   result: StrategicFitTrainingPerformanceMutationResult | null,
 ): boolean {
@@ -1172,9 +1123,7 @@ export interface StrategicFitDrillOutcome {
   readonly played_san: string | null;
   readonly recalled: boolean;
   readonly response_time_ms: number;
-  /** False when the attempt did not reach the log — the summary says so rather than implying it did. */
   readonly recorded: boolean;
-  /** Why it did not, for the surface to explain. Null when it was recorded. */
   readonly unrecorded_reason: "target-not-registered" | "attempt-refused" | null;
 }
 
@@ -1182,21 +1131,9 @@ export interface StrategicFitDrillSession {
   readonly training_id: string;
   readonly index: number;
   readonly outcomes: readonly StrategicFitDrillOutcome[];
-  /** When the current drill was put in front of the user, for the response time of the next answer. */
   readonly shown_at: number;
 }
 
-/**
- * Drill sessions live here rather than in `DrillRunner`, and this is load-bearing rather than tidy.
- *
- * Recording an attempt changes mastery evidence, which schedules a reanalysis; reanalysis nulls
- * `current_result`, and the workspace's `<Show when={currentResolution()}>` unmounts the whole
- * resolution column while it runs. Session state held in the component is therefore destroyed by
- * the user's own first move: the runner would reappear at its start screen, and re-answering the
- * same drill would write a *second* attempt for that target — breaking "recall is first-attempt
- * only", the one invariant this surface exists to uphold. Keyed by training id, the session
- * survives that remount and the already-answered drill stays answered.
- */
 const [drillSessions, setDrillSessions] = createSignal<
   Readonly<Record<string, StrategicFitDrillSession>>
 >({});
@@ -1208,7 +1145,6 @@ const putDrillSession = (session: StrategicFitDrillSession) => {
   setDrillSessions((previous) => ({ ...previous, [session.training_id]: session }));
 };
 
-/** Open a session, or restart a finished one. Restarting is a new presentation, not a retry. */
 export function startStrategicFitDrillSession(trainingId: string, now = Date.now()): void {
   putDrillSession({ training_id: trainingId, index: 0, outcomes: [], shown_at: now });
 }
@@ -1220,13 +1156,6 @@ export function endStrategicFitDrillSession(trainingId: string): void {
   });
 }
 
-/**
- * Restart the response-time clock for the drill on screen.
- *
- * Called when the runner mounts. The reanalysis triggered by the previous answer unmounts and
- * remounts this surface, and the time the user spent watching that rescan is not thinking time for
- * the next position.
- */
 export function refreshStrategicFitDrillClock(trainingId: string, now = Date.now()): void {
   const session = strategicFitDrillSession(trainingId);
   if (session === null) return;
@@ -1241,20 +1170,12 @@ export function strategicFitDrillOutcomeFor(
   return session.outcomes.find((outcome) => outcome.drill_id === drillId);
 }
 
-/** Move to the next position and restart the clock for it. */
 export function advanceStrategicFitDrillSession(trainingId: string, now = Date.now()): void {
   const session = strategicFitDrillSession(trainingId);
   if (session === null) return;
   putDrillSession({ ...session, index: session.index + 1, shown_at: now });
 }
 
-/**
- * Score and record the single move played for the drill on screen.
- *
- * Returns the outcome, or null when there is no open session or this drill has already been
- * answered in it — the second guard is what makes the attempt first-only even if the board somehow
- * emits twice.
- */
 export function playStrategicFitDrill(input: {
   trainingId: string;
   drill: Pick<
@@ -1293,29 +1214,14 @@ export function playStrategicFitDrill(input: {
         : "attempt-refused",
   };
 
-  // Re-read: recording the attempt can schedule a reanalysis, and anything that ran in between
-  // must not be overwritten by a stale copy of the session.
   const latest = strategicFitDrillSession(input.trainingId) ?? session;
   putDrillSession({ ...latest, outcomes: [...latest.outcomes, outcome] });
   return outcome;
 }
 
-/**
- * Rebuild the deterministic record for a finding without saving anything. Plan synthesis uses it
- * for both the evidence it discloses and the evidence it validates against, so a proposal and its
- * acceptance are measured with the same builder the training writer uses.
- */
 const buildCurrentStrategicFitTrainingRecord = (input: StrategicFitTrainingCreationInput) =>
   browserTraining.buildCurrent(input);
 
-/**
- * The drills for a finding, rebuilt from current canonical evidence, or null when there are none.
- *
- * The drill surface rebuilds rather than holding on to whatever `create` returned, because creating
- * a training item triggers reanalysis, which remounts the panel and would discard any record kept
- * in component state. Rebuilding also keeps drill content in step with the live repertoire, and is
- * side-effect free — unlike `exportStrategicFitTrainingItem`, it writes no artifact.
- */
 export function strategicFitDrillsFor(
   input: StrategicFitTrainingCreationInput,
 ): StrategicFitTrainingRecord | null {
@@ -1323,15 +1229,10 @@ export function strategicFitDrillsFor(
     const record = buildCurrentStrategicFitTrainingRecord(input);
     return record && record.drills.length > 0 ? record : null;
   } catch {
-    // Building can reject a finding outright — a stale semantic route is the documented case. The
-    // caller renders from this, so an unbuildable finding must read as "nothing to drill" rather
-    // than take the surrounding panel down with it.
     return null;
   }
 }
 
-// Plan synthesis reaches training through this bridge rather than importing it: the browser command
-// registry already reaches plan synthesis, and training reaches the finding-resolution graph.
 registerStrategicFitTrainingWriter({
   planEvidence: (input) => {
     const record = buildCurrentStrategicFitTrainingRecord(input);
@@ -1340,7 +1241,6 @@ registerStrategicFitTrainingWriter({
   createItem: (input) => browserTraining.create(input),
 });
 
-/** Rebuild a saved deterministic drill from current canonical evidence for portable export. */
 export function exportStrategicFitTrainingItem(
   input: StrategicFitTrainingCreationInput,
 ): StrategicFitTrainingCreationResult {

@@ -1,4 +1,3 @@
-/* chessground board + piece theme (shipped in the package's assets/) */
 @import "chessground/assets/chessground.base.css";
 @import "chessground/assets/chessground.brown.css";
 @import "chessground/assets/chessground.cburnett.css";
@@ -74,7 +73,6 @@
   --shadow-dialog: #000b;
   --shadow-solid: #000;
 
-  /* Text and accents. */
   --text-primary: #e6e6e6;
   --text-inverse: #10131a;
   --text-on-dark: #fff;
@@ -82,8 +80,6 @@
   --text-reference: #b8c7dd;
   --accent-primary: #6ea8fe;
 
-  /* The two piece colours, as UI indicators rather than board pixels — used wherever chrome has
-     to say "this is the white side" without drawing a board. */
   --piece-white: #f0f0f2;
   --piece-black: #17171a;
 
@@ -123,11 +119,6 @@
   --status-positive-border: #3c7a4b;
   --status-mismatch-text: #f0c878;
 
-  /*
-   * Component surfaces that carry their own palette rather than a status meaning: the disabled
-   * evaluation bar, the analysis engine's own running/ready states, and the shared region-state
-   * card. They live here so AC-3 holds — no raw core-app color outside this block.
-   */
   --eval-off-border: #69717d;
   --eval-off-surface: #565d68;
   --eval-off-fill: #9aa3af;
@@ -164,19 +155,9 @@
   --z-notice: 100;
   --z-warning: 120;
   --z-workspace: 200;
-  /*
-   * WP-033 AC-5: the Replacement Lab is a sibling of the workspace dialog, not a descendant, so it
-   * no longer inherits the workspace's stacking context and needs its own layer above it. Nested
-   * inside, the workspace's backdrop would paint over the lab and swallow every click in it.
-   */
+
   --z-nested-dialog: 210;
 
-  /*
-   * Control geometry. One radius scale and one control height so a button, a select, and a
-   * disclosure summary sitting in the same row line up without each re-deciding its own metrics —
-   * the thing that previously made the top bar, the scan rows, and `.ui-button` look like three
-   * unrelated widget sets.
-   */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
@@ -184,7 +165,6 @@
   --control-height: 30px;
   --control-height-sm: 24px;
 
-  /* Interaction surfaces shared by every control variant. */
   --surface-hover: #34343d;
   --surface-active: #3d3d47;
   --border-strong: #4a4a55;
@@ -194,7 +174,6 @@
   --shadow-panel: 0 1px 2px #0006;
   --shadow-pop: 0 10px 30px -8px #000a;
 
-  /* Compatibility aliases used throughout the existing stylesheet. */
   --bg: var(--surface-canvas);
   --panel: var(--surface-panel);
   --border: var(--border-default);
@@ -219,13 +198,12 @@ body {
   font-family: ui-sans-serif, system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
-  /* Stop pull-to-refresh / scroll-chaining while panning the board or scrolling chat. */
+
   overscroll-behavior: none;
-  /* Keep long-press callouts suppressed for board gestures on mobile Safari/Chrome. */
+
   -webkit-touch-callout: none;
 }
 
-/* Text areas and inputs need normal select/drag/callout for editing (chat box, FEN/PGN fields). */
 input,
 textarea,
 [contenteditable] {
@@ -241,7 +219,6 @@ img,
   -webkit-touch-callout: none;
 }
 
-/* Selection is the default; suppress it only on genuine gesture and application-chrome surfaces. */
 .cg-wrap,
 .topbar,
 .mobile-tabs,
@@ -263,15 +240,15 @@ img,
 }
 
 .app {
-  height: 100vh; /* fallback */
+  height: 100vh;
   height: 100dvh;
 }
 
 .app-main {
   display: grid;
   grid-template-rows: auto 1fr;
-  height: 100vh; /* fallback */
-  height: 100dvh; /* dynamic viewport — tracks the mobile URL bar show/hide */
+  height: 100vh;
+  height: 100dvh;
 }
 
 .strategic-fit-metadata-warning {
@@ -298,7 +275,7 @@ img,
   gap: var(--space-3);
   row-gap: 0.4rem;
   padding: 0.6rem 1rem;
-  /* Clear the notch / rounded corners in the installed standalone app (env → 0 elsewhere). */
+
   padding-top: calc(0.6rem + env(safe-area-inset-top));
   padding-left: calc(1rem + env(safe-area-inset-left));
   padding-right: calc(1rem + env(safe-area-inset-right));
@@ -315,8 +292,6 @@ img,
   letter-spacing: -0.01em;
 }
 
-/* Identity group: what document is open, and is it saved. Takes the slack so the action group
-   stays hard-right and the two never interleave. */
 .topbar-identity {
   display: inline-flex;
   flex: 1 1 auto;
@@ -347,8 +322,6 @@ img,
   font-size: var(--type-sm);
 }
 
-/* Grouping the actions must not cost the flat row's ability to wrap: at 320px the group would
-   otherwise be an unbreakable block wider than the viewport. */
 .topbar-actions {
   display: inline-flex;
   flex: 0 1 auto;
@@ -360,7 +333,6 @@ img,
   row-gap: 0.4rem;
 }
 
-/* Separates the document actions from the two settings-shaped controls without a heavier divider. */
 .topbar-sep {
   width: 1px;
   height: 18px;
@@ -368,12 +340,6 @@ img,
   margin-inline: var(--space-1);
 }
 
-/*
- * Hierarchy in the action group. Six identically filled boxes said every control was equally
- * likely to be the one you want, which is the same as saying nothing. Everything up here is quiet
- * until pointed at; only Save keeps a surface, and only Save goes accented — and only when there
- * is something to write.
- */
 .topbar button:not(.ui-button-primary),
 .topbar .document-menu-trigger {
   border-color: transparent;
@@ -393,19 +359,11 @@ img,
   color: var(--text);
 }
 
-/*
- * The repertoire's side, stated as a disc before it is stated as a word. The wrapper carries the
- * control's box so the disc is a flex sibling of the select rather than an overlay fighting its
- * padding — the coarse-pointer tier restates that padding, and an absolutely-placed dot landed on
- * the first letter of the value.
- */
 .topbar-side {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  /* The select inside keeps the full compact control height — it is the focusable, pointer-sized
-     control and must clear the target floor on its own — so the wrapper is that plus its border.
-     Two pixels over its neighbours, rather than the six the default select height cost. */
+
   min-height: calc(var(--control-height-sm) + 2px);
   padding-left: 0.55rem;
   border: 1px solid var(--border);
@@ -444,7 +402,6 @@ img,
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-/* Buttons take the shared `.ui-button` recipe; these two keep native behaviour but match its box. */
 .topbar select,
 .topbar input {
   min-height: var(--control-height);
@@ -455,8 +412,7 @@ img,
   color: var(--text);
   cursor: pointer;
   font-size: var(--type-sm);
-  /* Native chevrons render at wildly different sizes per engine; one drawn caret keeps the
-     control the same shape everywhere and lets the box match the buttons beside it. */
+
   appearance: none;
   background-image:
     linear-gradient(45deg, transparent 50%, var(--muted) 50%),
@@ -520,7 +476,6 @@ img,
   accent-color: var(--accent);
 }
 
-/* Wide: flex row — board grows, side + chat are fixed widths the dividers drag. */
 .workspace {
   display: flex;
   flex-direction: row;
@@ -536,10 +491,10 @@ img,
   min-width: 0;
 }
 .side-panel {
-  flex: 0 0 auto; /* width set inline from the layout store */
+  flex: 0 0 auto;
 }
 .chat-wrap {
-  flex: 0 0 auto; /* width set inline from the layout store */
+  flex: 0 0 auto;
   display: flex;
   min-height: 0;
 }
@@ -567,8 +522,7 @@ img,
   width: var(--target-min);
   transform: translateX(-50%);
 }
-/* A resize handle should acknowledge the pointer, not light up a full-height accent bar between
-   two panels. It reaches full accent only while actually dragging. */
+
 .divider:hover {
   background: var(--accent-line);
 }
@@ -576,8 +530,6 @@ img,
   background: var(--accent);
 }
 
-/* Horizontal board resizer — only shown in the compact column tier. A visible grip
-   so it's discoverable as a drag handle. */
 .divider-h {
   display: none;
   width: 100%;
@@ -607,9 +559,6 @@ img,
   background: var(--accent);
 }
 
-/* Names whatever's running behind a hidden phone tab — hidden until the compact tier flips it to
-   flex, same as .mobile-tabs below. Renders nothing (zero height) whenever nothing is running,
-   regardless of tier, because ActivityStrip itself unmounts it via <Show>. */
 .activity-strip {
   display: none;
   flex-direction: column;
@@ -628,12 +577,6 @@ img,
   font-size: 0.85rem;
 }
 
-/* Phone panel switcher — hidden until the compact tier flips it to flex. */
-/*
- * One segmented control rather than three separate buttons with a saturated blue fill on the
- * selected one. A track with a raised selected segment is the quieter, more familiar way to say
- * "one of these three", and it stops the tab bar from being the loudest thing on the phone screen.
- */
 .mobile-tabs {
   display: none;
   gap: 2px;
@@ -676,8 +619,6 @@ img,
   vertical-align: middle;
 }
 
-/* Tablet: revert to the two-row grid; chat wraps full-width. Dividers hide and the
-   inline panel widths are neutralised so the grid columns take over. */
 @media (max-width: 68.75em) {
   .workspace {
     display: grid;
@@ -697,15 +638,12 @@ img,
     grid-column: 1 / -1;
     height: 360px;
   }
-  /* The board cell is min-content tall, so the move list needs an explicit floor to stay usable. */
+
   .board-panel .moves-panel {
     min-height: 11rem;
   }
 }
 
-/* Phone: pinned board + tab bar. The tab bar sets .workspace[data-mtab]; the rules below toggle
-   each panel's display so panels stay mounted (chessground never re-inits, chat keeps its log).
-   Short viewports give the panel its 12rem floor and let the workspace scroll instead. */
 @media (max-width: 45em) {
   .workspace {
     display: flex;
@@ -717,15 +655,7 @@ img,
     padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
     overflow: hidden;
   }
-  /*
-   * The board column dissolves into the workspace column on the phone, so the move list becomes a
-   * sibling of the tab bar rather than a child of the board panel. Without this the Moves tab grew
-   * the board panel and pushed the tab bar from just under the board to the bottom of the screen —
-   * a tab bar that moves when you change tabs. `order` then restores the intended stack: board,
-   * grip, activity, tabs, then whichever panel the active tab selects.
-   */
-  /* Extra `.workspace` specificity, like the `.board-wrap` rule below: the base `.board-panel`
-     and `.moves-panel` rules sit later in the source and would otherwise win. */
+
   .workspace .board-panel {
     display: contents;
   }
@@ -752,9 +682,7 @@ img,
     flex: 1 1 0;
     min-height: 0;
   }
-  /* Honour the dragged board size, capped to the container width so it can't overflow. Falls
-     back to the responsive default until the user drags. Extra `.workspace` specificity so this
-     beats the base `.board-wrap` rule, which sits later in the source. */
+
   .workspace .board-wrap {
     width: min(
       var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - var(--board-gutter)))),
@@ -777,11 +705,11 @@ img,
   .chat-wrap {
     flex: 1 1 0;
     min-height: 0;
-    height: auto; /* drop the 360px the tablet rule set */
+    height: auto;
     width: auto !important;
-    overflow: hidden; /* chat scrolls its own .chat-log */
+    overflow: hidden;
   }
-  /* Show exactly one panel for the active tab. */
+
   .workspace[data-mtab="analysis"] .moves-panel,
   .workspace[data-mtab="chat"] .moves-panel {
     display: none;
@@ -796,14 +724,13 @@ img,
   .workspace[data-mtab="chat"] .side-panel {
     display: none;
   }
-  /* 16px floor stops iOS Safari auto-zooming when these gain focus. */
+
   .chat-input textarea,
   .field input {
     font-size: 16px;
   }
 }
 
-/* Touch devices: meet the 44px tap-target minimum without bloating mouse density. */
 @media (pointer: coarse) {
   .divider::before {
     width: var(--target-touch);
@@ -812,20 +739,7 @@ img,
     width: 100%;
     height: var(--target-touch);
   }
-  /*
-   * Two controls opt out of the *width* floor because each supplies its own tap area through an
-   * absolutely-positioned `::before` larger than the painted box — the technique the dividers have
-   * always used here. Both are narrow on purpose and both pay for width out of something the reader
-   * needs more:
-   *
-   *   .eval-bar        44px of rail is 16px taken off the board on the smallest screens.
-   *   .collapse-toggle sits in the gutter of every nesting level, so its width is multiplied by
-   *                    depth — at 44px a third-level variation began past the halfway mark of a
-   *                    390px phone and wrapped three times.
-   *
-   * Anything else that wants to be narrower than the floor needs the same overlay, not an entry
-   * on this list.
-   */
+
   .app-main
     :is(button, select, summary, [role="tab"], a[href], input:not([type="range"])):not(
       .eval-bar,
@@ -836,24 +750,15 @@ img,
   }
 }
 
-/*
- * The board column is a stack: the board takes the height it needs, the move list takes the rest.
- * `--board-cap` is what the board may claim of the viewport height; the remainder is the move
- * list's, so the two are one budget rather than the board being sized in isolation and the list
- * being pushed wherever it landed.
- */
 .board-panel {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   min-height: 0;
   --board-cap: 62vh;
-  /* The eval bar plus the stage gap. One token so the board's own width and the move list's
-     width are derived from the same number instead of two hand-tuned approximations. */
+
   --board-gutter: calc(28px + 0.6rem);
-  /* What the board column actually occupies: board edge + gutter. Both the stage and the move
-     list resolve this against .board-panel, so the two surfaces share one left and one right
-     edge at every width — they are one loop and now read as one object. */
+
   --board-col: min(calc(var(--board-cap) + var(--board-gutter)), 100%);
 }
 
@@ -861,8 +766,7 @@ img,
   display: flex;
   flex: 0 0 auto;
   gap: 0.6rem;
-  /* stretch so the eval bar inherits the board's height instead of guessing at it; the board
-     itself opts out so its aspect-ratio square survives. */
+
   align-items: stretch;
   justify-content: center;
   min-height: 0;
@@ -875,21 +779,15 @@ img,
 }
 
 .board-wrap {
-  /* Reserves the eval bar + gap sitting beside it, so the row can't exceed its container and
-     trigger horizontal scroll on narrow screens. */
   width: min(var(--board-cap), calc(100% - var(--board-gutter)));
   aspect-ratio: 1;
-  overflow: hidden; /* clip chessground's sub-pixel coordinate bleed; it fills exactly */
-  position: relative; /* anchors .board-keyboard-layer's absolute overlay */
-  /* A frame, so the board reads as a placed object rather than a bitmap floating on the canvas.
-     The radius is small enough that no square looks clipped. */
+  overflow: hidden;
+  position: relative;
+
   border-radius: var(--radius-xs);
   box-shadow: 0 0 0 1px var(--border-strong);
 }
 
-/* The move list fills whatever the board did not take, and never collapses to nothing. It is
-   width-matched to the board stage above it (see --board-col) rather than bleeding to the full
-   column, which is what previously made the board look like it was floating over an unrelated box. */
 .board-panel .moves-panel {
   display: flex;
   flex: 1 1 auto;
@@ -902,16 +800,11 @@ img,
   min-width: 0;
 }
 
-/* chessground sizes to its container */
 .cg-wrap {
   width: 100%;
   height: 100%;
 }
 
-/* WP-014: an 8x8 grid of real focusable gridcells laid over the board. `pointer-events: none`
-   until the layer holds focus is the mechanism that guarantees AC-7 (byte-identical pointer/touch
-   behaviour on Chessground below while this layer is unfocused) — :focus-within flips it to `auto`
-   only while a keyboard user is actually navigating the board. */
 .board-keyboard-layer {
   position: absolute;
   inset: 0;
@@ -921,12 +814,6 @@ img,
 .board-keyboard-layer:focus-within {
   pointer-events: auto;
 }
-
-/* .bkl-row is deliberately unstyled (plain default display:block): every gridcell inside
-   positions itself absolutely against .board-keyboard-layer's containing block, skipping over
-   this wrapper entirely, so it needs no layout role of its own. display:contents would remove it
-   (and historically, on some WebKit builds, its accessibility semantics) from the box tree
-   instead — avoided on purpose since nothing here depends on it. */
 
 .bkl-cell {
   position: absolute;
@@ -941,8 +828,6 @@ img,
   box-shadow: inset 0 0 0 2px var(--accent-primary);
 }
 
-/* A legal-destination dot, independent of Chessground's own showDests highlight underneath (this
-   layer never touches Chessground state) — small and centred so it reads as a marker, not a fill. */
 .bkl-cell.legal-dest::after {
   content: "";
   position: absolute;
@@ -961,13 +846,7 @@ img,
   z-index: var(--z-content);
 }
 
-/*
- * The evaluation bar reads as chrome attached to the board, not as a scrollbar parked at the edge
- * of the window: it takes the board's exact height through the stage's cross-axis rather than a
- * second `70vh` guess of its own.
- */
 .eval-bar {
-  /* Wide enough to print "+0.24" without clipping — at 16px the score was cut to "+0.". */
   width: 28px;
   align-self: stretch;
   background: var(--surface-eval);
@@ -975,7 +854,7 @@ img,
   border-radius: var(--radius-xs);
   position: relative;
   overflow: hidden;
-  /* The off state renders as a <button>; these keep the two states pixel-identical in geometry. */
+
   padding: 0;
   margin: 0;
   font: inherit;
@@ -992,11 +871,6 @@ img,
   transition: height var(--motion-slow) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-/*
- * `difference` against white is what makes one element legible on both halves of the bar: over the
- * white fill it resolves to black, over the dark track to white. The previous value differenced
- * near-black against near-black, so the score was invisible in every state.
- */
 .eval-bar .score {
   position: absolute;
   bottom: 3px;
@@ -1011,29 +885,18 @@ img,
   mix-blend-mode: difference;
 }
 
-/*
- * Off is a quiet empty rail with a centre tick, not a half-filled grey column. The old treatment
- * painted a 50% fill in a lighter grey, which read as a broken gauge sitting beside a live board:
- * a bar showing an amount is a claim about the position, and off has no claim to make.
- */
 .eval-bar.is-off {
   padding: 0;
   border-color: var(--border);
   background: var(--surface-control-subtle);
   cursor: pointer;
-  /* No fill is painted while off, so nothing needs clipping — and the hit area below has to be
-     able to reach outside the painted rail. */
+
   overflow: visible;
   transition:
     background var(--motion-fast) ease,
     border-color var(--motion-fast) ease;
 }
 
-/*
- * The touch target, wider than the rail it belongs to. Widening the rail itself to 44px would take
- * that width off the board on exactly the screens where the board is smallest; the extra hit area
- * lands in the workspace padding and the stage gap, where no other control sits.
- */
 .eval-bar.is-off::before {
   content: "";
   position: absolute;
@@ -1048,8 +911,6 @@ img,
   border-color: var(--accent-line);
 }
 
-/* The tick marks the even mark the fill would grow from, so turning evaluation on reads as the
-   bar filling away from a known origin rather than a new object appearing. */
 .eval-bar-off-mark {
   position: absolute;
   top: 50%;
@@ -1070,8 +931,6 @@ img,
   min-height: 0;
 }
 
-/* Preserve the pinned phone layout at normal heights. On constrained viewports the panel keeps
-   its usable floor and the workspace, rather than the Analysis panel, owns the scroll. */
 @media (max-width: 45em) and (max-height: 640px) {
   .side-panel,
   .chat-wrap {
@@ -1090,9 +949,6 @@ img,
   }
 }
 
-/* The wide workspace is locked to the viewport and clips its own overflow. Let the complete
-   middle column scroll as well as the move tree's body, otherwise expanded analysis/repertoire
-   content can be pushed outside the viewport with no scroll container that can reach it. */
 @media (min-width: 68.8125em) {
   .side-panel {
     overflow-y: auto;
@@ -1110,10 +966,6 @@ img,
   overflow: hidden;
 }
 
-/* Plain sequence of the line that reached the current node — clickable, scrolls horizontally
-   if long so it never grows the panel vertically. */
-/* The line that reached the current position — a breadcrumb for the tree below it, so it gets a
-   distinct recessed surface rather than looking like the tree's first row. */
 .move-tree .current-line {
   flex: 0 0 auto;
   padding: var(--space-2) var(--space-3);
@@ -1134,7 +986,7 @@ img,
   padding: var(--space-3);
   line-height: 1.9;
   font-size: 0.9rem;
-  /* Move numbers line up column-wise down the list instead of jittering with the digit widths. */
+
   font-variant-numeric: tabular-nums;
 }
 
@@ -1165,12 +1017,11 @@ img,
   color: var(--text-inverse);
   font-weight: 600;
 }
-/* The move that is on the board should stay findable in a long tree without hunting for a chip. */
+
 .move-tree .move.current:hover {
   background: color-mix(in srgb, var(--accent) 88%, var(--text-on-dark));
 }
 
-/* Feature 1: moves on the active preview line that already exist in the tree. */
 .move-tree .move.move-preview {
   box-shadow: 0 0 0 1px var(--status-warning) inset;
   background: rgba(227, 179, 65, 0.15);
@@ -1181,13 +1032,7 @@ img,
     min-width: var(--target-touch);
     min-height: var(--target-touch);
   }
-  /*
-   * The collapse toggle gets the tap area without the box. Widening it to 44px widened the gutter
-   * of every nesting level by the same amount, so on a 390px phone a third-level variation started
-   * past the halfway mark and wrapped three times — the deepest lines, which are the ones a reader
-   * is least sure of, became the hardest to read. The overlay below is the tap target; the painted
-   * control stays gutter-sized.
-   */
+
   .move-tree .collapse-toggle {
     min-width: 0;
     min-height: var(--target-touch);
@@ -1208,30 +1053,20 @@ img,
   color: var(--muted);
 }
 
-/* Feature 3: per-branch collapse toggle, in a left gutter beside the variation block. */
 .move-tree .variation-group {
   display: flex;
   align-items: flex-start;
   gap: 0.3rem;
   margin: 0.15rem 0;
 }
-/*
- * A rule down the left of the block is the only nesting signal. The markup used to also print
- * literal PGN parentheses around every variation, so depth was stated twice — once structurally
- * and once as punctuation the reader had to match up by eye. The rule alone survives nesting;
- * stacked brackets do not.
- */
+
 .move-tree .variations {
   flex: 1;
   min-width: 0;
   padding-left: 0.6rem;
   border-left: 2px solid var(--border-strong);
 }
-/*
- * A fixed-width gutter so every nesting level's rule lands on the same grid. The toggle used to
- * be an intrinsically-sized pill, so a "+3" branch pushed its subtree further right than a "+1"
- * one and the tree's left edges sawtoothed by depth.
- */
+
 .move-tree .collapse-toggle {
   display: inline-flex;
   position: relative;
@@ -1259,8 +1094,7 @@ img,
     border-color var(--motion-fast) ease,
     color var(--motion-fast) ease;
 }
-/* Expanded draws a chevron rather than printing "–", which read as a remove control. It uses
-   ::after so ::before stays free for the coarse-pointer tap overlay below. */
+
 .move-tree .collapse-toggle:not(.is-collapsed)::after {
   content: "";
   width: 0.4em;
@@ -1280,11 +1114,6 @@ img,
   border-color: var(--border-strong);
 }
 
-/*
- * Variations stay readable. They were painted in --muted wholesale, so the deeper a line sat the
- * harder its moves were to read — the opposite of what a repertoire needs, since the side lines
- * are the part you are least sure of. Depth is carried by the rule; only the move numbers recede.
- */
 .move-tree .variation {
   color: var(--text);
 }
@@ -1518,11 +1347,6 @@ img,
   }
 }
 
-/*
- * Not italic. This is a status the panel is reporting, not an aside or a quotation, and italic
- * body copy at 0.9rem in a dark UI reads as lower-fidelity text rather than as quieter text —
- * colour already does the quieting.
- */
 .analysis .empty,
 .analysis .analysis-empty {
   color: var(--muted);
@@ -1556,12 +1380,6 @@ img,
   }
 }
 
-/*
- * Engine line: the move leads, then its score, then how it sits against the repertoire.
- * Previously the fit badge was the loudest thing in the row — uppercase, bold, and wide enough to
- * wrap onto two lines — while the move itself was plain body text and the score was muted. The row
- * reads left to right as "what to play / what it's worth / whether you already know it".
- */
 .analysis .line {
   display: grid;
   grid-template-columns: 22px 3.1rem auto minmax(0, 1fr);
@@ -1587,11 +1405,6 @@ img,
   color: var(--text);
 }
 
-/*
- * No pill. In a 300px column "Outside repertoire (out)" inside a padded chip clips against the
- * panel edge; as a coloured dot plus coloured text it fits, and it stops competing with the move
- * for the row's attention.
- */
 .analysis .fit {
   grid-area: fit;
   justify-self: end;
@@ -1607,7 +1420,6 @@ img,
   text-transform: none;
 }
 
-/* The dot is what carries the fit at a glance; the words spell it out for anyone reading closely. */
 .analysis .fit::before {
   content: "";
   display: inline-block;
@@ -1629,8 +1441,6 @@ img,
   color: var(--status-danger-marker);
 }
 
-/* Mirrors the arrow thickness drawn on the board, so the panel and the board rank the moves the
-   same way. Left-most because it is a rank marker, not a value to read. */
 .analysis .weight {
   grid-area: weight;
   display: inline-block;
@@ -1717,7 +1527,6 @@ img,
 }
 
 @media (forced-colors: active) {
-  /* Chessground emits arrow paint as SVG attributes, which forced colors leaves intact. */
   .legend-colour,
   .legend-line.repertoire,
   .legend-line.engine-source {
@@ -1741,11 +1550,7 @@ img,
   border-top: 1px solid var(--border);
   font-size: 0.82rem;
 }
-/*
- * A label, not a badge. Filled in --status-info-surface this was the most saturated element in the
- * panel — a permanent blue chip announcing a secondary, frequently-absent second opinion, sitting
- * louder than the engine lines it supplements.
- */
+
 .analysis .cloud-label {
   font-size: var(--type-micro);
   font-weight: 600;
@@ -1758,7 +1563,6 @@ img,
   font-variant-numeric: tabular-nums;
 }
 
-/* Feature 6: repertoire backbone panel — collapsible Tier A / Tier B sections. */
 .ui-progress {
   display: block;
   width: 100%;
@@ -1828,12 +1632,7 @@ img,
   margin: 0;
   font-size: inherit;
 }
-/*
- * One control recipe. `.ui-button` used to carry only `cursor` + `font`, so a "primary" button was
- * an unpadded coloured rectangle while `.topbar button` and `.scan-btn` each re-declared their own
- * padding, radius, and hover. The recipe below is the single source; the two legacy selectors are
- * joined to it rather than kept as parallel implementations.
- */
+
 .ui-button,
 .topbar button,
 .topbar .document-menu-trigger,
@@ -1870,7 +1669,6 @@ img,
   border-color: var(--border-strong);
 }
 
-/* A press should feel like a press: the surface darkens for the duration of the pointer-down. */
 .ui-button:active:not(:disabled),
 .topbar button:active:not(:disabled),
 .rep-panel .scan-btn:active:not(:disabled),
@@ -1892,11 +1690,6 @@ img,
   font-size: var(--type-xs);
 }
 
-/*
- * The variant selectors name their host element too. `.topbar button` in the shared recipe is
- * (0,1,1) and outranks a bare `.ui-button-primary` at (0,1,0), which is why Save stayed grey while
- * carrying the primary class.
- */
 .ui-button-primary,
 .topbar button.ui-button-primary {
   border-color: var(--accent);
@@ -1939,8 +1732,6 @@ img,
   background: color-mix(in srgb, var(--status-danger-surface) 45%, transparent);
 }
 
-/* The shared recipe sets an explicit height, so it has to restate the coarse-pointer floor the
-   global control rule applies earlier in the sheet. */
 @media (pointer: coarse) {
   .ui-button,
   .topbar button,
@@ -1952,9 +1743,7 @@ img,
   .ui-button-sm {
     min-height: var(--target-touch);
   }
-  /* The side control's box lives on the wrapper, so the floor belongs there — applied to the
-     select as well it would stack the wrapper's border on top of a full-height control and make
-     this one item two pixels taller than every other control in the row. */
+
   .topbar .topbar-side {
     min-height: calc(var(--target-touch) + 2px);
   }
@@ -1990,12 +1779,6 @@ img,
   font-size: 0.9rem;
 }
 
-/*
- * Group rhythm. The four group headings used to render as bare bold text with no space above them,
- * so each one visually attached to the last row of the *previous* group — "Analyze" sat tight under
- * the Strategic Fit card and read as its caption. A rule plus leading space makes a heading start
- * something instead of ending something.
- */
 .rep-group > .panel-header {
   color: var(--muted);
   font-size: var(--type-micro);
@@ -2012,11 +1795,6 @@ img,
   text-transform: uppercase;
 }
 
-/*
- * The three workspace panels named themselves three different ways — "Engine" in sentence case at
- * 0.9rem, "REPERTOIRE" as a tracked 0.7rem micro-label, "CHAT" as a third variant sharing its row
- * with a checkbox. One treatment, so the columns read as siblings.
- */
 .rep-panel > .panel-header {
   margin: 0 0 var(--space-2);
   padding: 0.15rem 2px var(--space-2);
@@ -2048,11 +1826,7 @@ img,
 .rep-section:last-child {
   border-bottom: none;
 }
-/*
- * Twelve tool rows in one column: shouting all twelve in uppercase flattens them into a wall with
- * no scan order. Sentence case plus a real chevron gives the row a reading direction, and the
- * hover surface makes the whole row feel like the target it already is.
- */
+
 .rep-section > summary {
   display: flex;
   align-items: center;
@@ -2074,7 +1848,7 @@ img,
 .rep-section > summary::-webkit-details-marker {
   display: none;
 }
-/* One drawn chevron that rotates, rather than swapping between two different glyphs. */
+
 .rep-section > summary > span:first-child::before {
   content: "";
   display: inline-block;
@@ -2098,7 +1872,6 @@ img,
   margin-left: 0.4rem;
 }
 
-/* Inherits the shared control recipe; only the compact sizing and the summary-row reset differ. */
 .rep-panel .scan-btn {
   min-height: var(--control-height-sm);
   padding: 0 0.55rem;
@@ -2144,11 +1917,7 @@ img,
 .rep-panel .pick-badge {
   font-size: var(--type-micro);
   padding: 0 0.15rem;
-  /*
-   * WP-029 AC-5: the badge now carries a text label rather than a bare glyph. The row is a
-   * horizontal strip inside a fixed-width panel, so the label must be allowed to shrink and wrap
-   * instead of pushing the row's action buttons outside the viewport.
-   */
+
   min-width: 0;
   overflow-wrap: anywhere;
 }
@@ -2193,11 +1962,7 @@ img,
 .rep-panel .shortcut-detail .safe {
   color: var(--status-success);
 }
-/*
- * Italic is the wrong tool for "nothing here yet": on the two-part scan states it italicises a
- * bold lead-in and its follow-on sentence together, which reads as emphasis on the whole string
- * rather than as quiet secondary copy. Colour already carries that.
- */
+
 .rep-panel .empty {
   color: var(--muted);
   padding: 0.15rem 0;
@@ -2261,7 +2026,7 @@ img,
   text-align: center;
   flex: 0 0 auto;
 }
-/* Covered-by-transposition rows under Gaps: a false gap, shown muted. */
+
 .rep-row.covered {
   opacity: 0.6;
 }
@@ -2273,7 +2038,7 @@ img,
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-/* Fill suggestions: show the whole prospective line inline (wrap, no ellipsis, no hover needed). */
+
 .rep-row-action {
   display: flex;
   align-items: center;
@@ -2321,7 +2086,7 @@ img,
 .fix-btn:hover {
   text-decoration: underline;
 }
-/* Gaps "Fill this": its own line, indented, with a gap before the loading text / option rows. */
+
 .rep-preview {
   margin: 0.45rem 0.6rem 0.7rem;
   padding: 0.55rem 0.65rem;
@@ -2377,7 +2142,6 @@ img,
   color: var(--muted);
 }
 
-/* Suggestions (chat proposals) */
 .suggestions {
   margin-top: 0.6rem;
   padding-top: 0.5rem;
@@ -2415,7 +2179,6 @@ img,
   border-color: var(--status-danger-border);
 }
 
-/* Chat */
 .chat {
   display: flex;
   flex-direction: column;
@@ -2425,8 +2188,7 @@ img,
   border-radius: 8px;
   padding: var(--space-3);
 }
-/* Matches the Engine panel's header: a readable panel name, not an uppercase micro-label sharing
-   a row with a raw checkbox. */
+
 .chat .panel-head,
 .chat .panel-header {
   display: flex;
@@ -2516,7 +2278,7 @@ img,
 .msg.streaming {
   opacity: 0.85;
 }
-/* Feature 2: tree-click context marker — muted, monospace, clickable to revisit the line. */
+
 .msg.focus-injection {
   align-self: stretch;
   background: var(--surface-inset);
@@ -2530,7 +2292,6 @@ img,
   border-color: var(--accent);
 }
 
-/* Feature 1: preview chip under a propose_line result. */
 .preview-chip {
   display: flex;
   align-items: center;
@@ -2888,7 +2649,7 @@ img,
   font-size: 0.8rem;
   margin: 0.4rem 0;
 }
-/* WP-029 AC-5: the inspect panel's verdict-first layout. */
+
 .inspect-verdict {
   margin: 0 0 var(--space-1);
   font-size: var(--type-xs);
@@ -2926,26 +2687,15 @@ img,
   font-variant-numeric: tabular-nums;
 }
 
-/*
- * WP-029 AC-2: the gap-scan states. Each carries a text label and a glyph, so error and empty stay
- * distinguishable without relying on colour — which is what forced-colors mode removes.
- */
 .scan-empty,
 .scan-error {
   display: flex;
   align-items: flex-start;
   gap: var(--space-1);
-  /*
-   * WP-029: kept compact deliberately. This block sits above the Extend section's controls in a
-   * fixed-height panel, so extra vertical padding here pushes those controls below the fold on the
-   * 768x1024 tier that WP-002 AC-2 guards.
-   */
+
   padding: var(--space-1) var(--space-2);
   border-radius: 6px;
-  /*
-   * Body copy, so it stays at --type-xs: the scale's comment states body copy never goes below it
-   * and WP-036 AC-2 enforces that floor. Height is saved with padding and leading instead.
-   */
+
   font-size: var(--type-xs);
   line-height: 1.35;
 }
@@ -2966,7 +2716,6 @@ img,
   margin-top: var(--space-2);
 }
 
-/* WP-028: the showing-on-board marker and suggestion source link. */
 .sug-showing {
   padding: 0.1rem 0.4rem;
   border: 1px solid var(--status-success-border);
@@ -2997,7 +2746,6 @@ img,
   outline-offset: 1px;
 }
 
-/* WP-027: the chat context chip and per-run cancel control. */
 .chat-context-chip {
   margin: var(--space-2) 0 0;
   border: 1px solid var(--border-default);
@@ -3068,9 +2816,6 @@ img,
   outline-offset: 1px;
 }
 
-/*
- * WP-031: the zero-comparable-route terminal state and the limited-evidence banner.
- */
 .strategic-fit-insufficient {
   padding: var(--space-4);
   border: 1px solid var(--border-default);
@@ -3127,17 +2872,9 @@ img,
   color: var(--muted);
 }
 .strategic-fit-workspace-inner > .strategic-fit-limited-evidence-banner {
-  /* Aligned to the header's inline padding rather than running edge to edge inside the dialog. */
   margin: var(--space-3) var(--space-5) 0;
 }
-/*
- * A standing caveat, not an alarm. This banner is shown for the whole life of a limited-evidence
- * report, alongside a status line that already reads "Analysis finished — limited evidence" and a
- * chip carrying the route counts — three statements of one condition, of which this was the
- * loudest: a full-bleed amber bar across the top of every stage. Warning colour is for something
- * that just changed and wants a decision; a permanent qualifier gets a left rule and quiet text,
- * which keeps it legible on stage four without shouting on stages one through three.
- */
+
 .strategic-fit-limited-evidence-banner {
   margin: var(--space-2) 0;
   padding: var(--space-1) var(--space-3);
@@ -3151,11 +2888,6 @@ img,
   font-weight: 600;
 }
 
-/*
- * WP-021 AC-1: the setup card that stands in for the chat surface while the assistant is
- * unconfigured. PD-4 keeps the column at its persisted width, so this card sizes to that column
- * and never constrains it — no width, min-width, or flex-basis here on purpose.
- */
 .chat-setup-card {
   margin: var(--space-2) 0;
   padding: var(--space-4);
@@ -3164,10 +2896,6 @@ img,
   background: var(--surface-raised);
 }
 
-/*
- * An empty chat is mostly empty column. Centring its one piece of content turns that column into
- * deliberate space around a focal point rather than a panel that looks like it failed to render.
- */
 .chat-empty .chat-log {
   justify-content: center;
 }
@@ -3185,7 +2913,7 @@ img,
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-/* Each starter fills the input rather than sending, so a first question can still be edited. */
+
 .chat-starter {
   padding: var(--space-2) var(--space-3);
   border: 1px solid var(--border-subtle);
@@ -3234,8 +2962,7 @@ img,
   border-radius: 4px;
   cursor: pointer;
 }
-/* The composer is the panel's one persistent action; give it a surface so it reads as a place to
-   type rather than a textarea floating on the panel background. */
+
 .chat-input {
   display: flex;
   align-items: flex-end;
@@ -3250,7 +2977,7 @@ img,
 .chat-input:focus-within {
   border-color: var(--accent-line);
 }
-/* The wrapper now carries the field chrome, so the textarea itself is just the text surface. */
+
 .chat-input textarea {
   flex: 1;
   min-width: 0;
@@ -3263,7 +2990,7 @@ img,
   font-size: 0.88rem;
   line-height: 1.45;
 }
-/* Send is the panel's primary action and the only accented control in it. */
+
 .chat-input button {
   flex: 0 0 auto;
   align-self: stretch;
@@ -3277,8 +3004,7 @@ img,
   background: color-mix(in srgb, var(--accent) 82%, var(--text-on-dark));
   border-color: color-mix(in srgb, var(--accent) 82%, var(--text-on-dark));
 }
-/* Stop replaces Send while a turn is running: same slot, different job, so it must not inherit
-   Send's accent. */
+
 .chat-input .stop-btn,
 .chat-input .stop-btn:hover:not(:disabled) {
   border-color: var(--status-danger-border);
@@ -3286,7 +3012,6 @@ img,
   color: var(--text-primary);
 }
 
-/* Settings drawer */
 .ui-dialog-backdrop {
   position: fixed;
   inset: 0;
@@ -3343,12 +3068,7 @@ img,
   flex-wrap: wrap;
   gap: var(--space-2);
 }
-/* Buttons in these three places carry no class that paints them, and this app has no base rule
-   for a bare <button> — every other one is reached by a scoped selector like `.topbar button`.
-   Without a background they fall through to the user agent's own: WebKit paints #c0c0c0, which
-   against the dialog's inherited text is 1.82:1 where WCAG AA requires 4.5:1. Measured on all
-   five affected buttons before and after. The danger and confirm variants below re-style on top
-   of this and stay unaffected — they are more specific. */
+
 .document-close-actions button,
 .recover-item button,
 .settings-recover {
@@ -3420,7 +3140,7 @@ img,
   z-index: var(--z-drawer);
 }
 .drawer {
-  position: relative; /* anchors .drawer-close in the corner */
+  position: relative;
   width: 360px;
   max-width: 90vw;
   height: 100%;
@@ -3431,7 +3151,7 @@ img,
   flex-direction: column;
   gap: var(--space-4);
 }
-/* Clears the pinned close control so a long title never runs under it. */
+
 .drawer > .ui-dialog-title {
   padding-right: calc(var(--control-height) + var(--space-2));
 }
@@ -3440,13 +3160,7 @@ img,
   max-width: 90vw;
   height: 100%;
 }
-/* The drawer's own close affordance: the Dialog primitive renders a title, never a close button,
-   because not every dialog wants one in the same place. */
-/*
- * The drawer is a flex column, so `align-self: flex-end` put the close control on its own row
- * *below* the title — a stray glyph floating in the panel. Pinning it to the corner puts it where
- * a close control is looked for, and gives it a real target instead of a bare character.
- */
+
 .drawer-close {
   position: absolute;
   top: var(--space-3);
@@ -3474,7 +3188,6 @@ img,
   color: var(--text);
 }
 
-/* A settings switch reads as one row: control, then what it turns on. */
 .settings-toggle {
   display: inline-flex;
   align-items: center;
@@ -3532,7 +3245,6 @@ img,
   accent-color: var(--accent);
 }
 
-/* Promotion picker */
 .promo-backdrop {
   position: fixed;
   inset: 0;
@@ -3608,7 +3320,6 @@ img,
   border-color: var(--accent);
 }
 
-/* Color picker modal (PGN open) */
 .color-picker-backdrop {
   position: fixed;
   inset: 0;
@@ -3720,15 +3431,10 @@ img,
   display: inline-flex;
   align-items: center;
   cursor: pointer;
-  /* The label is the touch target: the input it wraps is clipped, so a pointer only ever lands
-     here. It has to carry the target floor itself at every width — the narrow-viewport rule below
-     is not enough, because this control also renders in the repertoire panel on desktop. */
+
   min-height: 44px;
 }
 .strategic-fit-import-label input {
-  /* The standard visually-hidden box. Sizing it to 44px would only satisfy tooling that measures
-     the input directly — `clip` means no pointer can reach it at any size. The touch target is the
-     label wrapping it, which carries the 44px minimum below. */
   position: absolute;
   width: 1px;
   height: 1px;
@@ -3791,17 +3497,6 @@ img,
   font-size: var(--type-xs);
 }
 
-/*
- * Stacked, not side-by-side. In a 300px column the old row layout gave the button its full width
- * and squeezed the copy into ~130px, which turned two sentences into six ragged lines and made the
- * card the tallest thing in the panel.
- */
-/*
- * The panel's one editorial block. It was a gradient-filled card carrying a question, two
- * sentences and a stacked button — the loudest object in a column whose job is a list of tools.
- * Flat tinted surface with a left accent rule keeps it identifiably the entry point at a third of
- * the visual weight; the gradient was decorating an element that already had an accent border.
- */
 .strategic-fit-entry {
   display: grid;
   gap: 0.5rem;
@@ -3843,7 +3538,7 @@ img,
  * Strategic Fit colors below this boundary retain their exact legacy hex values where migration is
  * not yet mechanical. The retained values are inventoried by the WP-036 stylesheet contract test.
  */
-/* Task 5.1: additive Strategic Fit workspace shell. Later tasks replace region placeholders. */
+
 .strategic-fit-workspace-backdrop {
   position: fixed;
   z-index: var(--z-workspace);
@@ -3868,11 +3563,7 @@ img,
   background: #1b1d22;
   box-shadow: 0 24px 80px #000b;
 }
-/*
- * WP-033 AC-5: the workspace and lab now render through the Dialog primitive, which owns the
- * dialog element itself. Their content sits in a wrapper one level in, so the wrapper carries the
- * layout the section used to provide; the outer element keeps the frame.
- */
+
 .strategic-fit-workspace-inner {
   display: flex;
   flex: 1 1 auto;
@@ -3885,11 +3576,7 @@ img,
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
-  /*
-   * The wrapper must fill the dialog's single row rather than sizing to content: the lab's body is
-   * the scrolling region, and a content-sized wrapper pushes it past the dialog's max-height where
-   * it overflows the viewport and its controls stop being clickable.
-   */
+
   height: 100%;
   min-width: 0;
   overflow: hidden;
@@ -3906,11 +3593,7 @@ img,
   -webkit-user-select: text;
   user-select: text;
 }
-/*
- * One row. The header used to stack a kicker, an h1, a description, a profile line and a status
- * chip that repeated the lifecycle strip directly below it verbatim — 174px of the 399px of chrome
- * that stood between the dialog edge and the first pixel of report content on a 900px viewport.
- */
+
 .strategic-fit-workspace-header {
   display: flex;
   align-items: baseline;
@@ -3991,11 +3674,7 @@ img,
   outline: 2px solid rgba(110, 168, 254, 0.35);
   outline-offset: 1px;
 }
-/*
- * WP-033 AC-1: the stage strip is present at every width, and now it drives the body at every
- * width too. It reads as a segmented control on a track rather than a band of four loose buttons,
- * because it is the primary navigation of this dialog and it should look like one object.
- */
+
 .strategic-fit-stage-nav {
   display: flex;
   gap: 2px;
@@ -4019,26 +3698,12 @@ img,
   font-size: var(--type-sm);
   white-space: nowrap;
 }
-/*
- * The current/upcoming state is a fact about where you are, read instantly by a screen reader or
- * an accessibility scan the moment the click handler runs — so no rule on this button, hover
- * included, transitions background or color. A hover transition still animated the state change
- * underneath it: a click leaves the pointer over the clicked button, so it keeps matching :hover
- * after the state flips, and the cascade's `transition` property is per-element, not per-rule — as
- * long as any matching rule declared one, the values from the winning rule animated through it.
- */
+
 .strategic-fit-stage-nav button:hover {
   background: var(--surface-hover);
   color: var(--text);
 }
-/*
- * No check marks. `completed` here means "left of the stage you are on", which is a fact about
- * reading order, not about work done — so a green ✓ appeared on Overview and Findings before any
- * analysis had run, and on the current stage too, claiming four finished steps on an empty report.
- * These four are places in one report, not tasks; the filled segment says where you are and full
- * -strength text says where you have been. That also buys back the 1.1em every tab reserved for a
- * mark it usually did not draw.
- */
+
 .strategic-fit-stage-nav button[data-stage-state="completed"] {
   color: var(--text);
 }
@@ -4048,7 +3713,7 @@ img,
   color: var(--text-inverse);
   font-weight: 600;
 }
-/* A count is a fact about the queue, not part of the tab's name; the tablist role reads the label. */
+
 .strategic-fit-stage-count {
   margin-left: 0.35rem;
   font-variant-numeric: tabular-nums;
@@ -4086,7 +3751,6 @@ img,
   border: 0;
 }
 
-/* WP-009 Toast primitive — anchored bottom-centre, safe-area aware. */
 .ui-toast {
   position: fixed;
   bottom: calc(1rem + env(safe-area-inset-bottom));
@@ -4138,7 +3802,7 @@ img,
   color: var(--text);
   font-size: var(--type-sm);
 }
-/* WP-019's actionable decision uses two full touch targets; existing × dismissals stay compact. */
+
 .ui-toast:has(.ui-toast-dismiss-labelled) .ui-toast-action {
   min-height: 2.75rem;
 }
@@ -4363,10 +4027,7 @@ img,
   outline: 2px solid rgba(110, 168, 254, 0.35);
   outline-offset: 1px;
 }
-/*
- * A card at the foot of the overview, not a full-bleed band: it sits inside the pane now, where a
- * bottom rule with nothing under it reads as a section that failed to load.
- */
+
 .strategic-fit-settings {
   margin-top: var(--space-5);
   padding: var(--space-3) var(--space-4);
@@ -4392,7 +4053,7 @@ img,
   justify-content: flex-end;
   gap: 0.4rem;
 }
-/* One track for the three mutually exclusive presets; "Customize" stays a separate control. */
+
 .strategic-fit-preset-group {
   display: flex;
   gap: 2px;
@@ -4534,12 +4195,7 @@ img,
   color: var(--muted);
   font-size: var(--type-xs);
 }
-/*
- * One row of status, not three bands of it. The strip used to stack the lifecycle sentence, the
- * collapsed phase list and the collapsed evidence check as full-width blocks — 236px whose entire
- * content was two summary sentences and two ▸ glyphs. Collapsed, those two are now chips on the
- * same line; expanded, each still claims a full row.
- */
+
 .strategic-fit-analysis-lifecycle {
   display: flex;
   flex-flow: row wrap;
@@ -4553,7 +4209,7 @@ img,
   background: var(--surface-canvas);
   overscroll-behavior: contain;
 }
-/* Unwrapped so the copy, the action and the two chips are siblings on one wrapping row. */
+
 .strategic-fit-analysis-lifecycle-main {
   display: contents;
 }
@@ -4587,7 +4243,7 @@ img,
   min-width: 0;
   overflow-wrap: anywhere;
 }
-/* Secondary to the verdict beside it: a handle you reach for, not a headline. */
+
 .strategic-fit-analysis-report-id {
   color: var(--muted);
   font-size: var(--type-micro);
@@ -4739,7 +4395,7 @@ img,
 .strategic-fit-preflight {
   order: 3;
 }
-/* Collapsed, each is a one-line status chip that sits on the lifecycle row. */
+
 .strategic-fit-analysis-progress-card[data-progress-collapsed="true"],
 .strategic-fit-preflight[data-preflight-collapsed="true"] {
   flex: 0 1 auto;
@@ -5066,21 +4722,7 @@ img,
   color: #cbd2dc;
   overflow-wrap: anywhere;
 }
-/*
- * WP-033 AC-2 / DV-5 still hold: resolution renders exactly once, and the stage strip is present
- * at every width. What changed is which pane is on screen.
- *
- * The wide tier used to render all four panes at once as
- * `minmax(13rem,.75fr) minmax(17rem,1fr) minmax(19rem,1.2fr)` with resolution wedged under the
- * evidence column at `max-height: 30vh`. Measured at 1440x900 that gave every pane a 214px-tall
- * well: 2734px of overview charts in a 357px-wide column, 2781px of findings in 477px, 2991px of
- * evidence in 572px. The decision-flow outline broke "Causal ownership" across lines as
- * "Causal owners / hip". And the stage nav above it was inert — clicking a stage set `data-stage`
- * and nothing moved, because the compact tier owned the only rules that read it.
- *
- * `data-stage` now picks the pane at every width. The nav does what it looks like it does, and
- * each pane gets the whole dialog: roughly 1400x770 instead of 357x214.
- */
+
 .strategic-fit-workspace-body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -5088,12 +4730,7 @@ img,
   flex: 1 1 0;
   min-height: 0;
 }
-/*
- * A measure cap expressed as padding, not as a max-width on each child: report content is dense
- * analytical prose and tables, and a 1470px line of it is unreadable. Padding keeps one left edge
- * for everything in the pane, so a narrower block — the resolution form, the comparison boards —
- * still starts where its heading starts instead of centring itself away from it.
- */
+
 .strategic-fit-workspace-pane {
   display: none;
   grid-area: 1 / 1;
@@ -5103,14 +4740,7 @@ img,
   outline: none;
   overscroll-behavior: contain;
 }
-/*
- * Resolution is the one stage whose every block is a form, so the stage — heading included — takes
- * a form measure and sits on the pane's centre line. Applying it to the cards alone left the
- * "Next step / Resolution" heading flush against the pane's left padding with a centred card
- * beneath it, which reads worse than either choice made consistently: a heading and its content
- * have to share an edge. Every other stage stays flush-left, because every other stage mixes this
- * measure with full-pane tables that need the width.
- */
+
 .strategic-fit-resolution-pane > * {
   max-width: 44rem;
   margin-inline: auto;
@@ -5122,21 +4752,14 @@ img,
 .strategic-fit-workspace-body[data-stage="resolution"] .strategic-fit-resolution-pane {
   display: block;
 }
-/*
- * `overflow-wrap: anywhere` used to sit on the pane itself, so every word in every table header
- * was breakable. Only the opaque identifiers report content carries need it.
- */
+
 .strategic-fit-workspace-pane :is(code, .strategic-fit-report-id, .strategic-fit-reference) {
   overflow-wrap: anywhere;
 }
 .strategic-fit-workspace-pane:focus-visible {
   box-shadow: inset 0 0 0 2px var(--accent);
 }
-/*
- * The stage nav already names the pane, so the heading's job is the qualifier the nav cannot
- * carry — "review queue", "branch review", "next step". Kicker and title share one baseline
- * instead of stacking into a 3.4rem block above a rule.
- */
+
 .strategic-fit-pane-heading {
   display: flex;
   align-items: baseline;
@@ -5156,11 +4779,7 @@ img,
 .strategic-fit-overview {
   margin-top: 0.8rem;
 }
-/*
- * Eight report metrics read as a board of figures, not as eight full-width rows each ending in a
- * full-width button. The tiles are the summary of the whole report; seeing them together is the
- * point of the overview stage.
- */
+
 .strategic-fit-overview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
@@ -5235,7 +4854,7 @@ img,
   border-left: 2px solid #7c8490;
   color: #c0c7d0;
 }
-/* Eight tiles, eight filled buttons: the drill-in is secondary to the figure it sits under. */
+
 .strategic-fit-overview-item button {
   min-height: var(--control-height);
   margin-top: 0.55rem;
@@ -5453,12 +5072,7 @@ img,
   font-size: var(--type-xs);
   font-weight: 700;
 }
-/*
- * A filter bar, not a form. Four full-width fields with stacked bold labels occupied 80px of the
- * top of the queue — a block of chrome as tall as a finding, above the findings, described in the
- * language of a settings page. Inline label-plus-control pairs on one wrapping row put the first
- * card ~45px higher and read as a toolbar over a list, which is what they are.
- */
+
 .strategic-fit-queue-controls {
   display: flex;
   flex-wrap: wrap;
@@ -5526,11 +5140,7 @@ img,
   margin: 0.2rem 0 0;
   color: #9fa7b1;
 }
-/*
- * The queue is a triage surface: the useful view is as many findings as will fit, not one tall
- * column of them. Each card used to run ~600px, so a page of six was 3,600px of scrolling in a
- * 477px-wide column. Slimmed cards in an auto-filling grid put a whole page on one screen.
- */
+
 .strategic-fit-finding-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(23rem, 1fr));
@@ -5540,11 +5150,7 @@ img,
   padding: 0;
   list-style: none;
 }
-/*
- * Task 12.3 — one scrolling viewport for every virtualized Strategic Fit list. Row height is fixed
- * here because the mounted window's geometry is computed from it; print and export bypass
- * virtualization entirely, so a printed list keeps its natural, unclipped rows.
- */
+
 .strategic-fit-virtual-scroll {
   max-width: 100%;
 }
@@ -5626,10 +5232,7 @@ img,
 .decision-flow-qualified {
   font-size: var(--type-micro);
 }
-/*
- * A grid, so the source-line disclosure and the select control share the card's last row instead
- * of each claiming a full-width band of their own.
- */
+
 .strategic-fit-finding-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -5653,7 +5256,7 @@ img,
   border-left-color: var(--muted);
   background: var(--surface-hover);
 }
-/* Text inside a clickable card still selects and the disclosure still expands. */
+
 .strategic-fit-finding-card details,
 .strategic-fit-finding-card p,
 .strategic-fit-finding-card dd,
@@ -5671,12 +5274,7 @@ img,
   justify-content: space-between;
   gap: var(--space-2);
 }
-/*
- * One clear focal point per card. At --type-md the title was 0.85rem against a card whose scope
- * labels, facts, priorities and disclosure all sit at 0.7–0.8rem — a 0.05rem lead over eight other
- * rows is not a hierarchy, and triaging twelve of these meant reading every card in full. The
- * title is now a step up the scale and the classification above it recedes to a kicker.
- */
+
 .strategic-fit-finding-card h3 {
   margin: 0.05rem 0 0;
   color: var(--text-primary);
@@ -5766,10 +5364,7 @@ img,
   font-size: var(--type-xs);
   font-weight: 700;
 }
-/*
- * Four mutually exclusive options read as one list, not four cards. The boxes are gone; the
- * checked row keeps a tinted ground and an accent rule so the choice is still obvious at a glance.
- */
+
 .strategic-fit-resolution-choice {
   display: flex;
   align-items: baseline;
@@ -5846,11 +5441,7 @@ img,
 .strategic-fit-resolution-actions :is(button, select, textarea, .strategic-fit-resolution-choice) {
   min-height: 44px;
 }
-/*
- * Resolution is a form, so it sizes to a form measure. Stretched to the pane it made four
- * ten-word radio options into four 1180px slabs and a "Save resolution" button as wide as the
- * dialog — the width was saying "this is the biggest thing here", which it is not.
- */
+
 .strategic-fit-review-actions {
   display: grid;
   gap: 0.85rem;
@@ -6099,10 +5690,7 @@ img,
   ) {
   min-height: 44px;
 }
-/*
- * Scope reads as one meta line. Three stacked label-over-value pairs cost six lines to say
- * "French · Advance, alternative cohort, fixture line 2"; inline label/value pairs say it in one.
- */
+
 .strategic-fit-finding-scope {
   display: flex;
   flex-wrap: wrap;
@@ -6115,12 +5703,7 @@ img,
   gap: 0.32rem;
   min-width: 0;
 }
-/*
- * Labels, not headlines. Bold uppercase at 700 gave "OPENING / SYSTEM" the same visual force as
- * the opening it names, so a card carried three shouted labels for every three facts and the eye
- * had nowhere to land. They stay uppercase — that is what marks them as labels — at normal weight
- * and a step down in colour, so the values are what reads.
- */
+
 .strategic-fit-finding-scope dt {
   color: var(--muted);
   font-size: var(--type-micro);
@@ -6143,11 +5726,7 @@ img,
   font-size: var(--type-xs);
   line-height: 1.45;
 }
-/*
- * Six equally-weighted bordered pills read as six controls. As plain text on a dotted rule they
- * read as what they are — the measurements behind the classification — and the two that can be
- * missing keep their dashed outline so absence stays visible.
- */
+
 .strategic-fit-finding-facts {
   display: flex;
   flex-wrap: wrap;
@@ -6162,7 +5741,7 @@ img,
 .strategic-fit-finding-facts li {
   font-variant-numeric: tabular-nums;
 }
-/* Trailing, not leading: a leading separator becomes the first glyph of every wrapped row. */
+
 .strategic-fit-finding-facts li:not(:last-child)::after {
   content: "·";
   margin-left: 0.55rem;
@@ -6226,12 +5805,7 @@ img,
   white-space: normal;
   overflow-wrap: anywhere;
 }
-/*
- * The card is the click target now, so this is the keyboard stop and the pressed-state owner, not
- * a call to action. It draws a chevron: an explicit "Select finding" label beside a card that is
- * already entirely clickable is a second, weaker copy of the same affordance, and the label sat on
- * the least interesting word in the card.
- */
+
 .strategic-fit-finding-select {
   display: inline-flex;
   grid-column: 2;
@@ -6628,23 +6202,11 @@ img,
   display: block;
   color: #adb7c3;
 }
-/*
- * The comparison sizes to its boards, not to the pane. Left to fill 76rem it stretched three route
- * selects to 700px each and stranded the pair of 24rem boards in the left half of an empty card.
- *
- * Flush-left, not centred: its siblings on this stage — limitations, sources, the expert table —
- * are full-pane, so a shared left edge is what makes the column read as one stack. Centring only
- * this card would break that edge to tidy up a ragged right one.
- */
+
 .strategic-fit-comparison-boards {
   max-width: 52rem;
 }
-/*
- * The forward step at the end of a stage, where the reader finishes: "Record a decision" closing
- * Evidence, "Next unresolved finding" closing Resolution. One recipe rather than two, because they
- * are the same move — the loop's next edge offered where the reader stops rather than left for
- * them to find in the stage strip.
- */
+
 .strategic-fit-evidence-next,
 .strategic-fit-resolution-next {
   display: flex;
@@ -6668,7 +6230,7 @@ img,
   font-size: var(--type-sm);
   font-weight: 600;
 }
-/* How much of the job is left, beside the control that continues it. */
+
 .strategic-fit-resolution-next span {
   color: var(--muted);
   font-size: var(--type-xs);
@@ -6678,11 +6240,7 @@ img,
   margin: 0;
   color: var(--muted);
 }
-/*
- * Three route selects on one row. Stacked 2-then-1 they cost 100px above the boards, and the
- * milestone select — the one that moves both boards together, and so the one most likely to be
- * touched — was the widest field on the stage purely because it was odd one out in a 2-column grid.
- */
+
 .strategic-fit-comparison-controls {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -6752,11 +6310,7 @@ img,
   margin: 0.3rem 0 0;
   color: #aeb8c4;
 }
-/*
- * Two boards that fit on one screen with the difference table under them. Left uncapped they take
- * whatever the pane gives — 570px a side once the pane went full width, which is a chessboard
- * larger than the app's own playing board and pushes the comparison it exists to support offscreen.
- */
+
 .strategic-fit-comparison-board-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 24rem));
@@ -6793,8 +6347,6 @@ img,
   user-select: none;
 }
 
-/* The drill board is the read-only board's interactive sibling: same square footprint, but it must
-   accept a pointer, because playing one move on it is the whole point. */
 .strategic-fit-drill-board {
   width: 100%;
   max-width: 22rem;
@@ -7034,11 +6586,6 @@ img,
   background: rgba(7, 9, 12, 0.82);
 }
 .replacement-lab {
-  /*
-   * WP-033 AC-5: the row template moved to .replacement-lab-inner, which is now the single child
-   * holding the header and body. Leaving the two-row template here gave that wrapper only the
-   * `auto` row, so overflow:hidden clipped the lab's entire body away.
-   */
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   width: min(980px, 100%);
@@ -8181,7 +7728,7 @@ img,
     padding: 0.44rem 0.58rem;
     font-size: 0.76rem;
   }
-  /* Same track, stretched: four equal tabs across the width instead of a max-content pill. */
+
   .strategic-fit-stage-nav {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -8285,7 +7832,6 @@ img,
   .strategic-fit-resolution-next button,
   .strategic-fit-print-controls button,
   .strategic-fit-preset-actions button,
-  /* The collapsed lifecycle chips are compact by design on a mouse; a finger still needs 44px. */
   .strategic-fit-analysis-progress-card[data-progress-collapsed="true"]
     .strategic-fit-analysis-progress-disclosure,
   .strategic-fit-preflight[data-preflight-collapsed="true"] .strategic-fit-preflight-disclosure,
@@ -8353,11 +7899,7 @@ img,
     padding: 0.38rem 0.15rem;
     font-size: var(--type-xs);
   }
-  /*
-   * The lifecycle strip has one row of width here, so the status claims it and the two collapsed
-   * chips share the next row with the run control, shrinking with an ellipsis rather than
-   * overflowing the dialog. The report id is a support identifier and does not earn a phone row.
-   */
+
   .strategic-fit-analysis-lifecycle {
     gap: var(--space-2);
     padding-inline: var(--space-3);
@@ -8373,10 +7915,7 @@ img,
     margin-inline: calc(-1 * var(--space-3));
     padding-inline: var(--space-3);
   }
-  /*
-   * A row each, still as 30px chips rather than the 80px bands they were: side by side in 366px
-   * both ellipsise to "All six phase…" / "Evidence ch…", which is a label that says nothing.
-   */
+
   .strategic-fit-analysis-progress-card[data-progress-collapsed="true"] {
     flex: 1 1 100%;
     min-width: 0;
@@ -8405,7 +7944,7 @@ img,
   .strategic-fit-workspace-inner > .strategic-fit-limited-evidence-banner {
     margin-inline: var(--space-3);
   }
-  /* One pane at a time is the base rule now; the compact tier only adjusts the safe-area padding. */
+
   .strategic-fit-workspace-pane {
     padding: 0.9rem calc(0.9rem + env(safe-area-inset-right))
       calc(0.9rem + env(safe-area-inset-bottom)) calc(0.9rem + env(safe-area-inset-left));
@@ -8658,7 +8197,6 @@ img,
   }
 }
 
-/* Strategic map (Task 10.1) */
 .strategic-map {
   display: flex;
   flex-direction: column;
@@ -9017,12 +8555,7 @@ img,
   font-size: var(--type-xs);
   opacity: 0.8;
 }
-/*
- * Centred, because `decisionFlowScale` deliberately never enlarges a chart that already fits (see
- * "a chart that already fits is never enlarged" in the visualization-hardening tests). A short
- * flow therefore draws at its intrinsic width; left-aligned in a full-width pane it reads as a
- * broken diagram rather than a small one.
- */
+
 .decision-flow-scroll {
   display: flex;
   justify-content: center;
@@ -9174,7 +8707,6 @@ img,
   }
 }
 
-/* Visualization hardening (Task 10.4) */
 .strategic-map-cluster,
 .decision-flow-aggregate {
   cursor: pointer;
@@ -9259,10 +8791,7 @@ img,
   max-height: 12rem;
   overflow-y: auto;
 }
-/*
- * Print and export is a terminal action on a report you have already read, so it sits quietly at
- * the end of the overview's heading row rather than as the first control above the strategic map.
- */
+
 .strategic-fit-print-controls {
   display: flex;
   flex-wrap: wrap;
@@ -9271,11 +8800,7 @@ img,
   gap: 0.5rem;
   max-width: 100%;
 }
-/*
- * A quiet control, but still visibly a control. Fully transparent and alone on its own line above
- * the report, this read as a stray caption — the one place in the workspace where an action was
- * indistinguishable from prose, and the only route into the print and export view.
- */
+
 .strategic-fit-print-controls button {
   min-height: var(--control-height);
   padding: 0 0.6rem;
@@ -9301,10 +8826,6 @@ img,
   opacity: 0.85;
 }
 
-/*
- * Responsive fallbacks: in the compact tier the drawn charts give up width before the table
- * equivalents do, because the tables are what must stay readable.
- */
 @media (max-width: 45em) {
   .strategic-map-chart {
     max-width: 100%;
@@ -9330,10 +8851,6 @@ img,
   }
 }
 
-/*
- * Reduced motion: the visualizations never animate on their own, and the workspace-wide rule keeps
- * it that way even if a browser default or a future style tries to introduce one.
- */
 @media (prefers-reduced-motion: reduce) {
   .strategic-map,
   .strategic-map *,
@@ -9349,11 +8866,6 @@ img,
   }
 }
 
-/*
- * Print and export: controls that cannot be used on paper are dropped, charts are constrained to a
- * printable width, and every table equivalent is allowed to break across pages. The complete-list
- * behavior itself is the workspace's print/export mode, not a style.
- */
 @media print {
   .strategic-fit-workspace-backdrop {
     position: static;
@@ -9425,22 +8937,16 @@ img,
   }
 }
 
-/*
- * WP-013 tabpanel wrappers. They exist for the tab semantics only: `display: contents` keeps the
- * side panel's own box model, so adding them changes no measured geometry at any tier.
- */
 .mobile-panel {
   display: contents;
 }
 
-/* WP-017/018 DocumentStatus and DocumentMenu */
 .document-status {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
   flex-wrap: nowrap;
-  /* Shrink-only: the status must never force the action row to wrap, because that is what makes
-     the top bar grow a second row and push panel content below the fold. */
+
   flex: 0 1 auto;
   min-width: 0;
   max-width: min(24ch, 45%);
@@ -9456,8 +8962,6 @@ img,
   white-space: nowrap;
 }
 
-/* The dot carries the state; the word next to it says which state, so neither is load-bearing
-   alone. Amber only when there is genuinely unexported work. */
 .document-status-dot {
   width: 6px;
   height: 6px;
@@ -9477,11 +8981,6 @@ img,
   color: var(--status-warning-text);
 }
 
-/*
- * Compact tier (WP-017 AC-1): the top bar must fit a 40-character filename in 96px. The phone
- * layout hides the browser-storage line — the file indicator carries the actionable fact — and
- * tightens the chrome rhythm. Control sizing is untouched so touch-target floors still hold.
- */
 @media (max-width: 45em) {
   .topbar {
     gap: var(--space-2);
@@ -9491,25 +8990,15 @@ img,
     padding-left: calc(var(--space-2) + env(safe-area-inset-left));
     padding-right: calc(var(--space-2) + env(safe-area-inset-right));
   }
-  /*
-   * DV-3 on the phone: Save stays visible, and the actions that the Repertoire menu already
-   * offers collapse into it rather than being listed twice. Wider tiers keep both affordances,
-   * so nothing a pointer user relies on disappears where there is room for it.
-   */
+
   .topbar [data-topbar-duplicate] {
     display: none;
   }
-  /* The action group is four controls wide at 360px and the separator is the only one of them
-     that is decoration. Grouping is legible from the spacing alone at this size. */
+
   .topbar-sep {
     display: none;
   }
-  /*
-   * The wordmark gives up its space to the filename at every phone width, not only short ones.
-   * "Chess Repertoire" took 110px of a 374px row so that the document actually open in it rendered
-   * as "queens-ga…" — the app's name in its own app, priced in the identity of the thing being
-   * edited. It stays in the accessibility tree; this hides painted text, not document structure.
-   */
+
   .topbar .title {
     position: absolute;
     width: 1px;
@@ -9520,8 +9009,7 @@ img,
     clip-path: inset(50%);
     white-space: nowrap;
   }
-  /* The identity group keeps the filename on the phone — it is the one thing up here that says
-     which document the tabs below are editing. */
+
   .topbar-identity {
     border-left: none;
     margin-left: 0;
@@ -9532,8 +9020,6 @@ img,
   }
 }
 
-/* Short phone viewports: the pinned board, the tab bar, and the panel floor need every row.
-   (The wordmark is already visually hidden at every phone width by the block above.) */
 @media (max-width: 45em) and (max-height: 34em) {
   .topbar {
     row-gap: var(--space-1);
@@ -9580,7 +9066,6 @@ img,
   border-color: var(--status-info-surface);
 }
 
-/* DocumentMenu */
 .document-menu {
   position: relative;
   display: inline-flex;
@@ -9661,7 +9146,6 @@ img,
   outline-offset: var(--focus-offset);
 }
 
-/* WP-022 AC-4: the one-line result summary a collapsed group shows in its summary row. */
 .rep-summary-note {
   min-width: 0;
   overflow: hidden;
@@ -9671,25 +9155,6 @@ img,
   white-space: nowrap;
 }
 
-/*
- * WP-022 group headers. On the wide tier each group shows its own heading row. Below the flex
- * tier the headings yield: the four extra rows they add push the last repertoire control below
- * the fold at 768x1024, which WP-002 AC-2 forbids. The grouping stays announced through each
- * group's aria-label, so structure survives without the painted rows.
- */
-/*
- * WP-022 AC-7: the group headings must not make the collapsed panel taller than the pre-WP-022
- * panel (measured 714px at 1280x800). Four heading rows would cost ~109px, so each group title
- * collapses into a zero-height overlay on the group's own border — visible as a small caps label
- * sitting on the divider line, costing no vertical space at all.
- */
-/*
- * The label sits ON the rule that separates two groups, legend-style, instead of floating above
- * the group's own top edge. The old offset (-0.5em above a group with only 8px of margin) landed
- * the label on top of whatever preceded it — visibly, "Analyze" printed over the bottom edge of
- * the Strategic Fit card. Putting it in a gap that is tall enough to hold it keeps the zero-row
- * height trick AC-7 needs while giving each heading clear air on both sides.
- */
 .rep-group {
   position: relative;
 }
@@ -9710,7 +9175,7 @@ img,
 .rep-group:first-of-type {
   margin-top: var(--space-2);
 }
-/* The first group has no rule above it, so it takes its clearance from the entry card instead. */
+
 .rep-panel > .scope-note + .rep-group,
 .rep-panel > .strategic-fit-entry + .rep-group,
 .rep-panel > .rep-preview + .rep-group {
@@ -9732,8 +9197,6 @@ img,
   }
 }
 
-/* WP-026 AC-2: mutating cards carry a non-colour badge (icon + text), not a colour-only cue.
-   Under forced-colors the border thickens as well, so the distinction survives palettes. */
 .staged-card {
   position: relative;
   border-width: 2px;
@@ -9757,7 +9220,6 @@ img,
   }
 }
 
-/* WP-026 AC-1: the technical-details toggle in the chat header. */
 .chat-technical-toggle {
   display: inline-flex;
   align-items: center;

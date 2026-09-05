@@ -14,7 +14,6 @@ import {
 } from "../../src/index.ts";
 import { BROAD_ECO_FIXTURE, SHALLOW_LINES_FIXTURE, parseStrategicFitFixture } from "./fixtures.ts";
 
-/** Deeper middlegame lines than the shared fixtures so several concept rules fire. */
 const CONCEPT_RICH_PGN = `[Event "Heatmap: Queen's Gambit"]
 [Result "*"]
 

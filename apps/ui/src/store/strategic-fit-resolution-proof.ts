@@ -38,7 +38,6 @@ export type StrategicFitResolutionProofOutcome =
       readonly kind: "resolved";
       readonly semantic_finding_id: string;
       readonly resolving_revision: string;
-      /** True only when the canonical Task 6.4 reconciliation summary proved the disappearance. */
       readonly reconciled: boolean;
     }
   | {
@@ -446,7 +445,6 @@ export function createStrategicFitResolutionProofState(
     synchronize,
     undo,
     clear,
-    /** DEV harness only: installs a proof snapshot for accessibility and layout coverage. */
     setForTesting,
   };
 }

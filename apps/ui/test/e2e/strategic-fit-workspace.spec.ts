@@ -106,17 +106,13 @@ test("WP-023 AC-1 AC-2 AC-3 AC-4 the entry card leads with the problem and opens
   const card = page.locator(".strategic-fit-entry");
   const title = card.locator(".strategic-fit-entry-title");
 
-  // AC-1: a question about the user's repertoire, not a label for the feature.
   await expect(title).toHaveText(/\?$/);
   await expect(title).not.toHaveText("Strategic Fit");
-  // AC-2: the reassurance the audit found already correct must survive.
   await expect(card).toContainText("does not analyze or change this repertoire");
 
-  // AC-3
   const opener = card.getByRole("button", { name: "Open Strategic Fit" });
   await expect(opener).toBeVisible();
 
-  // AC-4: opening is inert — no analysis is triggered by the entry point.
   expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
   await opener.click();
   await expect(page.getByRole("dialog", { name: "Strategic Fit" })).toBeVisible();
@@ -147,16 +143,12 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await expect(
     dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
   ).toBeVisible();
-  // All four regions render; one is on screen. The workspace shows the current stage's pane at
-  // every width now, so "the shell is complete" is checked by walking the stages, which is also
-  // the only way a reader ever reaches them.
   await expect(dialog.locator(".strategic-fit-workspace-pane")).toHaveCount(4);
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByRole("heading", { name: "Strategic map" })).toBeVisible();
   for (const [stage, heading] of [
     ["findings", "Findings"],
     ["evidence", "Evidence / comparison"],
-    // WP-033 DV-5: the resolution region is still rendered exactly once.
     ["resolution", "Resolution"],
   ] as const) {
     await dialog.locator(`#strategic-fit-stage-${stage}`).click();
@@ -186,10 +178,6 @@ test("focus is trapped in both directions and Escape restores the exact opener",
 
   await expect(close).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  // Only the current stage's pane is on screen, so the wrap lands inside the overview pane — on
-  // its last focusable control rather than on the pane element. Asserting containment keeps the
-  // point of the test (focus wraps and stays inside the dialog) without pinning it to whichever
-  // control happens to be last in that pane.
   expect(
     await page.evaluate(() =>
       Boolean(document.activeElement?.closest("#strategic-fit-pane-overview")),
@@ -199,8 +187,6 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeFocused();
-  // WP-033 AC-1 puts the stage strip in the tab order at every width, between the analysis action
-  // and the first pane. In the wide tier these are plain buttons, so each is its own Tab stop.
   for (const stage of ["Overview", "Findings", "Evidence", "Resolution"]) {
     await page.keyboard.press("Tab");
     await expect(dialog.locator(`#strategic-fit-stage-${stage.toLowerCase()}`)).toBeFocused();
@@ -267,8 +253,6 @@ test("shell regions render explicit empty, loading, and error states", async ({ 
     });
   });
 
-  // A hidden pane is out of the accessibility tree, so each region state is read on its own stage
-  // — the same place a reader meets it.
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog.locator("#strategic-fit-pane-overview").getByRole("status")).toContainText(
     "Loading the overview fixture.",

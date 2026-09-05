@@ -41,7 +41,6 @@ test("cloudEval maps a centipawn evaluation onto the public shape", async () => 
   }
 });
 
-/** cp and mate are mutually exclusive in the response; the absent one must be null, not undefined. */
 test("cloudEval maps a mate evaluation with a null centipawn score", async () => {
   const clock = withFakeClock();
   try {
@@ -65,7 +64,6 @@ test("cloudEval returns null when the position is not in the cloud", async () =>
   }
 });
 
-/** A 200 whose `pvs` array is empty carries no evaluation, so it is a miss rather than a zero. */
 test("cloudEval returns null for a response with no principal variations", async () => {
   const clock = withFakeClock();
   try {

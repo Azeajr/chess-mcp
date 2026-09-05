@@ -1,14 +1,3 @@
-/**
- * WP-031 AC-1: the terminal state shown when no route reached the comparable-ply threshold.
- *
- * The analysis ran and its preflight payload is intact — this component does not hide it. It
- * replaces the findings, evidence, and resolution panes, which in this case would otherwise render
- * a wall of "Insufficient evidence" rows that say the same thing several dozen times without ever
- * naming the threshold or what to do about it.
- *
- * Every number here comes from the preflight payload rather than a constant, so the copy cannot
- * drift from the run it describes.
- */
 import { For, Show } from "solid-js";
 import type { StrategicFitPreflight } from "@chess-mcp/chess-tools";
 import { STRATEGIC_FIT_EVIDENCE } from "../../content/strategicFit";
@@ -16,7 +5,6 @@ import Button from "../primitives/Button";
 
 export interface InsufficientEvidenceProps {
   readonly preflight: StrategicFitPreflight;
-  /** The comparable-ply threshold the run reported, or null when no issue carried one. */
   readonly comparablePly: number | null;
   readonly onAnalyzeAgain: () => void;
 }

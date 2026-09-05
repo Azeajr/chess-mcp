@@ -1,9 +1,3 @@
-/**
- * Autosave + restore of the in-memory working repertoire (the GameTree), so a page reload resumes
- * exactly where you left off — even with no file open and unsaved edits. Serialised to IndexedDB
- * (PGN + color + current path + filename + dirty flag), debounced. Independent of the FileHandle
- * persistence in store/files (which re-opens an on-disk file on demand).
- */
 import { createSignal, createEffect, onCleanup } from "solid-js";
 import { idbGet, idbSet, idbMutateAtomically } from "./idb";
 import { GameTree } from "@chess-mcp/chess-tools";
@@ -23,7 +17,6 @@ import {
   type Color,
 } from "./game";
 
-/** A saved path is only trusted if the restored tree can actually resolve it. */
 function probePath(p: unknown): number[] {
   if (!Array.isArray(p) || !p.every((i) => typeof i === "number")) return [];
   try {
@@ -44,7 +37,6 @@ export interface SavedWorkingRepertoire {
   dirty: boolean;
   changesSinceExport?: number;
   documentId?: unknown;
-  /** Monotonic browser document revision; absent only in pre-Phase-8 autosaves. */
   revision?: number;
 }
 
@@ -94,7 +86,6 @@ export interface SnapshotListEntry extends SnapshotIndexEntry {
 
 const [snapshotsUnavailable, setSnapshotsUnavailable] = createSignal(false);
 const [recoverDialogOpen, setRecoverDialogOpen] = createSignal(false);
-// WP-018 AC-4: epoch millis of the last successful working-copy write, or null before the first.
 const [lastAutosaveAt, setLastAutosaveAt] = createSignal<number | null>(null);
 export { snapshotsUnavailable, recoverDialogOpen, setRecoverDialogOpen, lastAutosaveAt };
 
@@ -114,13 +105,6 @@ function finiteNumber(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-/**
- * The index is user-writable storage: another build, a partial write, or a hand-edited record can
- * leave an entry whose fields are missing or non-numeric. Summing an undefined `byteSize` yields
- * NaN, and `NaN > MAX_SNAPSHOT_BYTES` is false — the byte budget would silently switch itself off
- * and the malformed row would sit in the Recover list forever. Coerce every field, and drop rows
- * with no id: without one there is neither a payload to read nor a row to act on.
- */
 function normalizeSnapshotIndex(raw: unknown): SnapshotIndexEntry[] {
   if (!Array.isArray(raw)) return [];
   const entries: SnapshotIndexEntry[] = [];
@@ -146,12 +130,6 @@ async function readSnapshotIndex(): Promise<SnapshotIndexEntry[]> {
   return normalizeSnapshotIndex(await idbGet<unknown>(SNAPSHOT_INDEX_KEY));
 }
 
-/**
- * Every snapshot mutation runs in one queue. Reading the index, deciding what to evict, and
- * writing the result is a read-modify-write: two of them in flight together lose one another's
- * changes, which for a delete racing a capture means either a resurrected snapshot or an orphaned
- * payload the index no longer names.
- */
 function enqueueSnapshotWork<T>(work: () => Promise<T>): Promise<T> {
   const result = snapshotTail.then(work, work);
   snapshotTail = result.then(
@@ -193,16 +171,12 @@ async function writeSnapshot(
   ]);
 }
 
-/** Capture the current document without allowing snapshot failures to affect the live autosave. */
 export async function captureSnapshot(reason: SnapshotReason): Promise<string | null> {
   if (autosavePauseDepth > 0) return null;
   const tree = currentTree();
   const pgn = tree.toPgn();
   const stats = tree.stats();
   if (stats.nodes === 0) return null;
-  // The idle capture is a timer, not an intent. Without change detection it spends all five ring
-  // slots on identical copies of an untouched document and evicts the before-replace snapshot —
-  // the one taken at the only moment that loses data — within an hour.
   if (reason === "idle" && pgn === lastCapturedPgn) return null;
   const payload: SnapshotRecord = {
     id: crypto.randomUUID(),
@@ -282,7 +256,6 @@ export async function deleteSnapshot(id: string): Promise<void> {
   });
 }
 
-/** Restore a historical PGN as a new browser document after preserving the current one. */
 export async function restoreSnapshot(id: string): Promise<boolean> {
   const snapshot = await readSnapshot(id);
   if (!snapshot) return false;
@@ -329,7 +302,6 @@ function executePendingAutosave(forceWhilePaused = false): Promise<void> {
   return enqueueAutosaveWrite(saved);
 }
 
-/** Hold reactive working-document autosaves behind an explicit document transaction. */
 export async function pauseWorkingRepertoireAutosave(): Promise<() => void> {
   autosavePauseDepth += 1;
   const saved = pendingAutosave;
@@ -347,11 +319,8 @@ export async function pauseWorkingRepertoireAutosave(): Promise<() => void> {
   };
 }
 
-// Autosaving begins only after the restore attempt completes, so the initial empty tree never
-// clobbers a saved repertoire.
 const [ready, setReady] = createSignal(false);
 
-/** Create the debounced autosave effect (call from a component body so it has a reactive owner). */
 export function startAutosave() {
   const idleTimer = setInterval(() => {
     if (ready() && dirty()) void captureSnapshot("idle");
@@ -387,30 +356,16 @@ export function startAutosave() {
   });
 }
 
-/**
- * Flush the latest pending working-document snapshot before a document-bound durable action.
- *
- * A reactive pause blocks debounce-driven writes so a multi-store transaction can publish
- * atomically, but an explicit flush is itself a durability boundary and must write through that
- * pause. Calling the pause-respecting executor here used to leave `pendingAutosave` untouched; the
- * while-loop then awaited an already-settled promise forever while its condition stayed true.
- */
 export async function flushWorkingRepertoire(): Promise<void> {
   while (pendingAutosave !== null) await executePendingAutosave(true);
   await autosaveTail;
 }
 
-/**
- * Test seam for the state that caused F6: one pending reactive autosave while a transaction holds
- * the pause. Plain node:test cannot drive startAutosave()'s Solid browser effect, so the seam queues
- * the same payload through the production scheduler rather than duplicating its state changes.
- */
 export function queueWorkingRepertoireAutosaveForTesting(saved: SavedWorkingRepertoire): void {
   assertTestOnly();
   scheduleAutosave(saved);
 }
 
-/** Load the last working repertoire (if any), then enable autosave. */
 export async function restoreWorking() {
   try {
     const saved = await idbGet<SavedWorkingRepertoire>(WORKING_REPERTOIRE_STORAGE_KEY);

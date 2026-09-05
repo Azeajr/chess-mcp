@@ -1,11 +1,3 @@
-/**
- * Framework-free, JSON-safe contracts for the Congruence 2.0 Strategic Fit domain.
- *
- * These types intentionally contain no host, validation-library, engine-provider, or UI types.
- * Hosts may validate and adapt them at their boundaries, but the shared domain contract remains
- * deterministic and serializable.
- */
-
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
   | JsonPrimitive
@@ -34,9 +26,7 @@ export const STRATEGIC_FIT_PROFILE_SOURCES = ["explicit", "inferred"] as const;
 export type StrategicFitProfileSource = (typeof STRATEGIC_FIT_PROFILE_SOURCES)[number];
 
 export interface StrategicFitProfilePreferences {
-  /** Maximum acceptable loss from engine best, in centipawns. Null means not configured. */
   readonly maximum_engine_loss_cp: number | null;
-  /** Normalized preference weights. */
   readonly opponent_popularity_importance: number;
   readonly personal_game_frequency_importance: number;
   readonly manual_weight_importance: number;
@@ -45,14 +35,12 @@ export interface StrategicFitProfilePreferences {
   readonly avoided_concept_ids: readonly string[];
   readonly preferred_tactical_character: readonly string[];
   readonly minimum_opponent_coverage: number | null;
-  /** Relative importance of each explainable feature family in strategic distance. */
   readonly feature_family_weights: Readonly<Record<StrategicSignalFamily, number>>;
 }
 
 export interface StrategicFitProfile extends SchemaVersioned {
   readonly mode: StrategicFitProfileMode;
   readonly source: StrategicFitProfileSource;
-  /** Inferred profiles remain provisional until the user confirms them. */
   readonly provisional: boolean;
   readonly preferences: StrategicFitProfilePreferences;
 }
@@ -121,11 +109,9 @@ export type SignalPersistenceState = (typeof SIGNAL_PERSISTENCE_STATES)[number];
 export interface StrategicSignal<T = JsonValue> extends AnalysisVersioned {
   readonly signal_id: string;
   readonly family: StrategicSignalFamily;
-  /** Stable language-neutral identifier; display labels live outside the identity. */
   readonly feature_id: string;
   readonly kind: StrategicSignalKind;
   readonly value: T;
-  /** Normalized classifier confidence in the range 0–1. */
   readonly confidence: number;
   readonly persistence: SignalPersistenceState;
   readonly provenance: readonly StrategicFitSourceProvenance[];
@@ -185,7 +171,6 @@ export interface StrategicTrajectory extends AnalysisVersioned {
   readonly state: StrategicTrajectoryState;
   readonly snapshots: readonly StrategicSnapshot[];
   readonly missing_checkpoints: readonly MissingStrategicCheckpoint[];
-  /** Fraction of requested comparable checkpoints with usable evidence. */
   readonly evidence_coverage: number;
   readonly stable_signal_ids: readonly string[];
   readonly transient_signal_ids: readonly string[];
@@ -200,7 +185,6 @@ export interface WeightedRouteReference {
 export interface StrategicMode extends AnalysisVersioned {
   readonly mode_id: string;
   readonly cohort_id: string;
-  /** A mode is represented by a real route rather than a synthetic centroid. */
   readonly representative_route_id: string;
   readonly supporting_route_ids: readonly string[];
   readonly concept_ids: readonly string[];
@@ -268,7 +252,6 @@ export interface ConfidenceCap {
 }
 
 export interface FindingConfidence extends AnalysisVersioned {
-  /** Display score in the range 0–100. */
   readonly score: number;
   readonly label: ConfidenceLabel;
   readonly components: readonly ConfidenceComponent[];
@@ -280,7 +263,6 @@ export const DIFFERENCE_MAGNITUDES = ["minor", "moderate", "major"] as const;
 export type DifferenceMagnitude = (typeof DIFFERENCE_MAGNITUDES)[number];
 
 export interface StrategicDifference extends AnalysisVersioned {
-  /** Normalized strategic distance in the range 0–1. */
   readonly distance: number;
   readonly magnitude: DifferenceMagnitude;
   readonly persistence: number;
@@ -297,7 +279,6 @@ export type ObjectiveQualityVerdict = (typeof OBJECTIVE_QUALITY_VERDICTS)[number
 export interface ObjectiveQuality extends AnalysisVersioned {
   readonly state: ObjectiveQualityState;
   readonly verdict: ObjectiveQualityVerdict;
-  /** User-facing scores use repertoire POV. */
   readonly repertoire_pov_cp: number | null;
   readonly loss_from_best_cp: number | null;
   readonly engine_depth: number | null;
@@ -321,7 +302,6 @@ export type FindingPriorityKind = (typeof FINDING_PRIORITY_KINDS)[number];
 
 export interface FindingPriority extends AnalysisVersioned {
   readonly kind: FindingPriorityKind;
-  /** Normalized priority in the range 0–1. */
   readonly score: number;
   readonly label: FindingPriorityLabel;
   readonly confidence: number;
@@ -373,7 +353,6 @@ export interface CausalEvent {
 }
 
 export interface CausalAttribution extends AnalysisVersioned {
-  /** Null when evidence cannot support a numerical attribution. */
   readonly controllability: number | null;
   readonly label: CausalControlLabel;
   readonly player_contribution: number | null;
@@ -440,13 +419,11 @@ export interface SemanticReferences {
   readonly position_ids: readonly string[];
   readonly decision_ids: readonly string[];
   readonly route_ids: readonly string[];
-  /** SAN paths are retained for navigation and are never the primary identity. */
   readonly source_san_paths: readonly (readonly string[])[];
 }
 
 export interface StrategicFinding extends StrategicFitVersioned {
   readonly finding_id: string;
-  /** Revision-independent identity used to carry resolutions across harmless repertoire reordering. */
   readonly semantic_finding_id: string;
   readonly repertoire_revision: string;
   readonly classification: StrategicFitClassification;

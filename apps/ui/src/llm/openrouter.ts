@@ -1,9 +1,3 @@
-/**
- * OpenRouter chat client — OpenAI-compatible, streamed, with tool calling. Provider-agnostic:
- * the model is a user setting (e.g. "anthropic/claude-sonnet-4.5"). One round per call; the
- * caller (store/chat.ts) runs the tool loop. Browser fetch direct to OpenRouter (CORS-enabled),
- * key from localStorage.
- */
 export interface ToolCall {
   id: string;
   type: "function";
@@ -11,13 +5,10 @@ export interface ToolCall {
 }
 
 export interface ChatMessage {
-  // "focus" is a UI-only marker (a tree-click context note); it is never sent to the model —
-  // store/chat.ts filters it out before each request.
   role: "system" | "user" | "assistant" | "tool" | "focus";
   content: string | null;
   tool_calls?: ToolCall[];
   tool_call_id?: string;
-  /** UI-only: the index path a "focus" marker points at, for click-to-revisit. Not wired. */
   focusPath?: number[];
 }
 
@@ -33,11 +24,8 @@ export interface ToolSchema {
 export interface RoundResult {
   content: string;
   toolCalls: ToolCall[];
-  /** finish_reason when it is not a normal end ("length", "content_filter", …). */
   abnormalFinish?: string;
-  /** Provider-reported accounting from the final streaming chunk, when available. */
   usage?: Record<string, unknown>;
-  /** OpenRouter request correlation identifier from the response headers. */
   generationId?: string;
 }
 
@@ -69,11 +57,6 @@ function wireMessage(m: ChatMessage) {
   };
 }
 
-/**
- * One streamed assistant turn. `onText` fires for each content delta; the returned object has
- * the full accumulated content plus any tool calls the model requested (with arguments
- * reassembled from their streamed fragments).
- */
 export async function streamChat(opts: {
   apiKey: string;
   model: string;
@@ -110,7 +93,6 @@ export async function streamChat(opts: {
   let content = "";
   let abnormalFinish: string | undefined;
   let usage: Record<string, unknown> | undefined;
-  // Tool calls stream as fragments keyed by index; reassemble here.
   const toolByIndex = new Map<number, ToolCall>();
 
   for (;;) {
@@ -131,8 +113,6 @@ export async function streamChat(opts: {
         continue;
       }
       if (!isJsonRecord(json)) continue;
-      // Mid-stream provider errors arrive as data frames, not HTTP errors — without this the
-      // stream just ends and the user sees a silently clipped answer.
       const streamError = json.error;
       if (streamError) {
         const msg = isJsonRecord(streamError) ? streamError.message : streamError;

@@ -1,20 +1,9 @@
-/**
- * WP-010 — the operation registry. One authoritative answer to "what is running right now?",
- * from any source. Stores register on start, patch on progress, and settle on completion;
- * recently-settled operations linger 8 s (LINGER_MS) so an activity strip can show completion,
- * then are evicted. The registry owns announcements per the WP-009 policy: exactly one message
- * per operation start and one per settle, never per progress tick.
- *
- * It does not own the work itself or the abort controllers — owners keep those and hand a
- * `cancel` callback.
- */
 import { createSignal } from "solid-js";
 import { announce } from "./announce";
 import { assertTestOnly } from "./test-seam";
 
 export type OperationStatus = "running" | "completed" | "cancelled" | "failed";
 
-/** Which panel owns the operation's result. */
 export type OperationSurface = "analysis" | "repertoire" | "chat" | "strategic-fit";
 
 export interface Operation {
@@ -35,7 +24,6 @@ const LINGER_MS = 8_000;
 const [operations, setOperations] = createSignal<Operation[]>([]);
 export { operations };
 
-/** Test seam: reset the registry and timers between tests. */
 export function resetOperationsForTesting() {
   assertTestOnly();
   for (const timer of evictionTimers.values()) clearTimeout(timer);
@@ -46,10 +34,6 @@ export function resetOperationsForTesting() {
 let nextId = 0;
 const evictionTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
-/**
- * Register a running operation and announce its start. Returns the id used to patch or settle
- * it. `cancel` is the owner's existing abort path — the registry only surfaces it.
- */
 export function registerOperation(input: {
   kind: string;
   label: string;
@@ -73,7 +57,6 @@ export function registerOperation(input: {
   return id;
 }
 
-/** Patch a running operation's progress. Never announces — progress ticks say nothing. */
 export function updateOperation(
   id: string,
   progress: { done?: number; total?: number; detail?: string },
@@ -87,17 +70,11 @@ export function updateOperation(
   );
 }
 
-/**
- * Settle an operation with a terminal status. It lingers LINGER_MS for the activity strip, then
- * is evicted. Announces exactly once per settle.
- */
 export function settleOperation(
   id: string,
   status: Exclude<OperationStatus, "running">,
   result?: { detail?: string },
 ) {
-  // Guard against double settlement before touching state: a lingering completed operation must
-  // not re-announce or flip status.
   const current = operations().find((entry) => entry.id === id);
   if (current?.status !== "running") return;
   setOperations((all) =>
@@ -122,16 +99,10 @@ export function settleOperation(
   scheduleEviction(id);
 }
 
-/** Operations currently in the running state, oldest first. */
 export function runningOperations(): readonly Operation[] {
   return operations().filter((operation) => operation.status === "running");
 }
 
-/**
- * Silent settle: flips status and schedules eviction WITHOUT announcing. Two callers:
- * - a superseded run replaced by a new run of the same command (bookkeeping, not feedback);
- * - an aborted run observed after the fact, where the abort was already announced.
- */
 export function settleOperationQuietly(id: string, status: Exclude<OperationStatus, "running">) {
   const current = operations().find((entry) => entry.id === id);
   if (current?.status !== "running") return;
@@ -155,11 +126,6 @@ function scheduleEviction(id: string) {
   );
 }
 
-/**
- * Silent settle for high-frequency operations (live analysis): flips status and schedules
- * eviction without announcing. The WP-009 policy announces per user-visible operation, never
- * per engine pass.
- */
 export function updateOperationStatus(id: string, status: Exclude<OperationStatus, "running">) {
   const current = operations().find((entry) => entry.id === id);
   if (current?.status !== "running") return;

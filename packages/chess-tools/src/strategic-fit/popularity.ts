@@ -1,11 +1,3 @@
-/**
- * Optional population-popularity collection for Strategic Fit.
- *
- * The deterministic analyzer never performs network work. Hosts build the canonical graph, inject
- * an authenticated explorer lookup here, and pass the returned external weights into the analyzer.
- * Only opponent positions with multiple prepared replies are relevant: a singleton choice always
- * normalizes to one. Canonical graph positions make the walk transposition-safe by construction.
- */
 import {
   explorerFilterKey,
   normalizeExplorerFilters,
@@ -182,11 +174,6 @@ function result(
   };
 }
 
-/**
- * Collect population weights for every relevant canonical opponent decision, in shallowest-first
- * deterministic order. A failed lookup stops immediately so an outage cannot consume the entire
- * budget; already collected evidence is retained and labeled partial.
- */
 export async function collectStrategicPopularityWeights(
   graph: RepertoireGraph,
   options: StrategicPopularityCollectionOptions,

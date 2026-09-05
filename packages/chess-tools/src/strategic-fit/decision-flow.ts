@@ -1,21 +1,3 @@
-/**
- * Deterministic decision-flow projection over a completed Strategic Fit report.
- *
- * Like the strategic map and the concept heatmap, this is a presentation projection: it consumes
- * only retained report evidence plus the host-injected canonical repertoire graph, never re-runs
- * analysis, and never participates in cache identity. The flow answers one question — how do
- * opponent choices and player decisions distribute the expected games of an opening cohort into its
- * strategic modes — so every node and link weight is a sum of the same canonical route weights the
- * analyzer used, and the sums reconcile exactly at each node.
- *
- * The flow is cohort-scoped on purpose. Route weights are normalized inside a cohort, so mixing
- * cohorts into one diagram would present incomparable shares as one total. Each cohort therefore
- * gets its own start node, its own decision nodes, and its own terminal strategic-mode nodes.
- *
- * Causal ownership is never invented here. A decision carries a causal label only when a finding
- * attributes its strategic difference to that exact semantic decision; conflicting or multi-finding
- * evidence stays explicitly qualified with a null controllability rather than an averaged number.
- */
 import type { RepertoireGraph, RepertoireGraphDecision } from "./graph.js";
 import type {
   CausalControlLabel,
@@ -25,7 +7,6 @@ import type {
 } from "./types.js";
 import { assertDefined } from "../assert.js";
 
-/** Bump when node, link, or weight semantics change so compared flows never mix silently. */
 export const DECISION_FLOW_PROJECTION_VERSION = "1.0.0";
 
 export const DECISION_FLOW_STATES = ["available", "unavailable"] as const;
@@ -34,11 +15,9 @@ export type DecisionFlowState = (typeof DECISION_FLOW_STATES)[number];
 export const DECISION_FLOW_NODE_KINDS = ["start", "decision", "mode"] as const;
 export type DecisionFlowNodeKind = (typeof DECISION_FLOW_NODE_KINDS)[number];
 
-/** `none` belongs to the start and strategic-mode nodes, which nobody plays. */
 export const DECISION_FLOW_ACTORS = ["player", "opponent", "none"] as const;
 export type DecisionFlowActor = (typeof DECISION_FLOW_ACTORS)[number];
 
-/** `not-referenced` means no finding makes a causal claim, which is not the same as unknown. */
 export const DECISION_FLOW_CAUSAL_LABELS = [
   "mostly-opponent-forced",
   "shared-or-uncertain",
@@ -64,12 +43,7 @@ export type DecisionFlowModeAssignmentRule = (typeof DECISION_FLOW_MODE_ASSIGNME
 
 export interface DecisionFlowCausality {
   readonly label: DecisionFlowCausalLabel;
-  /**
-   * Repertoire controllability in the range 0-1 from the single attributing finding. Null whenever
-   * evidence cannot support one number; it is never averaged and never presented as zero control.
-   */
   readonly controllability: number | null;
-  /** True when the presentation must visibly qualify the claim rather than state it plainly. */
   readonly qualified: boolean;
   readonly finding_ids: readonly string[];
   readonly reason: string | null;
@@ -78,7 +52,6 @@ export interface DecisionFlowCausality {
 export interface DecisionFlowTransposition {
   readonly transposition_id: string;
   readonly position_id: string;
-  /** The distinct predecessor nodes that converge on this decision inside this cohort. */
   readonly incoming_node_ids: readonly string[];
 }
 
@@ -87,9 +60,7 @@ export interface DecisionFlowNode {
   readonly kind: DecisionFlowNodeKind;
   readonly cohort_id: string;
   readonly actor: DecisionFlowActor;
-  /** Longest-path layer from the cohort's start node; every link runs to a strictly deeper layer. */
   readonly depth: number;
-  /** Sum of the canonical normalized weights of the cohort routes through this node, 0-1. */
   readonly weight: number;
   readonly decision_id: string | null;
   readonly from_position_id: string | null;
@@ -98,7 +69,6 @@ export interface DecisionFlowNode {
   readonly plies: readonly number[];
   readonly mode_id: string | null;
   readonly concept_ids: readonly string[];
-  /** True when the flow splits here, which is where forced diversity becomes visible. */
   readonly branching: boolean;
   readonly transposition: DecisionFlowTransposition | null;
   readonly causality: DecisionFlowCausality;
@@ -115,7 +85,6 @@ export interface DecisionFlowLink {
   readonly weight: number;
   readonly route_ids: readonly string[];
   readonly finding_ids: readonly string[];
-  /** True when at least one route reached the depth limit before its strategic mode. */
   readonly truncated: boolean;
 }
 
@@ -144,7 +113,6 @@ export interface DecisionFlowExclusion {
 
 export interface DecisionFlowCohort {
   readonly cohort_id: string;
-  /** Sum of the plotted routes' normalized weights; every start node carries the same total. */
   readonly total_weight: number;
   readonly route_count: number;
   readonly node_count: number;
@@ -171,7 +139,6 @@ export interface DecisionFlowProjection {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** The report fields the flow consumes; both a report and a paged analysis result satisfy it. */
 export interface DecisionFlowReportInput {
   readonly report_id: string;
   readonly repertoire_revision: string;
@@ -181,22 +148,9 @@ export interface DecisionFlowReportInput {
 }
 
 export interface DecisionFlowOptions {
-  /**
-   * Host-injected canonical repertoire graph. The report retains semantic route identities but not
-   * the decisions between them, so an absent graph makes the flow explicitly unavailable.
-   */
   readonly graph?: RepertoireGraph | null;
-  /**
-   * The repertoire revision the injected graph was built from. A mismatch with the report's
-   * revision fails closed rather than attributing current decisions to an older report.
-   */
   readonly graph_revision?: string | null;
-  /**
-   * Complete finding set when the input carries only one page. Findings decide causal labels and
-   * selection references only; weights and topology never depend on them.
-   */
   readonly findings?: readonly StrategicFinding[];
-  /** Decisions per route before the flow links straight to the strategic mode. */
   readonly max_depth?: number;
 }
 
@@ -215,7 +169,6 @@ function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-/** Nine decimals keep node and link sums reconcilable without float presentation noise. */
 function round(value: number): number {
   return Math.round(value * 1_000_000_000) / 1_000_000_000;
 }
@@ -224,7 +177,6 @@ function graphProvenance(
   graph: RepertoireGraph | null,
   reason: string | null,
 ): StrategicFitSourceProvenance {
-  // A supplied but rejected graph is still unavailable evidence; only the reason distinguishes them.
   if (graph === null || reason !== null) {
     return {
       source_id: "strategic-fit:repertoire-graph",
@@ -250,7 +202,6 @@ function unavailableProjection(
   graph: RepertoireGraph | null,
   reason: string,
   exclusions: readonly DecisionFlowExclusion[],
-  /** Set when the graph itself is the missing or rejected source rather than the report content. */
   graphReason: string | null = null,
 ): DecisionFlowProjection {
   return {
@@ -308,11 +259,6 @@ function weightOf(routeIds: Iterable<string>, weights: ReadonlyMap<string, numbe
   return round(total);
 }
 
-/**
- * Longest-path layering over the cohort's own link graph. Kahn ordering also proves the flow is
- * acyclic: a repertoire that revisits a semantic position would otherwise produce a backward link
- * and a diagram whose depths lie about move order.
- */
 function layerCohort(flow: CohortFlow): Map<string, number> | null {
   const incoming = new Map<string, number>();
   const outgoing = new Map<string, string[]>();
@@ -407,7 +353,6 @@ function causalityFor(
   };
 }
 
-/** Build the deterministic cohort-scoped decision-flow projection from one completed report. */
 export function buildDecisionFlowProjection(
   input: DecisionFlowReportInput,
   options: DecisionFlowOptions = {},

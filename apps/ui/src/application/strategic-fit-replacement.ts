@@ -851,10 +851,6 @@ export async function runReplacementLabGeneration(
   };
 }
 
-/**
- * Re-stage one selected candidate through canonical Phase 8 safety/change-set producers.
- * UI supplies only retention intent; no coverage, metric, safety, or diff value is recomputed here.
- */
 export async function stageReplacementLabChangeReview(
   result: ReplacementLabGenerationResult,
   candidateId: string,

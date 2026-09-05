@@ -10,7 +10,6 @@ if (args[0] === "--") args.shift();
 const updateSnapshots = args.includes("--update-snapshots");
 const playwrightArgs = args.filter((arg) => arg !== "--update-snapshots");
 const require = createRequire(path.join(root, "package.json"));
-// `playwright` supplies the installed @playwright/test runner used by `pnpm exec playwright`.
 const playwrightVersion = require("playwright/package.json").version;
 const image = `mcr.microsoft.com/playwright:v${playwrightVersion}-noble`;
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), "chess-mcp-playwright-"));

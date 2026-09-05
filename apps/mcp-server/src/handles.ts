@@ -1,8 +1,3 @@
-/**
- * Repertoire handle cache — the Node port of the Python server's in-memory LRU+TTL. load_*
- * returns a short id; the other repertoire tools take it. The MCP contract stays a pure
- * function of (id, args): the id is an input key, not call-order state.
- */
 import { randomUUID } from "node:crypto";
 import {
   StrategicFitIndexCache,
@@ -31,22 +26,16 @@ const MAX_STRATEGIC_FIT_REPORTS =
   Number.isSafeInteger(configuredStrategicFitReports) && configuredStrategicFitReports > 0
     ? configuredStrategicFitReports
     : 4;
-/** Explicit per-handle bound on indexed graph/signal/trajectory entries; the LRU never exceeds it. */
 const STRATEGIC_FIT_INDEX_ENTRIES_PER_REPERTOIRE = 256;
 
 export interface RepertoireEntry {
   tree: GameTree;
   color: Color;
-  /** Immutable clone-on-write handle generation used as the Strategic Fit report revision. */
   revision: string;
-  /** Normalized immutable content protects against accidental revision-label reuse. */
   contentKey: string;
   strategicFitReports: Map<string, StrategicFitReport>;
-  /** Bounded incremental index shared by every analysis of this immutable handle. */
   strategicFitIndex: StrategicFitIndexCache;
-  /** The one checkpoint an interrupted analysis of this handle left behind, if any. */
   strategicFitCheckpoint: StrategicFitJobCheckpoint | null;
-  /** Recovery provenance for the handle's most recent analysis. */
   strategicFitRecovery: StrategicFitJobRecovery | null;
   ts: number;
 }
@@ -56,8 +45,6 @@ const map = new Map<string, RepertoireEntry>();
 function drop(key: string, entry: RepertoireEntry): void {
   entry.strategicFitReports.clear();
   entry.strategicFitIndex.clear();
-  // An evicted handle takes its interrupted job with it: nothing may resume against a handle whose
-  // content is no longer held here.
   entry.strategicFitCheckpoint = null;
   entry.strategicFitRecovery = null;
   map.delete(key);
@@ -97,8 +84,7 @@ export function store(tree: GameTree, color: Color): string {
     strategicFitRecovery: null,
     ts: Date.now(),
   });
-  evict(); // after insert: evict-before-insert capped at MAX+1 (size checked pre-add); the new
-  // entry has the newest ts, so the LRU sweep never evicts what we just stored.
+  evict();
   return id;
 }
 
@@ -114,7 +100,6 @@ export function get(id: string): RepertoireEntry | null {
   return e;
 }
 
-/** Analyze once per immutable handle/settings identity, then reuse the complete report for views. */
 export function getOrCreateStrategicFitReport(
   entry: RepertoireEntry,
   options: AnalyzeStrategicFitOptions,
@@ -128,12 +113,8 @@ export function getOrCreateStrategicFitReport(
     return cached;
   }
 
-  // The index only memoizes deterministic stages under a content identity, so a settings-varied
-  // analysis of the same handle reuses work without changing the report it produces.
   const completeOptions = strategicFitCompleteAnalysisOptions(options);
   const compatibility = strategicFitJobCompatibility(entry.contentKey, completeOptions);
-  // A call that threw — a cancelled scan, a dropped client — leaves its checkpoint on the handle;
-  // the next call for the same content, revision, settings, and generation continues that job.
   entry.strategicFitRecovery =
     entry.strategicFitCheckpoint === null
       ? strategicFitColdJobRecovery(
@@ -159,7 +140,6 @@ export function getOrCreateStrategicFitReport(
       onCheckpoint: record,
     }),
   );
-  // The job settled, so its checkpoint stops being a job; the report itself is now the answer.
   entry.strategicFitCheckpoint = null;
   entry.strategicFitReports.set(key, report);
   while (entry.strategicFitReports.size > MAX_STRATEGIC_FIT_REPORTS) {
@@ -170,10 +150,6 @@ export function getOrCreateStrategicFitReport(
   return report;
 }
 
-/**
- * Resolve a cached report by its exact identity. The per-handle cache is bounded, so an evicted or
- * foreign report is simply absent and the caller fails closed instead of answering from older data.
- */
 export function strategicFitReportById(
   entry: RepertoireEntry,
   reportId: string,
@@ -187,10 +163,8 @@ export function strategicFitReportById(
 export const strategicFitReportCacheSize = (entry: RepertoireEntry): number =>
   entry.strategicFitReports.size;
 
-/** Recovery provenance for this handle's most recent analysis; `null` before one has run. */
 export const strategicFitJobRecovery = (entry: RepertoireEntry): StrategicFitJobRecovery | null =>
   entry.strategicFitRecovery;
 
-/** Whether this handle is still holding an interrupted analysis that a later call can continue. */
 export const hasStrategicFitJobCheckpoint = (entry: RepertoireEntry): boolean =>
   entry.strategicFitCheckpoint !== null;

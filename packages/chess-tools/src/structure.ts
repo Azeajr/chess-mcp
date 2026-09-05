@@ -1,13 +1,3 @@
-/**
- * Static pawn-structure analysis (port of structure.py — descriptive layer). Pure chessops
- * bitboard work, no engine. Provides the always-on theme tags, pawn primitives, files, and
- * center state that carry structural signal.
- *
- * The 19 named pawn-structure scorers (IQP, Carlsbad, Maroczy, …) are ported below — classifyStructure
- * plus the per-structure confidence functions, pinned by scripts/structure-accuracy.mjs. A position
- * matching none returns "unknown"; by design the themes still carry the signal then (Python Decision
- * D2: a wrong label misleads more than "unknown").
- */
 import { squareFile, squareRank, makeSquare, parseSquare } from "chessops/util";
 import { parseFen, makeBoardFen } from "chessops/fen";
 import type { Board } from "chessops/board";
@@ -15,13 +5,12 @@ import type { Color } from "./congruence.js";
 import { assertDefined } from "./assert.js";
 
 const FILE_NAMES = "abcdefgh";
-const QUEENSIDE = new Set([0, 1, 2, 3]); // files a–d
+const QUEENSIDE = new Set([0, 1, 2, 3]);
 const QS_FILES = new Set(["a", "b", "c", "d"]);
 const KS_FILES = new Set(["e", "f", "g", "h"]);
 const other = (c: Color): Color => (c === "white" ? "black" : "white");
 const pawns = (board: Board, color: Color): number[] => [...board.pieces(color, "pawn")];
 
-// --- primitives (square names, sorted) ---
 export function doubledPawns(board: Board, color: Color): string[] {
   const ps = pawns(board, color);
   const out: number[] = [];
@@ -91,7 +80,6 @@ export function pawnChains(board: Board, color: Color): string[][] {
     .sort((a, b) => a.join().localeCompare(b.join()));
 }
 
-// --- files ---
 export function openFiles(board: Board): string[] {
   const wf = new Set(pawns(board, "white").map(squareFile));
   const bf = new Set(pawns(board, "black").map(squareFile));
@@ -107,7 +95,6 @@ export function halfOpenFiles(board: Board, color: Color): string[] {
     .map((f) => assertDefined(FILE_NAMES[f]));
 }
 
-// --- theme helpers ---
 function wingCounts(board: Board, color: Color): [number, number] {
   let qs = 0;
   let ks = 0;
@@ -159,16 +146,10 @@ export interface Themes {
   color_complex: "light" | "dark" | null;
 }
 
-// P7: themes/centerState get the same placement-keyed memo as classifyStructure — structuralSignals
-// calls all three per board (per leaf in buildFitProfile, per candidate in suggest_*, per ply in the
-// UI's lineFit), on positions that recur across tools within one repertoire workflow. Both depend
-// only on piece placement (+ color for themes), so entries are deterministic and never stale.
-// FIFO-bounded like STRUCT_CACHE. Cached objects are shared — callers must not mutate them.
 const THEMES_CACHE = new Map<string, Themes>();
 const CENTER_CACHE = new Map<string, "tense" | "locked" | "open" | "semi-open">();
 const MEMO_CAP = 4096;
 
-// Square indices: g2=14, b2=9, g7=54, b7=49.
 export function themes(board: Board, color: Color): Themes {
   const key = `${makeBoardFen(board)}|${color}`;
   const cached = THEMES_CACHE.get(key);
@@ -205,7 +186,6 @@ function themesUncached(board: Board, color: Color): Themes {
   };
 }
 
-// --- center state ---
 export function centerState(board: Board): "tense" | "locked" | "open" | "semi-open" {
   const key = makeBoardFen(board);
   const cached = CENTER_CACHE.get(key);
@@ -248,7 +228,6 @@ function centerStateUncached(board: Board): "tense" | "locked" | "open" | "semi-
   return "semi-open";
 }
 
-// --- named-structure classifier (port of the 19 _*_confidence scorers + classify_structure) ---
 const nameSet = (board: Board, color: Color): Set<string> =>
   new Set(pawns(board, color).map(makeSquare));
 const fileSet = (board: Board, color: Color): Set<number> =>
@@ -256,13 +235,11 @@ const fileSet = (board: Board, color: Color): Set<number> =>
 const subset = (a: Iterable<string>, b: Set<string>): boolean => [...a].every((x) => b.has(x));
 const b2n = (x: boolean): number => (x ? 1 : 0);
 
-/** Core+bonus confidence: core gates (false → 0); each bonus square lifts base toward cap. */
 function graded(coreOk: boolean, bonus: number, base: number, cap: number, step = 0.05): number {
   if (!coreOk) return 0;
   return Math.round(Math.min(cap, base + step * bonus) * 100) / 100;
 }
 const mirrorName = (n: string): string => makeSquare(assertDefined(parseSquare(n)) ^ 56);
-/** White-relative names, rank-mirrored for Black so one spec serves both orientations. */
 const rel = (color: Color, ...names: string[]): string[] =>
   color === "white" ? names : names.map(mirrorName);
 
@@ -431,14 +408,6 @@ function benko(board: Board): number {
   return graded(true, b2n(wn.has("a2")) + b2n(wn.has("b2")), 0.72, 0.82);
 }
 
-/**
- * Memo for classifyStructure. It runs ~20 board scorers per call and is invoked once per leaf by
- * congruence, both suggest_* (profileStructureShares), and the aggregate profile — the same
- * positions recur across those tools within one repertoire workflow. Keyed by board PLACEMENT
- * (makeBoardFen): the classification depends only on piece placement, so it's deterministic and
- * the entry never goes stale — no edit invalidation needed. FIFO-bounded so memory stays flat
- * over the server's lifetime; a repertoire with < CAP distinct positions never evicts mid-run.
- */
 const STRUCT_CACHE = new Map<string, { structure_class: string; confidence: number }>();
 const STRUCT_CACHE_CAP = 4096;
 
@@ -491,7 +460,6 @@ function classifyStructureUncached(board: Board): { structure_class: string; con
   return { structure_class: best[0], confidence: Math.round(best[1] * 100) / 100 };
 }
 
-/** structure_class → share of leaf boards reaching it (for suggest_* familiarity scoring). */
 export function profileStructureShares(boards: Board[]): Record<string, number> {
   const counts = new Map<string, number>();
   for (const b of boards) {
@@ -504,7 +472,6 @@ export function profileStructureShares(boards: Board[]): Record<string, number> 
   return out;
 }
 
-/** Classify the named pawn structure directly from a FEN (chessops stays internal). */
 export function classifyStructureFromFen(fen: string): {
   structure_class: string;
   confidence: number;
@@ -512,15 +479,6 @@ export function classifyStructureFromFen(fen: string): {
   return classifyStructure(parseFen(fen).unwrap().board);
 }
 
-// --- structural-fit profile (named structure + center + themes) ---
-
-/**
- * Coarse categorical signals of a position: the center state, the active themes (fianchetto, minority
- * attack, flank-vs-center, wing majorities, color complex) and — when classified — the named pawn
- * structure. Used to score how well a candidate middlegame fits a repertoire's typical positions:
- * far coarser than a single named-structure match, so it still discriminates when `structure_class`
- * is "unknown" (the center + themes still locate the position relative to the repertoire).
- */
 function structuralSignals(board: Board, color: Color): string[] {
   const th = themes(board, color);
   const tok: string[] = [`center:${centerState(board)}`];
@@ -538,11 +496,9 @@ function structuralSignals(board: Board, color: Color): string[] {
 }
 
 export interface FitProfile {
-  /** structural signal token → share of repertoire leaves carrying it (0..1). */
   freq: Map<string, number>;
 }
 
-/** Build a structural-familiarity profile from a repertoire's leaf boards (color = the side played). */
 export function buildFitProfile(boards: Board[], color: Color): FitProfile {
   const counts = new Map<string, number>();
   for (const b of boards) {
@@ -554,11 +510,6 @@ export function buildFitProfile(boards: Board[], color: Color): FitProfile {
   return { freq };
 }
 
-/**
- * Structural fit of `board` with the repertoire: the mean familiarity (profile share) of its signals,
- * in [0,1]. Blends named structure + center + themes, so it rarely collapses to 0 the way a lone
- * named-structure match does, and it ranks candidates by overall resemblance to the repertoire.
- */
 export function fitScore(profile: FitProfile, board: Board, color: Color): number {
   const toks = structuralSignals(board, color);
   if (!toks.length) return 0;
@@ -567,7 +518,6 @@ export function fitScore(profile: FitProfile, board: Board, color: Color): numbe
   return Math.round((s / toks.length) * 100) / 100;
 }
 
-// --- full profile of one position ---
 export function positionProfile(board: Board, color: Color, fen: string) {
   const cls = classifyStructure(board);
   return {
@@ -595,7 +545,6 @@ const BOOL_THEMES = [
   "flank_vs_center",
 ] as const;
 
-/** Aggregate structural fingerprint over a set of leaf boards (port of aggregate_profile). */
 export function aggregateProfile(boards: Board[], color: Color) {
   const n = boards.length;
   const denom = n || 1;
@@ -656,9 +605,6 @@ export function aggregateProfile(boards: Board[], color: Color) {
   };
 }
 
-// --- structural position search (T5: the classifier as a QUERY, not just a profile) ---
-
-/** Every structure_class the classifier can emit (for validating a search query). */
 export const STRUCTURE_NAMES = [
   "IQP",
   "Closed Sicilian",
@@ -685,12 +631,9 @@ export type ThemeName = (typeof BOOL_THEMES)[number];
 export const THEME_NAMES: readonly ThemeName[] = BOOL_THEMES;
 
 export interface StructureQuery {
-  /** Named structure_class to match (case-insensitive; see STRUCTURE_NAMES). */
   structure?: string;
-  /** Minimum classifier confidence for a structure match (default 0). */
   minConfidence?: number;
   center?: "tense" | "locked" | "open" | "semi-open";
-  /** Boolean themes that must ALL be active. */
   themes?: ThemeName[];
   colorComplex?: "light" | "dark";
 }
@@ -703,11 +646,6 @@ export interface StructureMatch {
   center: string;
 }
 
-/**
- * Filter leaf positions by classifier output — "show every line reaching an IQP / fianchetto /
- * locked-center position". All provided criteria are AND-ed. Engine-free; the memoised
- * classifiers make repeat queries on the same repertoire near-instant.
- */
 export function searchStructures(
   leaves: { path: string[]; board: Board; fen: string }[],
   color: Color,

@@ -12,16 +12,11 @@ import {
   strategicFitDrillSession,
 } from "../src/store/strategic-fit-training.ts";
 
-/** Confirmed legal by this repo's MCP server (`validate_fen`) rather than written by hand. */
 const START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const AFTER_E4_FEN = "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1";
 const PROMOTION_FEN = "8/P6k/8/8/8/8/6K1/8 w - - 0 1";
 const MALFORMED_FEN = "not a fen";
 
-/**
- * The board is oriented to whoever is on move in the drilled position, so the move being asked for
- * is always played up the board.
- */
 test("drillOrientation follows the side to move in the drill position", () => {
   assert.equal(drillOrientation(START_FEN), "white");
   assert.equal(drillOrientation(AFTER_E4_FEN), "black");
@@ -39,10 +34,6 @@ test("sanForDrillMove converts a legal board move to the SAN a drill is compared
   assert.equal(sanForDrillMove(AFTER_E4_FEN, "e7", "e5"), "e5");
 });
 
-/**
- * An illegal move must read as null, not as some other SAN: the drill compares this result against
- * `expected_san`, and a wrong-but-parsed move would be scored as a miss rather than as no move.
- */
 test("sanForDrillMove returns null for a move that is not legal in the position", () => {
   assert.equal(sanForDrillMove(START_FEN, "e2", "e5"), null, "pawn three squares");
   assert.equal(sanForDrillMove(START_FEN, "b1", "b5"), null, "knight moving like a rook");
@@ -56,18 +47,11 @@ test("sanForDrillMove returns null for squares that are not on the board or an u
   assert.equal(sanForDrillMove(MALFORMED_FEN, "e2", "e4"), null);
 });
 
-/** There is no promotion picker on the drill surface, so a promoting move auto-queens. */
 test("sanForDrillMove auto-queens a promotion", () => {
   assert.equal(sanForDrillMove(PROMOTION_FEN, "a7", "a8"), "a8=Q");
 });
 
-/**
- * Recall is a plain equality against the drill's expected SAN, so the conversion has to produce the
- * library's own spelling — including a check marker the player never typed.
- */
 test("sanForDrillMove produces the canonical spelling a drill's expected_san uses", () => {
-  // After 1. e4 e5 2. Qh5 Nc6, per `validate_line`. The check marker on Qxf7 is part of the
-  // canonical SAN and is added by the library whether or not the player would have written it.
   const beforeCheck = "r1bqkbnr/pppp1ppp/2n5/4p2Q/4P3/8/PPPP1PPP/RNB1KBNR w KQkq - 2 3";
   assert.equal(sanForDrillMove(beforeCheck, "h5", "f7"), "Qxf7+");
 });
@@ -83,11 +67,6 @@ test("a drill is recalled only when the played SAN equals the expected SAN exact
   assert.equal(sanForDrillMove(START_FEN, "e2", "e5") === expected, false, "an illegal move");
 });
 
-/**
- * The drill session, which `DrillRunner` renders from. These targets are deliberately unregistered,
- * so every attempt below reports `recorded: false` — that is the honest outcome for a drill whose
- * target does not exist, and it lets the session's own rules be tested without a performance store.
- */
 const DRILL = {
   drill_id: "strategic-fit-drill:test-1",
   position_id: "position:test-1",
@@ -98,7 +77,6 @@ const DRILL = {
 
 const SECOND_DRILL = { ...DRILL, drill_id: "strategic-fit-drill:test-2", expected_san: "e4" };
 
-/** Nothing may be scored without an open session — a stray board event must not become evidence. */
 test("playStrategicFitDrill refuses when no session is open", () => {
   const trainingId = "strategic-fit-training:no-session";
   endStrategicFitDrillSession(trainingId);
@@ -148,10 +126,6 @@ test("a wrong move and an illegal move are both misses, and an illegal one has n
   endStrategicFitDrillSession(illegalTraining);
 });
 
-/**
- * Recall is first-attempt only. A second move on an answered drill must not produce a second
- * outcome, or the recall rate stops meaning anything.
- */
 test("a drill already answered in this session cannot be answered again", () => {
   const trainingId = "strategic-fit-training:first-only";
   startStrategicFitDrillSession(trainingId, 0);
@@ -167,18 +141,11 @@ test("a drill already answered in this session cannot be answered again", () => 
   endStrategicFitDrillSession(trainingId);
 });
 
-/**
- * The regression this session state exists for. Recording an attempt schedules a reanalysis, which
- * unmounts and remounts `DrillRunner`; reading the session back afterwards has to show the drill
- * still answered, or the remounted runner would re-serve it and write a second attempt.
- */
 test("an answered drill survives a remount of the runner", () => {
   const trainingId = "strategic-fit-training:remount";
   startStrategicFitDrillSession(trainingId, 0);
   playStrategicFitDrill({ trainingId, drill: DRILL, orig: "g1", dest: "f3", now: 2000 });
 
-  // What a remounted DrillRunner does: read the session, then restart the clock for the position
-  // still on screen. Neither may lose the answer.
   refreshStrategicFitDrillClock(trainingId, 99_000);
   const session = strategicFitDrillSession(trainingId);
   assert.equal(session?.outcomes.length, 1);
@@ -212,7 +179,6 @@ test("advancing moves to the next position and restarts the clock for it", () =>
   endStrategicFitDrillSession(trainingId);
 });
 
-/** "Drill again" is a new presentation, not a retry of the one that was scored. */
 test("restarting a session clears its outcomes and returns to the first position", () => {
   const trainingId = "strategic-fit-training:restart";
   startStrategicFitDrillSession(trainingId, 0);
@@ -226,11 +192,6 @@ test("restarting a session clears its outcomes and returns to the first position
   endStrategicFitDrillSession(trainingId);
 });
 
-/**
- * An attempt whose target was never registered has to read as not recorded. `blocked` means the
- * write was refused; `unchanged` means the identical attempt is already in the log, which is
- * recorded. Only a non-null, non-blocked result may claim the evidence exists.
- */
 test("only a non-blocked result counts as recorded", () => {
   assert.equal(strategicFitDrillAttemptWasRecorded(null), false, "no target was addressed");
   const shape = {

@@ -32,7 +32,6 @@ function analyze(
   });
 }
 
-/** Equivalence is exact: the same values in the same order, not a tolerance. */
 function assertIdentical(
   actual: StrategicFitAnalysisResult,
   expected: StrategicFitAnalysisResult,
@@ -50,7 +49,6 @@ function editedBroadEcoPgn(): string {
   return edited;
 }
 
-/** Build the affected-cohort scope exactly as the host's Task 6.4 comparison does. */
 function affectedCohortScope(
   previous: StrategicFitAnalysisResult,
   previousPgn: string,
@@ -147,7 +145,6 @@ test("an empty affected-cohort scope still recomputes the routes that changed", 
     },
   });
 
-  // The scope bounds claimed reuse; the content identity decides every returned value.
   assertIdentical(incremental, coldAfter);
   assert.equal(index.lastPlan?.recomputed_cohort_ids.length, 1);
   assert.equal(index.lastPlan?.changed_route_ids.length, 2);
@@ -227,8 +224,6 @@ test("every manifest version participates in the index generation", () => {
 });
 
 test("a deep-frozen cached report does not prevent later reuse of its indexed values", () => {
-  // The MCP handle path freezes the analyzer result while the index still holds the same graph and
-  // trajectory objects, so reuse must survive an immutable consumer.
   const index = new StrategicFitIndexCache();
   const first = completeStrategicFitReport(
     analyzeStrategicFit(GameTree.fromPgn(BROAD_ECO_FIXTURE.pgn), {

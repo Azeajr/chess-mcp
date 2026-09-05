@@ -116,7 +116,6 @@ test("browser adapter injects configured mocked popularity weights and combined 
   });
   assert.equal(received?.weighting?.mode, "external");
   const weights = calculateStrategicRouteWeights(
-    // The analyzer rebuilds this same canonical graph inside the Worker boundary.
     buildRepertoireGraph(tree, "white"),
     received?.weighting,
   );

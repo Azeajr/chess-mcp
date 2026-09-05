@@ -1,8 +1,3 @@
-/**
- * User settings persisted to localStorage: the OpenRouter API key, model slug, and Lichess
- * token. The keys are stored in plaintext and are readable by any injected script (XSS) — see
- * UI_DESIGN.md "Browser Constraints & Security". Keep the bundle dependency-minimal.
- */
 import { createSignal } from "solid-js";
 import { setExplorerToken } from "@chess-mcp/chess-tools";
 import type { ChatMode } from "../llm/workflows";
@@ -13,7 +8,6 @@ const KEY_MODE = "chess.chat.mode";
 const KEY_LICHESS = "chess.lichess.token";
 const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
 
-/** The selectable models (friendly label → OpenRouter slug), shown as chips in Settings. */
 export const MODEL_SUGGESTIONS: { label: string; slug: string }[] = [
   { label: "DeepSeek V4 Flash", slug: "deepseek/deepseek-v4-flash" },
   { label: "DeepSeek V4 Pro", slug: "deepseek/deepseek-v4-pro" },
@@ -48,9 +42,6 @@ export function setModel(v: string) {
   localStorage.setItem(KEY_MODEL, m);
 }
 
-// Lichess personal API token (no scopes) — required by the opening explorer since ~2026-03.
-// Mirrors the OpenRouter key handling; also feeds the shared chess-tools token holder so the
-// explorer client sends Authorization on every lookup.
 const initialLichessToken = read(KEY_LICHESS, "");
 const [lichessToken, setLichessTokenRaw] = createSignal(initialLichessToken);
 setExplorerToken(initialLichessToken || null);
@@ -65,8 +56,6 @@ export function setLichessToken(v: string) {
   setExplorerToken(t || null);
 }
 
-// Cloud eval sends every browsed FEN to Lichess; the rest of the PWA is local-first, so this is
-// opt-out-able for users who don't want prep lines leaving the machine. Default on (status quo).
 const KEY_CLOUD = "chess.cloudeval.enabled";
 const [cloudEvalEnabled, setCloudEvalEnabledRaw] = createSignal(read(KEY_CLOUD, "true") === "true");
 export { cloudEvalEnabled };
@@ -90,8 +79,6 @@ export function setChatMode(m: ChatMode) {
 export const hasApiKey = () => apiKey().length > 0;
 
 const KEY_TECHNICAL = "chess.chat.technical";
-// WP-026: the Show technical details toggle. Off (the default) hides raw error codes and the
-// per-result Raw JSON disclosure; on, both render for debugging.
 const [showTechnicalDetails, setShowTechnicalDetailsRaw] = createSignal(
   read(KEY_TECHNICAL, "false") === "true",
 );
@@ -101,13 +88,6 @@ export function setShowTechnicalDetails(v: boolean) {
   localStorage.setItem(KEY_TECHNICAL, String(v));
 }
 
-/**
- * WP-026 AC-4: which field a Settings opening should land focus on. Null means default focus.
- * Error recovery actions (e.g. "Add Lichess token") set this before opening Settings.
- *
- * WP-021 AC-2 reuses the same seam for the chat setup card's "Set up the assistant" control,
- * which must land focus on the API-key field rather than the dialog's default target.
- */
 export type SettingsFocusTarget = "lichess-token" | "api-key" | null;
 const [settingsFocusTarget, setSettingsFocusTargetRaw] = createSignal<SettingsFocusTarget>(null);
 export { settingsFocusTarget };

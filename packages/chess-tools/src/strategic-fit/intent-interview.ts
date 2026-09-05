@@ -1,20 +1,3 @@
-/**
- * Deterministic half of the staged AI intent interview.
- *
- * The assistant may translate a stated goal such as "low-theory Black repertoire, but an IQP is
- * fine when it is clearly best" into structured Strategic Fit preferences. It may never turn that
- * inference into durable intent. This module owns the parts of that boundary that must not depend
- * on a host: strict validation of a proposed patch, and an exact field-level diff between two
- * profiles.
- *
- * Validation here deliberately rejects rather than repairs. The interactive settings form clamps a
- * dragged slider because the user is watching the value move; a model-authored argument has no such
- * witness, so an out-of-range number, an unknown field, or an invented concept identity fails with
- * a structured code instead of being silently coerced into something the user never chose.
- *
- * This module never writes, persists, merges into stored metadata, or decides what "accept" means.
- * Preset semantics and persistence remain owned by the host profile state.
- */
 import { isStrategicConceptId } from "./concepts.js";
 import {
   STRATEGIC_FIT_PROFILE_MODES,
@@ -26,7 +9,6 @@ import {
   type StrategicSignalFamily,
 } from "./types.js";
 
-/** Fixed bounds for a model-authored proposal. Exceeding one is an error, never a truncation. */
 export const STRATEGIC_FIT_INTENT_LIMITS = Object.freeze({
   concept_ids: 32,
   tactical_character_terms: 12,
@@ -61,7 +43,6 @@ export interface StrategicFitIntentErrorResult {
   readonly reason: string;
 }
 
-/** Shared host mapping from a validation failure to one structured, code-bearing result. */
 export function strategicFitIntentErrorResult(error: unknown): StrategicFitIntentErrorResult {
   if (error instanceof StrategicFitIntentError) return { error: error.code, reason: error.message };
   throw error;
@@ -115,11 +96,6 @@ export interface StrategicFitIntentPatch {
   readonly mode: StrategicFitProfileMode | null;
   readonly preferences: Partial<StrategicFitProfilePreferences> | null;
   readonly rationale: string | null;
-  /**
-   * True when the patch changes any preference. The host uses this to decide whether the result is
-   * a named preset or a custom profile; a preference edit on top of a preset becomes custom exactly
-   * as the settings form already behaves.
-   */
   readonly touches_preferences: boolean;
 }
 
@@ -273,17 +249,11 @@ function preferencePatch(value: unknown): Partial<StrategicFitProfilePreferences
   return patch;
 }
 
-/**
- * Validate a model-authored proposal into a patch. It does not merge, apply, or persist anything;
- * an accepted patch is still only a patch until the host commits it through its own profile state.
- */
 export function resolveStrategicFitIntentPatch(
   input: StrategicFitIntentProposalInput,
 ): StrategicFitIntentPatch {
   if (
     typeof input !== "object" ||
-    // input's declared type promises an object, but this is a model-authored proposal from an
-    // untrusted external caller at runtime — this revalidates it.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     input === null ||
     Array.isArray(input)
@@ -349,11 +319,6 @@ function sameValue(left: JsonValue, right: JsonValue): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-/**
- * Exact field-level difference between the current effective profile and a resulting profile.
- * Unchanged fields are omitted, and every remaining entry carries both sides so the user compares
- * the actual values rather than a summary of them.
- */
 export function diffStrategicFitProfiles(
   current: StrategicFitProfile,
   proposed: StrategicFitProfile,

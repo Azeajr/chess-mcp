@@ -167,7 +167,6 @@ function report(
   } as unknown as StrategicFitAnalysisResult;
 }
 
-/** Mirrors the host cursor contract: opaque to the queue, decodable only by the fake boundary. */
 function pageCursor(reportId: string, offset: number): string {
   return `strategic-fit-page|${reportId}|finding-id|${offset}`;
 }
@@ -485,7 +484,6 @@ test("a page without a usable cursor stops the reload instead of presenting a pa
         total_count: all.length,
         has_more: true,
       }) as unknown as Record<string, unknown>;
-      // A host that answers a paged report without its successor cursor cannot be walked.
       delete page.next_cursor;
       return page;
     },
@@ -528,7 +526,6 @@ test("paging, sorting, and filtering never discard the selected finding", async 
     }),
   );
 
-  // A selection made from another view lands on the page that holds it.
   queue.selectFinding("finding:20");
   assert.equal(queue.snapshot().selected_finding_id, "finding:20");
   assert.equal(queue.view().selected_on_page, true);

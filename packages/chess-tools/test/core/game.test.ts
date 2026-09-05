@@ -48,7 +48,6 @@ test("mainline returns nothing for a game with no moves", () => {
   assert.deepEqual(mainline('[Event "T"]\n\n*\n'), []);
 });
 
-/** Thresholds are strict `>`, so each boundary value belongs to the gentler class. */
 test("classifyCpLoss puts its boundaries at 200, 100 and 50 exactly", () => {
   assert.equal(classifyCpLoss(201), "blunder");
   assert.equal(classifyCpLoss(200), "mistake", "exactly 200 is not yet a blunder");
@@ -66,12 +65,10 @@ test("moveAccuracy decays from a perfect move and never exceeds one", () => {
   assert.equal(moveAccuracy(300).toFixed(4), Math.exp(-1).toFixed(4));
 });
 
-/** A move better than the reference is clamped to a perfect score, not given one above 1. */
 test("moveAccuracy clamps a negative loss to a perfect score", () => {
   assert.equal(moveAccuracy(-500), 1);
 });
 
-/** The repertoire: 1. e4 e5 2. Nf3, i.e. White plays e4 then Nf3 and expects 1... e5. */
 function whiteRepertoire(): GameTree {
   return GameTree.fromPgn('[Event "R"]\n\n1. e4 e5 2. Nf3 *\n');
 }
@@ -114,19 +111,13 @@ test("walkGameVsRepertoire records an opponent move the prep does not cover", ()
   assert.equal(walk.uncovered_opponents[0]?.ply, 2);
 });
 
-/**
- * in_book_plies is the consecutive count from the start, but the walk itself keeps going: a game
- * that leaves prep and transposes back must still have its later novelties reported.
- */
 test("walkGameVsRepertoire keeps walking after a departure instead of stopping at the first", () => {
-  // Repertoire covers both 2. Nf3 and, on the other branch, the same position by transposition.
   const rep = GameTree.fromPgn('[Event "R"]\n\n1. e4 e5 2. Nf3 (2. Bc4 Nc6 3. Nf3) 2... Nc6 *\n');
   const walk = walkGameVsRepertoire(
     rep.moveMap(),
     "white",
     '[Event "G"]\n\n1. e4 e5 2. Bc4 Nf6 *\n',
   );
-  // 2. Bc4 is covered on the variation, so the departure is Black's 3... Nf6 instead of 2... Nc6.
   assert.equal(walk.uncovered_opponents.length, 1);
   assert.equal(walk.uncovered_opponents[0]?.played, "Nf6");
 });
@@ -201,10 +192,6 @@ test("aggregateGames reports win, draw and loss rates when a result POV exists",
   assert.equal(group.loss_rate, 1 / 3);
 });
 
-/**
- * A single unlucky game must not crown a "worst opening". The headline picks require three games;
- * per-group stats are still reported for every group regardless.
- */
 test("aggregateGames refuses to crown a headline group below three games", () => {
   const twoGames = aggregateGames([record({ result: "loss" }), record({ result: "loss" })], true);
   assert.equal(twoGames.groups.length, 1, "the group itself is still reported");

@@ -1,8 +1,3 @@
-/**
- * ChatPanel: converse with the model about the current position. Streams responses, shows the
- * tools it called as chips, surfaces errors. Position context is injected automatically by the
- * chat store. Proposed lines land in the AnalysisPanel (Suggestions) + as blue board arrows.
- */
 import { For, Show, createMemo, createSignal } from "solid-js";
 import {
   history,
@@ -63,12 +58,6 @@ export default function ChatPanel() {
     void send(text);
   };
 
-  /**
-   * The panel had ~600px of empty column with its only content — the setup card — pinned to the
-   * bottom edge above the composer. Both the unconfigured card and the configured first-run hint
-   * now render inside the log and centre in that space, so the empty panel has a focal point and
-   * says what to do next instead of looking like a rendering failure.
-   */
   const empty = () => history().length === 0 && !streamingText() && !busy();
 
   return (

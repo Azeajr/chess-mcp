@@ -4,8 +4,6 @@ import test from "node:test";
 
 for (const fails of [false, true]) {
   test(`network fixtures restore globals after a ${fails ? "failing" : "passing"} test`, () => {
-    // A deliberately failing test must run in a child so its teardown can be observed without
-    // failing this suite. Replace fetch twice to cover suites that vary responses in one test.
     const script = `
       import assert from "node:assert/strict";
       import test from "node:test";
@@ -25,7 +23,6 @@ for (const fails of [false, true]) {
         withFakeClock(); // teardown must also allow the next test to enable fake timers
       });
     `;
-    // The assertions below parse TAP; Node versions differ in their default reporter.
     const result = spawnSync(
       process.execPath,
       ["--test-reporter=tap", "--import", "tsx", "--input-type=module", "-e", script],

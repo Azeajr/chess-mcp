@@ -4,10 +4,6 @@ export type StrategicFitTrainingEvidenceProvider = () => StrategicTrainingMetric
 
 let trainingEvidenceProvider: StrategicFitTrainingEvidenceProvider = () => null;
 
-/**
- * Narrow bridge between the training store and browser command defaults. Keeping the provider in
- * this leaf module prevents the command registry from importing the full training/lifecycle graph.
- */
 export function registerStrategicFitTrainingEvidenceProvider(
   provider: StrategicFitTrainingEvidenceProvider,
 ): void {

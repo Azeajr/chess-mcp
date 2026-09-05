@@ -1,11 +1,3 @@
-/**
- * Framework-free, JSON-safe Replacement Lab contracts.
- *
- * These contracts describe complete candidate subtrees and clone-based atomic change sets. They do
- * not generate, score, validate, stage, or apply a replacement; later domain and host tasks own
- * those behaviors. SAN paths remain navigation references while semantic IDs and repertoire
- * revisions own identity.
- */
 import type { Color } from "../congruence.js";
 import type { RepertoireMoveOwner } from "./graph.js";
 import type {
@@ -19,7 +11,6 @@ import type {
   StrategicFitVersioned,
 } from "./types.js";
 
-/** Independent schema for the additive Replacement Lab contract. */
 export const STRATEGIC_FIT_REPLACEMENT_SCHEMA_VERSION = "1.0.0";
 
 export interface StrategicFitReplacementVersioned extends StrategicFitVersioned {
@@ -98,7 +89,6 @@ export interface ReplacementRequest extends StrategicFitReplacementVersioned {
   readonly pivot_selection: ReplacementPivotSelection;
   readonly profile: StrategicFitProfile;
   readonly candidate_sources: readonly ReplacementCandidateSourceKind[];
-  /** SAN move sequences supplied by the user; legality remains a deterministic tool decision. */
   readonly user_candidate_san_lines: readonly (readonly string[])[];
   readonly maximum_repertoire_pov_loss_from_best_cp: number | null;
   readonly minimum_expected_opponent_coverage: number | null;
@@ -177,7 +167,6 @@ export interface ReplacementSubtreeNode extends AnalysisVersioned {
   readonly ply: number;
   readonly outgoing_edge_ids: readonly string[];
   readonly source_san_paths: readonly (readonly string[])[];
-  /** Set only when the node joins an existing prepared position. */
   readonly transposition_target_position_id: string | null;
 }
 
@@ -245,7 +234,6 @@ interface ReplacementCandidateSubtreeBase extends StrategicFitReplacementVersion
   readonly subtree_id: string;
   readonly root_position_id: string;
   readonly root_node_id: string;
-  /** Root plus at least one reached position. */
   readonly nodes: readonly [
     ReplacementSubtreeNode,
     ReplacementSubtreeNode,
@@ -280,7 +268,6 @@ export interface ReplacementBlockedCandidateSubtree extends ReplacementCandidate
   readonly truncation_reasons: readonly [string, ...string[]];
 }
 
-/** Full bounded proposal. A nonterminal root move or linear engine PV cannot satisfy this contract. */
 export type ReplacementCandidateSubtree =
   | ReplacementCompleteCandidateSubtree
   | ReplacementTruncatedCandidateSubtree
@@ -303,10 +290,6 @@ export const REPLACEMENT_REPERTOIRE_POV_VERDICTS = [
 ] as const;
 export type ReplacementRepertoirePovVerdict = (typeof REPLACEMENT_REPERTOIRE_POV_VERDICTS)[number];
 
-/**
- * Engine transport exposes both orientations by name. Positive centipawns favor the named side;
- * mate distances are positive when that named side can force mate and negative when it is mated.
- */
 export interface ReplacementObjectiveQuality extends StrategicFitReplacementVersioned {
   readonly state: ReplacementObjectiveQualityState;
   readonly white_pov_evaluation_cp: number | null;
@@ -358,7 +341,6 @@ export interface ReplacementStrategicScoreContribution extends AnalysisVersioned
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Inspectable axes only; conflicting objectives are intentionally not collapsed into one score. */
 export interface ReplacementStrategicScore extends StrategicFitReplacementVersioned {
   readonly state: ReplacementScoreState;
   readonly cohort_id: string;
@@ -473,7 +455,6 @@ export type ReplacementArchiveChoice = (typeof REPLACEMENT_ARCHIVE_CHOICES)[numb
 export const REPLACEMENT_PRUNE_CHOICES = ["retain", "prune"] as const;
 export type ReplacementPruneChoice = (typeof REPLACEMENT_PRUNE_CHOICES)[number];
 
-/** Pruning is valid only after explicit confirmation and an archive choice. */
 export type ReplacementRetentionChoices =
   | {
       readonly archive: "keep-active";
@@ -510,7 +491,6 @@ export interface ReplacementCandidate extends StrategicFitReplacementVersioned {
   readonly repertoire_color: Color;
   readonly status: ReplacementCandidateStatus;
   readonly pivot: ReplacementCausalPivotEvidence;
-  /** Mandatory full-subtree proposal; never replace with a root move or one engine PV. */
   readonly subtree: ReplacementCandidateSubtree;
   readonly objective_quality: ReplacementObjectiveQuality;
   readonly strategic_score: ReplacementStrategicScore;
@@ -667,7 +647,6 @@ export interface ReplacementTreeStatistics extends AnalysisVersioned {
   readonly transposition_count: number;
 }
 
-/** Exact archive evidence produced by the pure Task 8.8 transaction boundary. */
 export interface ReplacementArchivePayload extends AnalysisVersioned {
   readonly archive_id: string;
   readonly operation_id: string;
@@ -677,7 +656,6 @@ export interface ReplacementArchivePayload extends AnalysisVersioned {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Per-operation structural diff. Empty arrays mean the operation was validation-only. */
 export interface ReplacementOperationDiff extends AnalysisVersioned {
   readonly operation_id: string;
   readonly sequence: number;
@@ -705,7 +683,6 @@ export interface ReplacementChangeSetPreview extends StrategicFitReplacementVers
   readonly archive_ids: readonly string[];
   readonly operation_diffs: readonly ReplacementOperationDiff[];
   readonly archive_payloads: readonly ReplacementArchivePayload[];
-  /** Finding changes require Task 8.9+ commit and reanalysis and are never inferred in Task 8.8. */
   readonly finding_changes_state: "not-reanalyzed";
   readonly changed_finding_ids: readonly string[];
   readonly new_finding_ids: readonly string[];
@@ -727,7 +704,6 @@ interface ReplacementChangeSetResultBase extends StrategicFitReplacementVersione
   readonly change_set_id: string;
   readonly base_repertoire_revision: string;
   readonly atomic: true;
-  /** Domain application always works on a clone and leaves its input tree byte-identical. */
   readonly source_tree_unchanged: true;
   readonly operation_results: readonly ReplacementOperationResult[];
   readonly provenance: readonly StrategicFitSourceProvenance[];
@@ -759,7 +735,6 @@ export type ReplacementChangeSetSuccess =
 
 export interface ReplacementChangeSetFailure extends ReplacementChangeSetResultBase {
   readonly status: "rejected" | "failed" | "stale";
-  /** Atomic failure never exposes a partially changed tree. */
   readonly result: null;
   readonly failure: {
     readonly code: string;

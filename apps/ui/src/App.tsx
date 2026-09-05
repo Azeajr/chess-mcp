@@ -69,11 +69,6 @@ export default function App() {
       await restoreStrategicFitTrainingPerformance();
       void restoreLastFile();
     })();
-    // Registrations rather than an inline chain: an overlay suspends every global shortcut by
-    // pushing a scope, so "is a modal open" is asked in one place instead of re-derived per key.
-    // Cmd/Ctrl+S saves even from a text field (nothing else claims it). Everything else must NOT
-    // fire while typing — Ctrl+Z especially: undo() deletes a leaf node, so hijacking the
-    // text-edit undo would silently mutate the repertoire.
     const disposeShortcuts = [
       registerShortcut({
         id: "document.save",
@@ -86,8 +81,6 @@ export default function App() {
       registerShortcut({
         id: "document.undo",
         key: "z",
-        // Shift+Z is redo: matches() normalises case and ignores shiftKey, so one "z"
-        // registration owns both directions and branches on the modifier itself.
         handler: (e) => {
           if (e.shiftKey) redo();
           else undo();

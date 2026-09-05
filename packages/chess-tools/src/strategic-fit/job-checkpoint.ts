@@ -1,23 +1,3 @@
-/**
- * Resumable Strategic Fit analysis jobs.
- *
- * A long scan can be interrupted by a browser reload, a terminated Worker, a dropped MCP handle, or
- * a process that simply goes away. A checkpoint is the record of the whole stages such a job had
- * already finished, expressed entirely in Task 12.1's identities: the analysis index generation for
- * the stage values and Task 3.4's report cache key for the job itself. It mints no third identity.
- *
- * Three properties are deliberate:
- *
- * - A checkpoint carries inputs, never findings. Restoring one seeds the incremental index with
- *   values a cold run would compute under the same content keys, so a resumed job returns exactly
- *   what a cold full scan returns; only the work still to do differs.
- * - Compatibility fails closed. Document content, repertoire revision, analysis settings, and the
- *   index generation must all match, and the stored format version must be the current one.
- *   Anything else is discarded with a stated reason rather than partially trusted.
- * - Discarding is observable. Every outcome — resumed, discarded, or cold — produces a recovery
- *   record naming what was resumed and from when, so a host can never silently restart a job the
- *   user cancelled or silently resume one it should have abandoned.
- */
 import type { AnalyzeStrategicFitOptions } from "./analyze.js";
 import type { RepertoireGraph } from "./graph.js";
 import {
@@ -31,17 +11,12 @@ import { strategicFitReportCacheKey } from "./report-projection.js";
 import type { StrategicTrajectoryReport } from "./trajectory.js";
 import { STRATEGIC_FIT_PROGRESS_PHASES, type StrategicFitProgressPhase } from "./types.js";
 
-/** Persisted-shape version. A stored checkpoint from any other version is discarded, not migrated. */
 export const STRATEGIC_FIT_JOB_CHECKPOINT_FORMAT_VERSION = 1;
 
-/** Every identity a resumed job must match exactly; all of it is reused, none of it is new. */
 export interface StrategicFitJobCompatibility {
-  /** Normalized document content: browser PGN or immutable MCP handle content key. */
   readonly content_key: string;
   readonly repertoire_revision: string;
-  /** Task 3.4 report identity: content, revision, profile, and every analysis setting. */
   readonly report_cache_key: string;
-  /** Task 12.1 index generation: the complete analysis manifest plus the indexed stage settings. */
   readonly index_generation: string;
 }
 
@@ -53,20 +28,17 @@ export interface StrategicFitJobCheckpointStages {
 
 export interface StrategicFitJobCheckpoint {
   readonly format_version: number;
-  /** Stable across every checkpoint of one job, so recovery provenance names the job, not a write. */
   readonly job_id: string;
   readonly compatibility: StrategicFitJobCompatibility;
   readonly saved_at: string;
   readonly completed_phase: StrategicFitProgressPhase;
   readonly completed_phase_index: number;
-  /** A checkpoint is never a complete report; partial work stays explicitly provisional. */
   readonly provisional: true;
   readonly stages: StrategicFitJobCheckpointStages;
 }
 
 export type StrategicFitJobRecoveryState = "resumed" | "discarded" | "cold";
 
-/** Recovery provenance: what was resumed, from when, and why anything else was refused. */
 export interface StrategicFitJobRecovery {
   readonly state: StrategicFitJobRecoveryState;
   readonly job_id: string | null;
@@ -94,10 +66,6 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-/**
- * The compatibility identity of the job these options describe. Both hosts and the checkpoint reader
- * call this, so a checkpoint is always compared against a derivation of the same two keys.
- */
 export function strategicFitJobCompatibility(
   contentKey: string,
   options: AnalyzeStrategicFitOptions,
@@ -171,7 +139,6 @@ function isCompatibility(value: unknown): value is StrategicFitJobCompatibility 
   );
 }
 
-/** Structural validation of an untrusted stored record; a corrupt one is never partially read. */
 export function isStrategicFitJobCheckpoint(value: unknown): value is StrategicFitJobCheckpoint {
   if (!isObject(value)) return false;
   if (value.format_version !== STRATEGIC_FIT_JOB_CHECKPOINT_FORMAT_VERSION) return false;
@@ -197,10 +164,6 @@ export function isStrategicFitJobCheckpoint(value: unknown): value is StrategicF
   return value.job_id === strategicFitJobId(value.compatibility);
 }
 
-/**
- * Why this stored record cannot be resumed here, or `null` when it can. Identity is compared field
- * by field so the reason is specific: a user who edited the document is told that, not "incompatible".
- */
 export function strategicFitJobCheckpointRejection(
   candidate: unknown,
   expected: StrategicFitJobCompatibility,
@@ -289,12 +252,6 @@ function discardedRecovery(
   };
 }
 
-/**
- * Restore a compatible checkpoint into the host's index, or discard it with a stated reason.
- *
- * The index is only ever seeded with values keyed by the identity that determines them, so an
- * accepted checkpoint changes how much work the run does and nothing about what it returns.
- */
 export function restoreStrategicFitJobCheckpoint(
   index: StrategicFitIndexCache,
   candidate: unknown,
@@ -324,14 +281,9 @@ export function restoreStrategicFitJobCheckpoint(
 export interface StrategicFitJobRecorderOptions {
   readonly compatibility: StrategicFitJobCompatibility;
   readonly save: (checkpoint: StrategicFitJobCheckpoint) => void;
-  /** Injected so a checkpoint's "from when" is a host clock rather than hidden module state. */
   readonly now?: () => string;
 }
 
-/**
- * Adapt analyzer stage events into stored checkpoints. Every checkpoint of one job shares its job
- * identity; only the completed phase, timestamp, and stage set advance.
- */
 export function createStrategicFitJobRecorder(
   options: StrategicFitJobRecorderOptions,
 ): (stage: StrategicFitJobCheckpointStage) => void {

@@ -27,7 +27,6 @@ const options = (
   ...overrides,
 });
 
-/** Equivalence is exact: the same values in the same order, not a tolerance. */
 function assertIdentical(
   actual: StrategicFitAnalysisResult,
   expected: StrategicFitAnalysisResult,
@@ -41,10 +40,6 @@ interface InterruptedJob {
   readonly cancelledPhaseIndex: number;
 }
 
-/**
- * Run an analysis that is interrupted after the phase that produces the trajectory report, exactly
- * as a reload or terminated Worker interrupts one, and keep what it had checkpointed.
- */
 function interruptAfterPhase(
   analysisOptions: AnalyzeStrategicFitOptions,
   interruptAfterPhaseIndex = 1,
@@ -92,7 +87,6 @@ test("a job resumed from a checkpoint returns exactly what a cold full scan retu
   assert.equal(checkpoints[0]?.stages.trajectories, null);
   assert.equal(new Set(checkpoints.map((checkpoint) => checkpoint.job_id)).size, 1);
 
-  // The reload boundary is a structured clone, so the resumed run reads no live object identity.
   const stored = structuredClone(checkpoints.at(-1)!);
   const index = new StrategicFitIndexCache();
   const recovery = restoreStrategicFitJobCheckpoint(

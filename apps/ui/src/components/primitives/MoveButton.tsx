@@ -10,7 +10,6 @@ export interface MoveTreeItemProps extends JSX.HTMLAttributes<HTMLDivElement> {
   previewed?: boolean;
 }
 
-/** A compact native button used for both the tree item and the current-line shortcut. */
 export default function MoveButton(props: MoveButtonProps) {
   const [local, buttonProps] = splitProps(props, [
     "class",
@@ -30,7 +29,6 @@ export default function MoveButton(props: MoveButtonProps) {
   );
 }
 
-/** A focusable ARIA tree item; unlike a button, native AT exposes its tree role and level. */
 export function MoveTreeItem(props: MoveTreeItemProps) {
   const [local, itemProps] = splitProps(props, ["class", "children", "current", "previewed"]);
   return (

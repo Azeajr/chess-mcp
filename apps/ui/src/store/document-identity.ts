@@ -1,4 +1,3 @@
-/** Stable identity for one browser working document. Kept independent from PGN contents/revisions. */
 export type BrowserDocumentId = string;
 
 interface SecureUuidSource {
@@ -6,8 +5,6 @@ interface SecureUuidSource {
   getRandomValues?: <T extends ArrayBufferView | null>(array: T) => T;
 }
 
-// RFC UUID text with a standardized version nibble and the RFC variant. UUIDs are canonicalized
-// to lowercase at the persistence boundary so equivalent text cannot produce distinct keys.
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function normalizeBrowserDocumentId(value: unknown): BrowserDocumentId | undefined {
@@ -19,7 +16,6 @@ function bytesToUuid(bytes: Uint8Array): BrowserDocumentId {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** Generate a secure RFC 4122 version-4 ID, preferring the browser's native implementation. */
 export function createBrowserDocumentId(
   source: SecureUuidSource = globalThis.crypto,
 ): BrowserDocumentId {

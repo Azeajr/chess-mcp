@@ -48,7 +48,6 @@ export type ConceptHeatmapSortMode = (typeof CONCEPT_HEATMAP_SORT_MODES)[number]
 
 interface ConceptHeatmapViewCell {
   readonly cell: ConceptHeatmapCell;
-  /** Cell shading strength 0-1; the visible percentage text carries the same value. */
   readonly intensity: number;
   readonly frequency_percent: number;
   readonly confidence_percent: number;
@@ -93,7 +92,6 @@ function masteryText(column: ConceptHeatmapColumn): string {
   return label;
 }
 
-/** Deterministic column order for the requested sort; ties fall back to the concept identity. */
 export function sortConceptHeatmapColumns(
   columns: readonly ConceptHeatmapViewColumn[],
   mode: ConceptHeatmapSortMode,
@@ -208,11 +206,6 @@ export default function ConceptHeatmap(props: {
     }),
   );
   const allColumns = createMemo(() => sortConceptHeatmapColumns(model().columns, sortMode()));
-  /**
-   * The grid is cohorts times concepts, so both axes are capped. The cap follows the active sort,
-   * which keeps the shown cells the ones the current sort says matter most, and the withheld
-   * concepts are named rather than merely counted.
-   */
   const expanded = createMemo(() => gridExpanded() || strategicFitPrintExportMode());
   const columnWindow = createMemo(() =>
     boundedWindow(allColumns(), VISUALIZATION_RENDER_LIMITS.heatmap_columns, expanded()),
@@ -220,12 +213,6 @@ export default function ConceptHeatmap(props: {
   const rowWindow = createMemo(() =>
     boundedWindow(model().projection.rows, VISUALIZATION_RENDER_LIMITS.heatmap_rows, expanded()),
   );
-  /**
-   * Task 12.3 — the grid keeps both Task 10.4 windows and their disclosure, and mounts them through
-   * one bounded scrolling viewport. Rows and columns are windowed separately, so mounted cells stay
-   * bounded by their product rather than by the concept or cohort count. Print and export render the
-   * complete grid, which is what a printed page needs and what its own scrollless layout allows.
-   */
   const gridRows = createVirtualRows({
     items: () => rowWindow().items,
     rowSize: VIRTUAL_TABLE_ROW_HEIGHT,

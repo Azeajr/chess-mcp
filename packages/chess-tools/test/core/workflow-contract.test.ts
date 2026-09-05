@@ -45,11 +45,6 @@ test("guidance numbers the method steps in order", () => {
   });
 });
 
-/**
- * The host split is the whole reason this renderer takes a host: the same step names different
- * operations in the browser and over MCP. If the two renderings were identical the parameter would
- * be doing nothing, so at least one family must actually differ.
- */
 test("the browser and MCP renderings name each host's own operations", () => {
   const differing = FAMILIES.filter(
     (family) => renderWorkflowGuidance(family, "browser") !== renderWorkflowGuidance(family, "mcp"),
@@ -122,7 +117,6 @@ test("explanation contracts render their levels and grounded questions", () => {
   }
 });
 
-/** A question with no report view is explicitly not a report question, and must say so. */
 test("a grounded question without a view renders as not-a-report rather than an empty view", () => {
   for (const family of FAMILIES) {
     const explanations = WORKFLOW_CONTRACTS[family].explanations;

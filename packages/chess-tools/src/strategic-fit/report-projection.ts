@@ -1,9 +1,3 @@
-/**
- * Immutable Strategic Fit report projections and cache identities.
- *
- * Analysis settings determine the cached logical report. Sorting, paging, and selecting one
- * finding are projections over that report and therefore never participate in the cache key.
- */
 import type {
   AnalyzeStrategicFitOptions,
   StrategicFitAnalysisResult,
@@ -24,7 +18,6 @@ import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
 
 export const STRATEGIC_FIT_MAX_PAGE_SIZE = 50;
 export const STRATEGIC_FIT_MAX_FULL_PROJECTION_FINDINGS = 500;
-/** Internal only: obtain every finding once so hosts can cache and cheaply re-project the report. */
 export const STRATEGIC_FIT_COMPLETE_REPORT_LIMIT = Number.MAX_SAFE_INTEGER;
 
 export type StrategicFitProjectionKind = "summary" | "page" | "finding" | "full";
@@ -50,7 +43,6 @@ export interface StrategicFitPageProjectionRequest extends StrategicFitProjectio
 
 export interface StrategicFitFindingProjectionRequest extends StrategicFitProjectionIdentity {
   readonly kind: "finding";
-  /** Finding evidence is report-specific even when its semantic finding ID survives reanalysis. */
   readonly expected_report_id: string;
   readonly finding_id: string;
 }
@@ -82,7 +74,6 @@ export interface StrategicFitSummaryProjection {
 export interface StrategicFitPageProjection {
   readonly projection: "page";
   readonly report: StrategicFitAnalysisResult;
-  /** Cursor for this page; useful when a selection moves away and later returns. */
   readonly cursor: string;
   readonly next_cursor: string | null;
 }
@@ -118,7 +109,6 @@ export class StrategicFitReportProjectionError extends Error {
 const compareStrings = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
-/** The canonical finding order used by both a cold analysis and a cached page projection. */
 export function sortStrategicFitFindings(
   findings: readonly StrategicFinding[],
   sort: StrategicFitFindingSort,
@@ -167,10 +157,6 @@ function openingTableIdentity(options: AnalyzeStrategicFitOptions): readonly unk
     .map(([position, entry]) => [position, entry.eco, entry.name]);
 }
 
-/**
- * Stable host cache key. `contentKey` should be the normalized PGN (browser) or immutable handle
- * content key (MCP); including it prevents a reused revision label from serving different data.
- */
 export function strategicFitReportCacheKey(
   contentKey: string,
   options: AnalyzeStrategicFitOptions,
@@ -193,7 +179,6 @@ export function strategicFitReportCacheKey(
   return `strategic-fit-report-cache:${stableHash(stableSerialize(identity))}`;
 }
 
-/** Remove projection-only options and request the complete canonical finding order. */
 export function strategicFitCompleteAnalysisOptions(
   options: AnalyzeStrategicFitOptions,
 ): AnalyzeStrategicFitOptions {
@@ -211,7 +196,6 @@ function deepFreeze<T>(value: T, seen = new Set<object>()): T {
   return Object.freeze(value);
 }
 
-/** Convert the internal all-findings analyzer result into the immutable cache representation. */
 export function completeStrategicFitReport(result: StrategicFitAnalysisResult): StrategicFitReport {
   if (
     result.finding_page.offset !== 0 ||

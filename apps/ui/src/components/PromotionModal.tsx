@@ -1,8 +1,3 @@
-/**
- * Promotion picker: shown when a pawn reaches the last rank. Picking a piece plays the move
- * with that promotion; dismissing cancels the move (the board reverts via the Board sync effect,
- * which also depends on the pending-promotion signal).
- */
 import { For, Show } from "solid-js";
 import { pendingPromo, setPendingPromo } from "../store/promotion";
 import { actions } from "../store/game";

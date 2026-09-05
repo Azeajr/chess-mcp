@@ -53,7 +53,6 @@ const FIFTH = [
   "Qd2",
 ];
 
-/** 416 legal branches: comfortably past the 300-point map drawing limit. */
 function largeRepertoire(): string {
   const games: string[] = [];
   for (const first of FIRST) {
@@ -109,11 +108,6 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 15_000
 const horizontalOverflow = (page: Page) =>
   page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
 
-/*
- * @engine-bound: a real Strategic Fit scan over LARGE_REPERTOIRE. WebKit does not reach the
- * completed analysis state inside the budget, so this fails on scan throughput rather than on the
- * aggregation behaviour it asserts. Chromium and Firefox cover the behaviour.
- */
 test(
   "a large fixture aggregates the map, bounds the branch list, and stays interactive",
   {
@@ -137,12 +131,10 @@ test(
     const listTable = map.locator("[data-map-list]");
     await expect(listTable).toHaveAttribute("data-map-rows-shown", "100");
     await expect(listTable).toHaveAttribute("data-map-rows-total", String(plotted));
-    // Task 12.3: the window still holds 100 branches; only its mounted rows are bounded.
     const mountedRows = Number(await listTable.getAttribute("data-map-rows-mounted"));
     expect(mountedRows).toBeLessThanOrEqual(60);
     await expect(map.locator("[data-map-list] tbody tr[data-map-row]")).toHaveCount(mountedRows);
 
-    // Interaction still responds: a cluster opens its own branch list and a member selects.
     const cluster = map.locator("[data-map-cluster]").first();
     await cluster.click();
     const clusterDetail = map.locator("[data-map-cluster-detail]");
@@ -154,7 +146,6 @@ test(
 
     await map.locator("[data-map-show-all-rows]").click();
     await expect(listTable).toHaveAttribute("data-map-rows-shown", String(plotted));
-    // Every branch is now in the list, and the DOM still mounts only a scrolling window of it.
     const expandedRows = Number(await listTable.getAttribute("data-map-rows-mounted"));
     expect(expandedRows).toBeLessThanOrEqual(60);
     await expect(map.locator("[data-map-list] tbody tr[data-map-row]")).toHaveCount(expandedRows);
@@ -185,7 +176,6 @@ test("the decision flow scales to its container on resize without overflowing th
   expect(narrow).toBeGreaterThanOrEqual(0.6);
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(1);
 
-  // The outline table equivalent survives every width.
   await expect(dialog.locator("[data-flow-outline] tbody tr").first()).toBeVisible();
 });
 
@@ -235,7 +225,6 @@ test("the phone layout keeps table equivalents, touch targets, and no page overf
   const box = await printToggle.boundingBox();
   expect(box!.height).toBeGreaterThanOrEqual(44);
 
-  // A wide table scrolls inside its own container rather than pushing the page sideways.
   const heatmapScrolls = await dialog
     .locator(".concept-heatmap-scroll")
     .evaluate((element) => element.scrollWidth >= element.clientWidth);

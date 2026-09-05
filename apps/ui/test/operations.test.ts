@@ -59,7 +59,6 @@ test("settle marks terminal status, announces once, and lingers before eviction"
   const log = announcementLogForTesting();
   assert.equal(log.length, 1);
   assert.match(log[0]!.message, /completed.*2 file\(s\)/u);
-  // Lingers for the activity strip.
   assert.equal(operations().length, 1);
   assert.equal(operations()[0].status, "completed");
   assert.equal(operations()[0].cancel, undefined, "settled operations are no longer cancellable");
@@ -105,8 +104,6 @@ test("a completed operation disappears after the linger window", async () => {
   const id = registerOperation({ kind: "k", label: "Scan", surface: "repertoire" });
   settleOperation(id, "completed");
   assert.equal(operations().length, 1);
-  // Real timers: the linger is 8 s in production. This test asserts eviction happens on a
-  // timer rather than sleeping 8 s — the eviction path is the same code the linger exercises.
   await new Promise((resolve) => setTimeout(resolve, 20));
   assert.equal(
     operations().length,
@@ -128,13 +125,6 @@ test("multiple operations from different surfaces coexist", () => {
   ]);
 });
 
-/**
- * The registry is what `pwa/updates.ts` gates the WP-019 update prompt on: the prompt is visible
- * only while `runningOperations()` is empty. An owner that abandons an entry without settling it
- * therefore does not merely strand the activity strip — it suppresses the update prompt for the
- * rest of the session. `store/analysis.ts` did exactly that for every superseded live pass, so
- * this pins the invariant every owner has to hold.
- */
 test("an abandoned operation would block every registry consumer until it settles", () => {
   const superseded = registerOperation({
     kind: "live-analysis",
@@ -143,7 +133,6 @@ test("an abandoned operation would block every registry consumer until it settle
   });
   assert.equal(runningOperations().length, 1);
 
-  // A superseded pass settles quietly rather than returning early and leaking the entry.
   updateOperationStatus(superseded, "completed");
   assert.equal(
     runningOperations().length,

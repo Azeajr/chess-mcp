@@ -1,12 +1,3 @@
-/**
- * Deterministic weighted medoids and multimodal Strategic Fit profiles.
- *
- * This module deliberately uses a small, explainable evidence distance for mode discovery. The
- * richer mixed-feature distance and contribution model belongs to the later distance stage. Mode
- * discovery compares only stable/irreversible signals at matched, non-editorial checkpoints,
- * groups close routes with complete-link clustering, and represents every selected mode with a
- * real route. Route weights affect both medoid choice and mode support.
- */
 import type { StrategicCohortReport, StrategicComparableCohort } from "./cohorts.js";
 import type {
   JsonValue,
@@ -25,11 +16,8 @@ import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_MODE_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.modes;
 
-/** A supported secondary mode must account for at least this much expected cohort weight. */
 export const STRATEGIC_MODE_MINIMUM_WEIGHT = 0.2;
-/** Inferred single-mode dominance below this effective sample remains insufficient evidence. */
 export const STRATEGIC_MODE_MINIMUM_EFFECTIVE_SAMPLE_SIZE = 4;
-/** Stable-evidence neighborhoods must be close on every pair, not merely connected by a chain. */
 export const STRATEGIC_MODE_CLUSTER_DISTANCE = 0.25;
 
 export const STRATEGIC_MODE_SELECTION_STATES = [
@@ -55,16 +43,13 @@ export type StrategicModeSelectionReason = (typeof STRATEGIC_MODE_SELECTION_REAS
 export interface StrategicExplicitModeTarget {
   readonly target_id: string;
   readonly cohort_id: string;
-  /** The explicit baseline is still represented by a real route in this cohort. */
   readonly representative_route_id: string;
-  /** Defaults to the representative route when no broader explicit support is supplied. */
   readonly supporting_route_ids?: readonly string[];
   readonly concept_ids?: readonly string[];
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
 export interface StrategicModeDetectionOptions {
-  /** Confirmed profile/annotation intent. Explicit targets replace inferred medoids per cohort. */
   readonly explicit_targets?: readonly StrategicExplicitModeTarget[];
 }
 
@@ -73,7 +58,6 @@ export interface StrategicModeMedoidCandidate {
   readonly supporting_route_ids: readonly string[];
   readonly normalized_weight: number;
   readonly effective_sample_size: number;
-  /** Mean route-weighted distance to the real representative route. */
   readonly weighted_distance: number;
   readonly supported: boolean;
 }
@@ -156,8 +140,6 @@ function stableSerialize(value: JsonValue): string {
     return `{${Object.keys(value)
       .sort(compareStrings)
       .map((key) => {
-        // value[key] can legitimately be `null` (JsonValue includes it) — only the noUncheckedIndexedAccess
-        // `| undefined` from the index signature is the artifact to rule out, so this can't use assertDefined.
         const item = value[key];
         if (item === undefined) {
           throw new Error("strategic_fit_modes_stable_serialize_missing_key");
@@ -295,7 +277,6 @@ function setDistance(left: ReadonlySet<string>, right: ReadonlySet<string>): num
   return union === 0 ? 0 : 1 - shared / union;
 }
 
-/** Null means the two routes share no matched feature slot and are not safely comparable. */
 function evidenceDistance(left: RouteEvidence, right: RouteEvidence): number | null {
   const sharedSlots = [...left.features.keys()].filter((slot) => right.features.has(slot));
   if (sharedSlots.length === 0) return null;
@@ -642,7 +623,6 @@ function inferredSelection(
   };
 }
 
-/** Detect deterministic inferred modes, with confirmed explicit targets taking precedence. */
 export function detectStrategicModes(
   cohortReport: StrategicCohortReport,
   trajectoryReport: StrategicTrajectoryReport,

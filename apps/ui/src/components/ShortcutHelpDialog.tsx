@@ -1,7 +1,3 @@
-/**
- * WP-008 ShortcutHelpDialog — the `?` help dialog listing all registered shortcuts
- * grouped by scope, with platform-correct key formatting.
- */
 import { createSignal, For, onCleanup, onMount, Show } from "solid-js";
 import Dialog from "./primitives/Dialog";
 import { shortcutDisplayLabels, shortcutLabels } from "../content/index";

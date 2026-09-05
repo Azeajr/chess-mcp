@@ -20,7 +20,6 @@ export function cloudEvaluationText(value: CloudEvaluationValue | null): string 
   return value ? `${evaluationText(value)}  ·  depth ${value.depth}` : "—";
 }
 
-/** SAN list → numbered notation continuing from `startPly` half-moves: "1. e4 c6 2. Nf3 d5". */
 export function numbered(sans: readonly string[], startPly = 0): string {
   const out: string[] = [];
   for (let i = 0; i < sans.length; i++) {

@@ -50,31 +50,13 @@ export default function TrainException(props: {
           (entry) => entry.training_id === trainingId,
         ) ?? null);
   };
-  /**
-   * What identifies the finding being trained. Deliberately without `user_notes`: notes never
-   * change which drills a finding yields, and `drillable` below rebuilds the whole training record
-   * — walking the route, checkpoints and repertoire graph — every time this changes. Folding the
-   * notes textarea in made that rebuild run on every keystroke.
-   */
   const subject = () => ({
     report_id: props.reportId,
     finding_id: props.finding.finding_id,
     semantic_finding_id: props.finding.semantic_finding_id,
   });
   const input = () => ({ ...subject(), user_notes: notes() });
-  /**
-   * Drills come from the record rather than from the registered targets: a target stores only the
-   * position and decision it belongs to, never the FEN or the expected move, so it cannot be
-   * attempted on its own.
-   *
-   * It is rebuilt on demand rather than kept from whatever `create` returned: creating a training
-   * item triggers reanalysis, which remounts this panel, so anything held in component state here
-   * is gone by the time the user could click Drill. Rebuilding also means a drill stays available
-   * on a later visit, not only in the moments after creation.
-   */
   const drillable = createMemo(() =>
-    // Only once a training item exists: the attempt is recorded against the target that creating
-    // one registers, so offering a drill before that would produce an attempt with nowhere to go.
     activeReference() === null ? null : strategicFitDrillsFor(subject()),
   );
 
@@ -177,9 +159,6 @@ export default function TrainException(props: {
         <Show when={drillable()}>
           {(record) => (
             <Show
-              // Whether a session is open lives in the store, keyed by training id, so that the
-              // reanalysis each recorded attempt triggers — which unmounts this panel — cannot
-              // close a drill the user is halfway through.
               when={strategicFitDrillSession(record().training_id) !== null}
               fallback={
                 <button

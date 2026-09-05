@@ -1,9 +1,3 @@
-/**
- * RepertoirePanel (Feature 6): the no-API repertoire backbone. Collapsible sections —
- * Tier A scans (Gaps, Congruence) whose rows navigate to the flagged line, and Tier B actions
- * (Extend, Fix) whose rows stage a preview line (gold arrow + Accept, reusing Feature 1).
- * Everything runs on the local engine / pure tree math; chat is the interpretive layer on top.
- */
 import { For, Show, createSignal, createEffect, onCleanup } from "solid-js";
 import {
   gaps,
@@ -81,11 +75,6 @@ export default function RepertoirePanel() {
   const rows = (command: DirectCommand, key: string) =>
     (state(command).result?.[key] as Record<string, unknown>[] | undefined) ?? [];
 
-  /**
-   * WP-022 AC-4: the one-line summary a collapsed group shows after its tool settles — the result
-   * count plus how long ago it finished. Returns null while the tool has not settled, so the
-   * summary stays clean before the first run.
-   */
   const resultCount = (command: DirectCommand): number | null => {
     const result = state(command).result;
     if (!result) return null;
@@ -93,12 +82,9 @@ export default function RepertoirePanel() {
       const list = result[key];
       if (Array.isArray(list)) return list.length;
     }
-    // Exports carry an artifact rather than rows; one artifact is the produced result.
     return result.artifact_id ? 1 : null;
   };
   const [nowTick, setNowTick] = createSignal(Date.now());
-  // WP-022 AC-4: summaries show "how long ago" — keep the clock moving so a settled timestamp
-  // doesn't freeze at "just now". The timer only runs while any command has completedAt.
   createEffect(() => {
     const states = commandStates();
     if (!Object.values(states).some((entry) => entry.completedAt !== undefined)) return;
@@ -128,11 +114,6 @@ export default function RepertoirePanel() {
     command: DirectCommand,
     label: string,
     args: () => Record<string, unknown> = () => ({}),
-    /**
-     * WP-029 AC-4: when set, the artifact this command produces downloads as soon as it exists,
-     * so the export is one action rather than a generate button followed by a save button that
-     * only appears afterwards.
-     */
     downloadArtifact = false,
   ) => (
     <Show
@@ -210,7 +191,6 @@ export default function RepertoirePanel() {
     return path ? currentAt(path) : false;
   };
 
-  // Stub connector: stage the whole engine-vetted sequence that rejoins prep.
   const onExtBridge = (b: ExtendedBridge) => {
     const fromIdx = currentTree().indexPathOfSan(b.fromPath);
     if (!fromIdx) return;
@@ -218,19 +198,15 @@ export default function RepertoirePanel() {
     stagePreviewLine(fromIdx, b.moves);
   };
 
-  // Prune: jump to the re-route node and stage the transposing move so the merge is visible.
   const onPrune = (p: PruneSuggestion) => {
     const atIdx = currentTree().indexPathOfSan(p.atPath);
     if (!atIdx) return;
     actions.goto(atIdx);
     stagePreviewLine(atIdx, [p.rerouteMove]);
   };
-  // Click a fill option → stage [uncoveredMove, reply, …PV] from the gap node. Length tracks the
-  // repertoire's typical depth (filtered median), so the new line is as deep as the rest; ≥2 plies so
-  // the gap is always actually closed. Accept (gold-arrow UI) grafts in memory; Save persists.
   const onFill = (g: Gap, opt: FillOption) => {
-    actions.goto(g.path); // so the gold preview arrow is visible immediately
-    stagePreviewLine(g.path, opt.line); // the staged length is decided in the store (median-deep)
+    actions.goto(g.path);
+    stagePreviewLine(g.path, opt.line);
   };
   const gapLine = (g: Gap) => {
     try {
@@ -239,7 +215,6 @@ export default function RepertoirePanel() {
       return "";
     }
   };
-  // The whole prospective line is shown inline (numbered, continuing from the gap depth) — no hover.
   const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
     <InteractiveRow
       class="indent fill-row"
@@ -274,12 +249,6 @@ export default function RepertoirePanel() {
           type="button"
           class="strategic-fit-open-button"
           onClick={(event) => {
-            // macOS browsers do not give a <button> DOM focus when it is clicked — a platform
-            // convention WebKit and Chrome both follow, and one Linux CI never exercises. Without
-            // this the workspace captured document.body as its return target, so closing the
-            // dialog restored focus to nothing: reproduced on every real macOS run (32225391111,
-            // 32226854386, 32228019888), never once on Linux. Focusing here makes the opener a
-            // real return target on every platform.
             event.currentTarget.focus();
             setStrategicFitWorkspaceOpen(true);
           }}
@@ -468,8 +437,6 @@ export default function RepertoirePanel() {
           {commandStatus("prep_vs_opponent")}
           <For each={rows("prep_vs_opponent", "lines")}>
             {(line) => (
-              // A summary line, not an action. Rendering it as a button to satisfy the row-reachability
-              // check would put a focus stop in the Tab order that announces "button" and does nothing.
               <div class="rep-row-static">
                 <span class="san">{String(line.name)}</span>
                 <span class="fit">

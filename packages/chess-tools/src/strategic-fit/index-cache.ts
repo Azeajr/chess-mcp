@@ -1,19 +1,3 @@
-/**
- * Bounded incremental analysis index for Strategic Fit.
- *
- * The index memoizes the deterministic stages that dominate a large scan: the canonical
- * transposition-aware graph, per-canonical-position pawn signals, per-route position signals, and
- * the trajectory report. One generation identity covers the complete analysis manifest and the
- * analysis settings those stages read, so a classifier, taxonomy, or settings change retires every
- * entry it could have produced instead of a hand-picked subset of them.
- *
- * The correctness invariant is deliberately narrow. A recomputation plan decides how much work is
- * attempted and which entries are dropped; it never decides which value is returned. Every reused
- * value is fetched by a content identity that fully determines it, so an incremental run and a full
- * scan are byte-identical even when a supplied scope is absent, stale, or wrong. Affected-cohort
- * scope therefore arrives from the host's existing semantic comparison (Task 6.4); this module
- * consumes that scope and never re-derives a second diffing rule.
- */
 import type { Color } from "../congruence.js";
 import type { OpeningEntry, OpeningTable } from "../openings.js";
 import type { RepertoireGraph } from "./graph.js";
@@ -37,24 +21,18 @@ export const STRATEGIC_FIT_INDEX_NAMESPACES = [
 ] as const;
 export type StrategicFitIndexNamespace = (typeof STRATEGIC_FIT_INDEX_NAMESPACES)[number];
 
-/** Analysis settings the indexed stages actually read; every field participates in the generation. */
 export interface StrategicFitIndexSettings {
   readonly repertoire_color: Color | null;
   readonly trajectory: unknown;
   readonly opening_table: unknown;
 }
 
-/** The analyzer options the indexed stages read; hosts derive the generation from the same view. */
 export interface StrategicFitIndexSettingsInput {
   readonly repertoireColor: Color | null;
   readonly trajectory?: unknown;
   readonly openingTable?: OpeningTable | null;
 }
 
-/**
- * Structurally identical to the host reanalysis scope produced by Task 6.4. An affected-cohort
- * scope limits claimed reuse; a full scan claims none.
- */
 export interface StrategicFitRecomputationScope {
   readonly kind: "affected-cohorts" | "full-scan";
   readonly cohort_ids: readonly string[];
@@ -72,7 +50,6 @@ export interface StrategicFitIndexedCohort {
   readonly route_ids: readonly string[];
 }
 
-/** What the previous completed analysis established for this generation. */
 export interface StrategicFitIndexSnapshot {
   readonly generation: string;
   readonly graph_id: string;
@@ -102,27 +79,18 @@ export interface StrategicFitIndexStats {
   readonly restorations: number;
 }
 
-/**
- * Whole-stage values an interrupted job already produced. They are restored by the same content
- * identity a cold run would compute, so restoring one changes cost only. Per-position and per-route
- * entries are deliberately absent: the trajectory report subsumes them, so a restored job carries
- * two entries rather than one entry per position.
- */
 export interface StrategicFitIndexRestoration {
   readonly generation: string;
-  /** The analyzer's own graph content key (normalized PGN), not a host-supplied cache key. */
   readonly graph_content_key: string;
   readonly graph: RepertoireGraph;
   readonly trajectories: StrategicTrajectoryReport | null;
 }
 
-/** What a completed analysis phase established, emitted to hosts that checkpoint their jobs. */
 export interface StrategicFitJobCheckpointStage extends StrategicFitIndexRestoration {
   readonly completed_phase: StrategicFitProgressPhase;
   readonly completed_phase_index: number;
 }
 
-/** The narrow view the trajectory builder needs; it never sees cache bounds or plans. */
 export interface StrategicFitSignalIndex {
   pawnSignals(
     fen: string,
@@ -170,10 +138,6 @@ function stableSerialize(value: unknown): string {
     .join(",")}}`;
 }
 
-/**
- * The single definition of the settings view behind a generation. The analyzer and every host that
- * validates a checkpoint call it, so a resumed job cannot be gated by a differently derived identity.
- */
 export function strategicFitIndexSettings(
   options: StrategicFitIndexSettingsInput,
 ): StrategicFitIndexSettings {
@@ -186,10 +150,6 @@ export function strategicFitIndexSettings(
   };
 }
 
-/**
- * Generation identity for every indexed value. The complete manifest participates, so advancing any
- * component version — classifier, taxonomy, or otherwise — retires the whole generation.
- */
 export function strategicFitIndexGeneration(
   settings: StrategicFitIndexSettings,
   manifest: StrategicFitAnalysisManifest = STRATEGIC_FIT_ANALYSIS_MANIFEST,
@@ -197,20 +157,14 @@ export function strategicFitIndexGeneration(
   return `strategic-fit-index:${stableHash(stableSerialize({ manifest, settings }))}`;
 }
 
-/**
- * Pawn signals read only the board, so the FEN placement field is their canonical position key and
- * transposed routes reaching one position share a single entry.
- */
 function pawnSignalKey(fen: string, repertoireColor: Color): string {
   return `${repertoireColor}${ID_SEPARATOR}${fen.split(" ")[0] ?? fen}`;
 }
 
-/** One definition of the graph entry key, so a restored graph lands where a cold run looks. */
 function graphKey(contentKey: string): string {
   return `graph${ID_SEPARATOR}${stableHash(contentKey)}`;
 }
 
-/** Bounded LRU index over the deterministic Strategic Fit stages, keyed by content identity. */
 export class StrategicFitIndexCache {
   readonly maximumEntries: number;
   private readonly entries = new Map<string, unknown>();
@@ -248,7 +202,6 @@ export class StrategicFitIndexCache {
     };
   }
 
-  /** The plan the most recent analysis ran under; evidence of reuse, never an input to a value. */
   get lastPlan(): StrategicFitRecomputationPlan | null {
     return this.plan;
   }
@@ -265,7 +218,6 @@ export class StrategicFitIndexCache {
     this.plan = null;
   }
 
-  /** A manifest or settings change is a generation change, which retires every prior entry. */
   private useGeneration(generation: string): void {
     if (this.generation === generation) return;
     this.invalidations += this.entries.size;
@@ -284,10 +236,6 @@ export class StrategicFitIndexCache {
     }
   }
 
-  /**
-   * Resolve one indexed value. The key must fully determine the value; a miss computes it, and a
-   * hit returns the identical value the same inputs produced earlier in this generation.
-   */
   value<T>(
     generation: string,
     namespace: StrategicFitIndexNamespace,
@@ -310,7 +258,6 @@ export class StrategicFitIndexCache {
     return value;
   }
 
-  /** Drop per-route entries whose route changed; position entries stay valid by content. */
   invalidateRoutes(routeIds: readonly string[]): number {
     let dropped = 0;
     for (const routeId of new Set(routeIds)) {
@@ -320,14 +267,6 @@ export class StrategicFitIndexCache {
     return dropped;
   }
 
-  /**
-   * Seed whole-stage values an interrupted job already produced.
-   *
-   * Restoration installs entries under the same keys a cold run computes them under, so a restored
-   * value can only be served to a request whose content identity already determines it. A stage that
-   * does not belong to the restored graph is dropped rather than installed, and nothing about the
-   * recomputation plan or the returned report changes: only the work still to do changes.
-   */
   restoreStages(restoration: StrategicFitIndexRestoration): readonly StrategicFitIndexNamespace[] {
     this.useGeneration(restoration.generation);
     const restored: StrategicFitIndexNamespace[] = ["graph"];
@@ -351,7 +290,6 @@ export class StrategicFitIndexCache {
     };
   }
 
-  /** Record what a completed analysis established so the next run can scope its recomputation. */
   rememberAnalysis(
     generation: string,
     graph: RepertoireGraph,
@@ -378,11 +316,6 @@ export class StrategicFitIndexCache {
     return plan;
   }
 
-  /**
-   * Plan the current run against the previous snapshot for this generation. Full scan is the
-   * explicit fallback whenever no prior snapshot exists or the host could not establish affected
-   * cohort identities.
-   */
   planRecomputation(
     generation: string,
     currentRouteIds: readonly string[],
@@ -451,7 +384,6 @@ export class StrategicFitIndexCache {
   }
 }
 
-/** Resolve the canonical graph for this content, computing it once per generation. */
 export function indexedRepertoireGraph(
   index: StrategicFitIndexCache | undefined,
   generation: string | null,
@@ -462,7 +394,6 @@ export function indexedRepertoireGraph(
   return index.value(generation, "graph", stableHash(contentKey), build);
 }
 
-/** Resolve the trajectory report for this exact graph, computing it once per generation. */
 export function indexedStrategicTrajectories(
   index: StrategicFitIndexCache | undefined,
   generation: string | null,

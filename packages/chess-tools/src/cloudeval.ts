@@ -1,18 +1,10 @@
-/**
- * Lichess cloud evaluation lookup (port of the Python cloud_eval tool). Returns a community
- * cloud eval for positions Lichess has analysed, or null on a miss / offline. cp and mate are
- * white-POV (verified: a position with Black to move where White is better reports positive cp).
- */
 import { fetchJson } from "./apiclient.js";
 
 export interface CloudEval {
-  /** white-POV centipawns, or null when mate is set. */
   cp: number | null;
-  /** white-POV signed mate distance, or null. */
   mate: number | null;
   depth: number;
   knodes: number;
-  /** principal variation, space-separated UCI moves. */
   pv: string;
 }
 

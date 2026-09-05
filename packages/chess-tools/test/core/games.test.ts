@@ -90,7 +90,6 @@ test("lichessGames parses metadata out of the PGN headers", async () => {
   }
 });
 
-/** The username decides the POV, and platforms do not agree on casing. */
 test("lichessGames identifies the queried user's colour regardless of case", async () => {
   const clock = withFakeClock();
   try {
@@ -170,7 +169,6 @@ test("lichessGames attaches the full PGN only when it is asked for", async () =>
   }
 });
 
-/** The ECO filter is a case-insensitive prefix, so "C" selects a whole volume. */
 test("lichessGames filters by ECO prefix, case-insensitively", async () => {
   const clock = withFakeClock();
   try {

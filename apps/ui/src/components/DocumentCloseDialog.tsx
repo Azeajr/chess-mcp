@@ -27,7 +27,6 @@ function currentDocumentName() {
   return fileName() ?? "the current repertoire";
 }
 
-/** The guard is where a replacement is contemplated, so it is also where an earlier one is found. */
 function RecoverLink() {
   return (
     <button

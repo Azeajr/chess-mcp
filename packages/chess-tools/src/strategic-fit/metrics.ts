@@ -1,11 +1,3 @@
-/**
- * Deterministic engine-free overview metrics for Strategic Fit.
- *
- * Every aggregate uses normalized expected route weight. Editorial leaf counts are never used as
- * frequencies, and canonical weighting units prevent transposed move orders from manufacturing
- * extra observations. Metrics that require training, engine, popularity-loss, or replacement
- * evidence remain explicitly unavailable (or partial) until that evidence is injected.
- */
 import type { StrategicConceptDictionary } from "./concepts.js";
 import type { StrategicModeReport } from "./modes.js";
 import type { RepertoireGraph } from "./graph.js";
@@ -29,10 +21,8 @@ import { assertDefined } from "../assert.js";
 
 export const STRATEGIC_METRICS_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.metrics;
 
-/** The later training domain can supply calibrated concept mastery without changing base metrics. */
 export interface StrategicConceptMasteryInput {
   readonly concept_id: string;
-  /** Calibrated mastery in the range 0–1. */
   readonly mastery: number;
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
@@ -42,7 +32,6 @@ export interface StrategicTrainingMetricEvidence {
   readonly provenance?: readonly StrategicFitSourceProvenance[];
 }
 
-/** The full StrategicFinding contract is structurally compatible with this bounded metric input. */
 export interface StrategicFitMetricFinding {
   readonly finding_id: string;
   readonly classification: StrategicFitClassification;
@@ -50,7 +39,6 @@ export interface StrategicFitMetricFinding {
     readonly route_ids: readonly string[];
   };
   readonly learning_burden: number;
-  /** Positive only when upstream evidence found a viable, player-controllable replacement. */
   readonly replacement_priority?: {
     readonly actionability: number;
   };
@@ -85,7 +73,6 @@ const ID_SEPARATOR = "\u001f";
 const EPSILON = 1e-9;
 const MASTERY_THRESHOLD = 0.7;
 
-/** Deterministic presentation boundaries for the engine-free workload summary. */
 export const STRATEGIC_WORKLOAD_THRESHOLDS = Object.freeze({
   moderate: 1 / 3,
   high: 2 / 3,
@@ -244,10 +231,6 @@ function selectedModesByRoute(input: StrategicFitMetricsInput): Map<string, Read
   return new Map([...mutable.entries()].map(([routeId, modeIds]) => [routeId, modeIds]));
 }
 
-/**
- * Build neutral entropy families. Inferred candidate clusters are retained even when they are
- * exceptions; remaining routes share a bucket only when they are one canonical weighting unit.
- */
 function familyBuckets(
   input: StrategicFitMetricsInput,
   routeUnit: ReadonlyMap<string, string>,
@@ -508,7 +491,6 @@ export interface StrategicFamiliarityCoverageInput {
   readonly training?: StrategicTrainingMetricEvidence;
 }
 
-/** Canonical familiarity-adjusted coverage for callers that rebuild only its frozen inputs. */
 export function calculateStrategicFamiliarityAdjustedCoverage(
   input: StrategicFamiliarityCoverageInput,
 ): StrategicFitMetric<number> {
@@ -846,8 +828,6 @@ function repertoireRegret(
   for (const [unitId, score] of regretScoreByUnit) {
     const coveredWeight = assertDefined(regretCoveredWeightByUnit.get(unitId));
     const frequency = assertDefined(unitWeight.get(unitId));
-    // Canonically equivalent route spellings form one theory unit. Its expected burden is
-    // discounted by familiarity and by how common that unit already is.
     regret += frequency * (1 - frequency) * (score / coveredWeight) * sensitivity.value;
   }
   const legacyMarketPartial =
@@ -958,7 +938,6 @@ function conceptCentrality(
   );
 }
 
-/** Calculate all frozen overview metrics without engine or network access. */
 export function calculateStrategicFitMetrics(input: StrategicFitMetricsInput): StrategicFitMetrics {
   const context = makeContext(input);
   const aggregates = conceptAggregates(context);
@@ -991,7 +970,6 @@ function unadjustedWorkload(context: MetricContext): number {
   );
 }
 
-/** Compose the deterministic overview counts and workload label around the metric bundle. */
 export function calculateStrategicFitOverview(
   input: StrategicFitMetricsInput,
 ): StrategicFitOverview {

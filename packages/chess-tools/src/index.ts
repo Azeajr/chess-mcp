@@ -1,10 +1,3 @@
-/**
- * @chess-mcp/chess-tools — shared chess logic for the UI and the Node MCP server.
- *
- * Phase 1: the variation-aware PGN GameTree. Later phases add the engine providers,
- * congruence/structure analysis, eval cache, and the rate-limited HTTP client — the
- * Shared domain layer for the Node MCP host and SolidJS PWA (see docs/ARCHITECTURE.md).
- */
 export {
   GameTree,
   isPrefix,

@@ -148,13 +148,6 @@ export default function FindingCard(props: {
   const resolutionState = () => props.resolutionState ?? props.finding.resolution_state;
   const presentation = () => buildFindingCardPresentation(props.finding, resolutionState());
   return (
-    /*
-     * The card is the target. A queue of twelve findings previously cost twelve trips to a button
-     * labelled "Select finding" parked at the bottom of each card — a name for a step the reader
-     * was not thinking in. They are choosing a finding; the finding should be the thing they
-     * click. The button survives inside as the keyboard stop and the pressed-state owner, drawn
-     * as a chevron rather than as a second, competing call to action.
-     */
     <article
       class="strategic-fit-finding-card"
       data-finding-id={props.finding.finding_id}
@@ -162,7 +155,6 @@ export default function FindingCard(props: {
       data-finding-selected={props.selected ? "true" : "false"}
       aria-labelledby={`strategic-fit-finding-${props.finding.finding_id}`}
       onClick={(event) => {
-        // The source-lines disclosure and the select button own their own clicks.
         if (
           event.target instanceof Element &&
           event.target.closest("details, [data-finding-select]")

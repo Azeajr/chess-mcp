@@ -26,7 +26,6 @@ import { buildDecisionFlowViewModel } from "../src/components/strategic-fit/Deci
 
 const RESOLUTIONS = ["unresolved-finding", "resolved-finding", "no-finding"] as const;
 
-/** A 1,000-branch fixture spread across the plotted coordinate space by a deterministic sequence. */
 function largePointFixture(count = 1_000): readonly ClusterablePoint[] {
   return Array.from({ length: count }, (_unused, index) => ({
     id: `route:${String(index).padStart(4, "0")}`,
@@ -279,7 +278,6 @@ test("the flow scales to a measured container down to a legibility floor, then s
   assert.equal(decisionFlowScale(0, 800), 1);
 });
 
-/** Four transposing Queen's Gambit move orders that share one cohort with branching columns. */
 const BRANCHING_PGN = `[Event "Flow: move order A"]
 [Result "*"]
 
@@ -314,7 +312,6 @@ test("a crowded flow column aggregates while every step stays in the outline and
     graph: buildRepertoireGraph(GameTree.fromPgn(BRANCHING_PGN), "white"),
     graphRevision: revision,
     cohortName: (cohortId) => `Cohort ${cohortId.slice(-4)}`,
-    /** A deliberately small cap so real projection data exercises the aggregation path. */
     nodesPerColumn: 2,
   });
 
@@ -424,7 +421,6 @@ test("a virtualized list mounts a bounded window of a complete list, however lon
   assert.equal(top.complete, false);
   assert.deepEqual([...top.items], items.slice(0, top.mounted));
 
-  // Scrolling moves the window without reordering, filtering, or losing a row.
   const middle = virtualWindow(items, { rowSize, viewportSize: 400, scrollOffset: 100 * rowSize });
   assert.equal(middle.start, 100 - VIRTUAL_WINDOW_OVERSCAN);
   assert.equal(middle.mounted, top.mounted);
@@ -437,7 +433,6 @@ test("a virtualized list mounts a bounded window of a complete list, however lon
   assert.equal(end.trail, 0);
   assert.equal(end.items.at(-1), "row:4999", "the last row stays reachable by scrolling");
 
-  // An unmeasured viewport still bounds the DOM rather than mounting the whole list.
   const unmeasured = virtualWindow(items, { rowSize, viewportSize: 0, scrollOffset: 0 });
   assert.equal(unmeasured.mounted, VISUALIZATION_RENDER_LIMITS.virtual_rows);
 

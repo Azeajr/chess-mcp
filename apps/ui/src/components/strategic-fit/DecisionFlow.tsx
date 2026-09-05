@@ -33,7 +33,6 @@ export const DECISION_FLOW_CAUSAL_LABELS_TEXT: Readonly<Record<DecisionFlowCausa
   "not-referenced": "No causal claim",
 };
 
-/** Symbols carry actor and outcome without color, in the diagram and in the outline alike. */
 export const DECISION_FLOW_SYMBOLS = {
   start: "◆",
   player: "▲",
@@ -71,10 +70,6 @@ export interface DecisionFlowViewLink {
   readonly aria_label: string;
 }
 
-/**
- * Task 10.4 — one drawn marker standing in for the lightest steps of a crowded depth column. Its
- * weight is the exact sum of its members, so shares still add up at every step after aggregation.
- */
 interface DecisionFlowViewAggregate {
   readonly aggregate_id: string;
   readonly depth: number;
@@ -89,7 +84,6 @@ interface DecisionFlowViewAggregate {
   readonly aria_label: string;
 }
 
-/** A link after aggregate re-pointing and duplicate merging; only these are drawn. */
 interface DecisionFlowRenderedLink {
   readonly link_id: string;
   readonly from_node_id: string;
@@ -108,10 +102,8 @@ interface DecisionFlowRenderedLink {
 interface DecisionFlowCohortView {
   readonly cohort: DecisionFlowCohort;
   readonly name: string;
-  /** Every step, in outline order; the accessible table below the chart never aggregates. */
   readonly nodes: readonly DecisionFlowViewNode[];
   readonly links: readonly DecisionFlowViewLink[];
-  /** The subset of `nodes` drawn individually in the diagram. */
   readonly rendered_nodes: readonly DecisionFlowViewNode[];
   readonly aggregates: readonly DecisionFlowViewAggregate[];
   readonly rendered_links: readonly DecisionFlowRenderedLink[];
@@ -156,7 +148,6 @@ function moveText(node: DecisionFlowNode): string {
   return node.san ?? shortId(node.decision_id ?? "");
 }
 
-/** Causal text always states the qualification, so a claim never reads more certain than it is. */
 export function decisionFlowCausalityText(node: DecisionFlowNode): string {
   const label = DECISION_FLOW_CAUSAL_LABELS_TEXT[node.causality.label];
   if (node.causality.label === "not-referenced") return label;
@@ -198,7 +189,6 @@ function layoutCohort(
   const columnDepths = [...byDepth.entries()].sort((left, right) => left[0] - right[0]);
 
   for (const [depth, column] of columnDepths) {
-    /** A crowded column keeps its heaviest steps drawn and folds the rest into one marker. */
     const split = splitDecisionFlowColumn(
       column,
       nodesPerColumn,
@@ -255,7 +245,6 @@ function layoutCohort(
       });
       for (const node of split.aggregated) aggregateIdByNodeId.set(node.node_id, aggregateId);
     }
-    /** Aggregated steps keep the marker's geometry: that is where the diagram actually shows them. */
     for (const node of column) {
       const own =
         geometry.get(node.node_id) ?? geometry.get(aggregateIdByNodeId.get(node.node_id) ?? "");
@@ -367,10 +356,6 @@ function layoutCohort(
   };
 }
 
-/**
- * Only the selected cohort is ever drawn, so its geometry is computed on first access. A report
- * with hundreds of cohorts would otherwise lay out every diagram it will never show.
- */
 function createDecisionFlowCohortView(
   cohort: DecisionFlowCohort,
   nodes: readonly DecisionFlowNode[],
@@ -414,7 +399,6 @@ export function buildDecisionFlowViewModel(
     readonly cohortName?: (cohortId: string) => string;
     readonly findings?: readonly StrategicFinding[];
     readonly maxDepth?: number;
-    /** Drawn steps per depth column before the lightest ones fold into one marker (Task 10.4). */
     readonly nodesPerColumn?: number;
   } = {},
 ): DecisionFlowViewModel {
@@ -425,10 +409,6 @@ export function buildDecisionFlowViewModel(
     max_depth: options.maxDepth,
   });
   const cohortName = options.cohortName ?? ((cohortId: string) => cohortId);
-  /**
-   * Bucket once instead of scanning the projection per cohort: a report with hundreds of cohorts
-   * otherwise pays a quadratic scan before anything is drawn.
-   */
   const nodesByCohort = new Map<string, DecisionFlowNode[]>();
   for (const node of projection.nodes) {
     const bucket = nodesByCohort.get(node.cohort_id);
@@ -463,7 +443,6 @@ export function buildDecisionFlowViewModel(
   };
 }
 
-/** The heaviest cohort first; the flow never silently mixes cohort-normalized shares. */
 export function defaultDecisionFlowCohortId(model: DecisionFlowViewModel): string | null {
   const sorted = [...model.cohorts].sort(
     (left, right) =>
@@ -490,7 +469,6 @@ export default function DecisionFlow(props: {
   const [containerWidth, setContainerWidth] = createSignal<number | null>(null);
   let scrollRef: HTMLDivElement | undefined;
 
-  /** Resize behavior: a wide flow shrinks to the measured container, then scrolls at the floor. */
   onMount(() => {
     if (scrollRef === undefined || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver((entries) => {
@@ -555,7 +533,6 @@ export default function DecisionFlow(props: {
       outlineExpanded() || strategicFitPrintExportMode(),
     ),
   );
-  /** Task 12.3 — the outline mounts its Task 10.4 window through a bounded scrolling viewport. */
   const outlineRows = createVirtualRows({
     items: () => outlineWindow().items,
     rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
@@ -564,7 +541,6 @@ export default function DecisionFlow(props: {
   const chartScale = createMemo(() =>
     decisionFlowScale(containerWidth(), activeCohort()?.chart_width ?? 0),
   );
-  /** Outgoing links per step, so a windowed outline stays linear instead of scanning every link. */
   const outgoingByNode = createMemo(() => {
     const cohort = activeCohort();
     const index = new Map<string, DecisionFlowViewLink[]>();

@@ -1,31 +1,10 @@
-/**
- * Deterministic half of AI plan synthesis for a retained exception.
- *
- * When a finding is kept and trained rather than replaced, the assistant may write the plan card
- * that goes with it: what the plan is, which break or exchange matters, what the danger signs are,
- * and which position to drill. That narrative is the one part of the training record no tool can
- * produce, and it is also the part a model can invent. This module owns the boundary that must not
- * depend on a host: every section has to name deterministic evidence that already exists, and every
- * move the prose mentions has to come from a validated repertoire path.
- *
- * Validation rejects rather than repairs, for the same reason as the intent interview: a sentence
- * the user typed has a witness, a sentence the model produced does not. An unsupported concept,
- * checkpoint, drill, move, or external game citation fails with a structured code instead of being
- * quietly dropped from otherwise-plausible prose.
- *
- * This module never writes, persists, or decides what "accept" means. Persistence stays with the
- * existing Task 6.3 training writer.
- */
-
 export const STRATEGIC_FIT_PLAN_CARD_VERSION = "1.0.0";
 
-/** Fixed bounds for a model-authored plan card. Exceeding one is an error, never a truncation. */
 export const STRATEGIC_FIT_PLAN_LIMITS = Object.freeze({
   sections: 8,
   title_characters: 120,
   section_text_characters: 600,
   section_anchors: 8,
-  /** Bounds of the evidence basis disclosed to the model; anything withheld cannot be cited. */
   evidence_concept_ids: 32,
   evidence_checkpoints: 16,
   evidence_drills: 16,
@@ -34,11 +13,6 @@ export const STRATEGIC_FIT_PLAN_LIMITS = Object.freeze({
   evidence_moves: 64,
 });
 
-/**
- * The section kinds the design names for a retained exception. Each is a claim about the position,
- * so each must rest on evidence: a concept the classifier emitted, a checkpoint the trajectory
- * reached, or a drill built from a legal repertoire decision.
- */
 export const STRATEGIC_FIT_PLAN_SECTION_KINDS = [
   "strategic-plan",
   "pawn-break",
@@ -79,7 +53,6 @@ export interface StrategicFitPlanErrorResult {
   readonly reason: string;
 }
 
-/** Shared host mapping from a validation failure to one structured, code-bearing result. */
 export function strategicFitPlanErrorResult(error: unknown): StrategicFitPlanErrorResult {
   if (error instanceof StrategicFitPlanError) return { error: error.code, reason: error.message };
   throw error;
@@ -95,17 +68,11 @@ export interface StrategicFitPlanCheckpointEvidence {
 export interface StrategicFitPlanDrillEvidence {
   readonly drill_id: string;
   readonly expected_san: string;
-  /** Bounded route to the position where `expected_san` is the legal answer. */
   readonly source_san_path: readonly string[];
   readonly source: string;
   readonly checkpoint_id: string | null;
 }
 
-/**
- * Everything a plan card is allowed to rest on, already bounded. The host derives it from the
- * deterministic training record for one finding; the same object is disclosed to the model and used
- * to validate what comes back, so evidence withheld from the disclosure cannot be cited either.
- */
 export interface StrategicFitPlanEvidence {
   readonly report_id: string;
   readonly finding_id: string;
@@ -121,7 +88,6 @@ export interface StrategicFitPlanEvidence {
   readonly causal_move_san: string | null;
   readonly san_paths: readonly (readonly string[])[];
   readonly omitted_san_path_count: number;
-  /** Every SAN the prose may mention, taken from the paths, drills, and causal move above. */
   readonly moves: readonly string[];
   readonly omitted_move_count: number;
 }
@@ -145,7 +111,6 @@ export interface StrategicFitPlanSection {
   readonly concept_ids: readonly string[];
   readonly checkpoint_ids: readonly string[];
   readonly drill_ids: readonly string[];
-  /** SAN the text mentions. Every entry was resolved against the evidence move vocabulary. */
   readonly cited_moves: readonly string[];
 }
 
@@ -157,7 +122,6 @@ export interface StrategicFitPlanCard {
   readonly finding_id: string;
   readonly semantic_finding_id: string;
   readonly training_id: string;
-  /** Identity of the exact evidence the card was validated against; a change voids the card. */
   readonly evidence_identity: string;
 }
 
@@ -176,11 +140,6 @@ function stableHash(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-/**
- * Stable identity of one evidence basis. Acceptance recomputes the basis from current canonical
- * evidence and compares this value, so a re-analysis that moved a checkpoint, dropped a concept, or
- * changed a drill invalidates a card the user is still looking at.
- */
 export function strategicFitPlanEvidenceIdentity(evidence: StrategicFitPlanEvidence): string {
   return `strategic-fit-plan-evidence:${stableHash(
     JSON.stringify({
@@ -205,20 +164,13 @@ export function strategicFitPlanEvidenceIdentity(evidence: StrategicFitPlanEvide
 
 const SAN_PATTERN =
   /^(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h](?:x[a-h])?[1-8](?:=[QRBN])?)[+#]?$/;
-/**
- * A citation of an external game. Deterministic Strategic Fit evidence never contains a calendar
- * year or a hyphenated pair of surnames, so either one means the model reached outside the evidence
- * for a model game — the exact claim it may not make without a game result to stand on.
- */
 const GAME_YEAR_PATTERN = /\b(?:1[5-9]\d{2}|20\d{2})\b/;
 const GAME_PAIRING_PATTERN = /\b[A-Z][a-z]+\s*[–—-]\s*[A-Z][a-z]+\b/;
 
-/** Split prose into candidate canonical SAN tokens in mention order, including repeats. */
 function strategicFitPlanMoveSequence(text: string): string[] {
   return text.split(/[^A-Za-z0-9=+#-]+/).filter((raw) => raw.length > 0 && SAN_PATTERN.test(raw));
 }
 
-/** Public citation projection: stable first-mention order with duplicate prose references removed. */
 export function strategicFitPlanMoveMentions(text: string): string[] {
   return [...new Set(strategicFitPlanMoveSequence(text))];
 }
@@ -411,19 +363,12 @@ function section(
   };
 }
 
-/**
- * Validate a model-authored plan card against one deterministic evidence basis. It does not save,
- * merge, or persist anything; a resolved card is still only a proposal until the host commits it
- * through the existing training writer.
- */
 export function resolveStrategicFitPlanCard(
   input: StrategicFitPlanCardInput,
   evidence: StrategicFitPlanEvidence,
 ): StrategicFitPlanCard {
   if (
     typeof input !== "object" ||
-    // input's declared type promises an object, but this is a model-authored plan card from an
-    // untrusted external caller at runtime — this revalidates it.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     input === null ||
     Array.isArray(input)
@@ -490,17 +435,10 @@ export function resolveStrategicFitPlanCard(
   };
 }
 
-/**
- * Re-check an already resolved card against current evidence. The training writer calls this so no
- * path can persist a card whose support disappeared, including one handed to it directly rather
- * than through the staged proposal.
- */
 export function assertStrategicFitPlanCardSupported(
   card: StrategicFitPlanCard,
   evidence: StrategicFitPlanEvidence,
 ): StrategicFitPlanCard {
-  // card's declared type pins plan_card_version to the current literal, but this function exists
-  // precisely to revalidate cards handed in directly rather than through the staged proposal.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (card.plan_card_version !== STRATEGIC_FIT_PLAN_CARD_VERSION) {
     throw new StrategicFitPlanError(
@@ -542,11 +480,6 @@ const SECTION_LABELS: Readonly<Record<StrategicFitPlanSectionKind, string>> = {
 export const strategicFitPlanSectionLabel = (kind: StrategicFitPlanSectionKind): string =>
   SECTION_LABELS[kind];
 
-/**
- * Durable text for the confirmed card. The training resolution note is plain text, so the rendered
- * form keeps the section labels and the evidence each section cited rather than flattening the card
- * into a paragraph whose support can no longer be traced.
- */
 export function renderStrategicFitPlanCardText(card: StrategicFitPlanCard): string {
   return [
     card.title,

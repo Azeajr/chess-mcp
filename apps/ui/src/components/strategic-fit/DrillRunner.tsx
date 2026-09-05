@@ -1,17 +1,3 @@
-/**
- * The drill attempt surface. Shows one drill position at a time, takes a single move, and records
- * what actually happened.
- *
- * Two rules from the training model are load-bearing here. Recall is first-attempt only, so a
- * wrong move is revealed and recorded rather than retried — a retry that overwrote the first result
- * would make recall rate meaningless. And an attempt is recorded only from a move the user really
- * played: nothing on this screen may report recall for a drill that was merely created.
- *
- * The session itself (which position, what has been answered) lives in the training store, not in
- * this component. Recording an attempt schedules a reanalysis, and reanalysis unmounts the whole
- * resolution column — so component state here would be destroyed by the user's own first move. See
- * `strategicFitDrillSession`.
- */
 import { For, Show, onMount } from "solid-js";
 import {
   advanceStrategicFitDrillSession,
@@ -43,8 +29,6 @@ export default function DrillRunner(props: { trainingId: string; drills: readonl
   const finished = () => index() >= props.drills.length;
   const recalledCount = () => outcomes().filter((outcome) => outcome.recalled).length;
 
-  // A reanalysis remount lands here between two positions; the time the user spent watching it is
-  // not thinking time for the next one.
   onMount(() => {
     if (answered() === undefined) refreshStrategicFitDrillClock(props.trainingId);
   });
@@ -100,9 +84,6 @@ export default function DrillRunner(props: { trainingId: string; drills: readonl
             <div
               class="strategic-fit-drill-active"
               data-drill-id={drill().drill_id}
-              /* Test hooks, like `data-app-live-region`: an e2e cannot otherwise know which move to
-                 play. The prepared move being visible in the DOM is acceptable here — it is the
-                 user's own repertoire, and the drill reveals it on a miss anyway. */
               data-drill-fen={drill().fen}
               data-drill-expected={drill().expected_san}
             >

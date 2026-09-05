@@ -14,10 +14,6 @@ interface ArrowBrush {
   lineWidth: number;
 }
 
-/**
- * Shared board/legend palette. Board registers these brushes explicitly rather than relying on
- * Chessground defaults, so the legend cannot drift from the arrows it explains.
- */
 export const ANALYSIS_ARROW_BRUSHES = {
   fit: {
     "in-book": { brush: "green", key: "g", color: "#15781b", opacity: 1, lineWidth: 10 },
@@ -104,14 +100,6 @@ export function evaluationAriaLabel(state: AnalysisState, value: EvaluationValue
   return `Evaluation: ${evaluationText(value)}, ${evaluationSummary(value)}`;
 }
 
-// ---------------------------------------------------------------------------
-// WP-014 — board keyboard layer square/position descriptions. AT reads these as each gridcell's
-// own accessible name on real focus movement, so they must stay per-square and event-free: no
-// caller here goes through announce() (WP-009's flood policy governs the discrete entry/selection
-// events separately, in store/board-cursor.ts).
-// ---------------------------------------------------------------------------
-
-/** "e4, empty" / "e4, white pawn" / "e4, white pawn, legal destination". */
 export function describeSquare(
   fen: string,
   square: string,
@@ -123,7 +111,6 @@ export function describeSquare(
   return `${square}, ${pieceText}${suffix}`;
 }
 
-/** One-time announcement on entering the board (AC-1) — never per cursor move. */
 export function boardPositionSummary(fen: string, turn: "white" | "black"): string {
   const turnText = turn === "white" ? "White" : "Black";
   return `Chessboard. ${turnText} to move${isCheck(fen) ? ", in check" : ""}.`;

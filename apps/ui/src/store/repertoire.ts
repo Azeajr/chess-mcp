@@ -1,9 +1,3 @@
-/**
- * Feature 6 backbone: deterministic, no-API repertoire reports surfaced in the side panel.
- * Tier A scans (gaps live in store/gaps.ts) and Tier B extend all run through the application
- * browser-command client against shared chess-tools + local engine — the same source of truth
- * the chat uses, just driven directly here instead of by the model.
- */
 import { createSignal } from "solid-js";
 import {
   type ExtendedBridge,
@@ -15,14 +9,8 @@ import { executeBrowserCommand } from "../application/browser-commands/client";
 import { analysisDepth } from "./engine-settings";
 import { assertTestOnly } from "./test-seam";
 
-// --- Tier A: connect dangling stubs into prep (engine-vetted) ---
-// A stopped line (frontier leaf, your turn) continued by the color's engine-best moves until it
-// rejoins existing prep (GameTree.extendedBridges). This is frontier_link / stub resolution — the
-// surviving, useful half of the old bridges tool. move_order_merge is dropped; coverage_confirmed
-// now surfaces inside the Gaps scan as covered-by-transposition.
-
 const MULTIPV = 3;
-const CP_THRESHOLD = 50; // a color move within 0.5 of best counts as "good"
+const CP_THRESHOLD = 50;
 
 const [extBridges, setExtBridges] = createSignal<ExtendedBridge[] | null>(null);
 const [bridgeScanning, setBridgeScanning] = createSignal(false);
@@ -69,17 +57,13 @@ export async function scanBridges() {
   }
 }
 
-// --- Tier A: prune (shorten a line via an engine-vetted transposition) ---
-
 const [pruneSuggestions, setPruneSuggestions] = createSignal<PruneSuggestion[] | null>(null);
 const [pruneScanning, setPruneScanning] = createSignal(false);
 const [pruneError, setPruneError] = createSignal<string | null>(null);
-// Determinate progress for the (possibly multi-minute) scan: positions analysed / upper-bound total.
 const [pruneDone, setPruneDone] = createSignal(0);
 const [pruneTotal, setPruneTotal] = createSignal(0);
 export { pruneSuggestions, pruneScanning, pruneError, pruneDone, pruneTotal };
 
-/** WP-029 AC-5/AC-7 test seam: render shortcut rows without a live prune scan. */
 export function setPruneSuggestionsForTesting(next: PruneSuggestion[]) {
   assertTestOnly();
   setPruneSuggestions(next);
@@ -87,8 +71,6 @@ export function setPruneSuggestionsForTesting(next: PruneSuggestion[]) {
 
 let pruneController: AbortController | null = null;
 
-/** U3: abort an in-flight shorten scan. Bumps the token so in-flight engine results are discarded
- *  (the callback + finally guard on `token === pruneToken` go stale) and clears the scanning flag. */
 export function cancelPrune() {
   pruneController?.abort();
   pruneController = null;
@@ -126,7 +108,7 @@ export async function scanPrune() {
     if (pruneController !== controller || controller.signal.aborted) return;
     if (res.error) throw new Error(res.error);
     setPruneSuggestions(res.suggestions ?? []);
-    setPruneDone(pruneTotal()); // fill the bar — leaves that emit early leave the estimate short
+    setPruneDone(pruneTotal());
   } catch (e) {
     if (pruneController !== controller || controller.signal.aborted) return;
     setPruneError(e instanceof Error ? e.message : String(e));
@@ -138,9 +120,7 @@ export async function scanPrune() {
   }
 }
 
-// --- C3/C4: inspect a chosen shortcut (quality + coverage safety), via the shared chess-tools core ---
-
-const INSPECT_MAX_POSITIONS = 12; // gap-scan decision nodes per side (before/after) — keep the UI snappy
+const INSPECT_MAX_POSITIONS = 12;
 
 const [inspectKey, setInspectKey] = createSignal<string | null>(null);
 const [comparison, setComparison] = createSignal<ShortcutComparison | null>(null);
@@ -149,13 +129,6 @@ const [inspecting, setInspecting] = createSignal(false);
 const [inspectError, setInspectError] = createSignal<string | null>(null);
 export { inspectKey, comparison, coverage, inspecting, inspectError };
 
-/**
- * WP-029 AC-7 test seam: inject a settled inspect result.
- *
- * The field-presence assertion is about what the panel renders from a given payload, not about
- * whether the engine reaches the same verdict twice. Injecting settled state keeps the check
- * deterministic under parallel load instead of running a live scan per engine.
- */
 export function setInspectResultForTesting(
   key: string,
   next: ShortcutComparison | null,
@@ -169,7 +142,6 @@ export function setInspectResultForTesting(
   setInspectError(null);
 }
 
-/** Stable identity for a suggestion row (a line can now have several re-routes). */
 export function shortcutKey(p: PruneSuggestion): string {
   return `${p.linePath.join(",")}|${p.atPly}|${p.rerouteMove}`;
 }
@@ -179,7 +151,6 @@ let inspectToken = 0;
 export async function inspectShortcut(p: PruneSuggestion) {
   const key = shortcutKey(p);
   if (inspectKey() === key && !inspecting()) {
-    // toggle the open inspection closed
     setInspectKey(null);
     setComparison(null);
     setCoverage(null);
@@ -216,8 +187,6 @@ export async function inspectShortcut(p: PruneSuggestion) {
     if (token === inspectToken) setInspecting(false);
   }
 }
-
-// --- Tier B: extend (suggest_complementary_lines from the current position) ---
 
 interface ComplementaryMove {
   move: string;

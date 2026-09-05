@@ -13,10 +13,6 @@ import {
 } from "../../src/index.ts";
 import { BROAD_ECO_FIXTURE, parseStrategicFitFixture } from "./fixtures.ts";
 
-/**
- * One comparable Queen's Gambit cohort with two converging move orders and two later opponent
- * choices, so the flow has real branch points, a real transposition, and one shared strategic end.
- */
 const FORCED_DIVERSITY_PGN = `[Event "Flow: move order A"]
 [Result "*"]
 

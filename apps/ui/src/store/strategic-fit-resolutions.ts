@@ -1,10 +1,3 @@
-/**
- * Document-scoped Strategic Fit resolutions and analysis overrides.
- *
- * The shared package owns record contracts, graph reconciliation, and analyzer projection. This
- * browser facade owns only user mutation semantics, persistence through the canonical metadata
- * boundary, cache invalidation, and current-document injection.
- */
 import {
   INTENTIONAL_RESOLUTION_REASONS,
   RESOLUTION_INVALIDATION_RULES,
@@ -758,8 +751,6 @@ export function createStrategicFitResolutionState(
       try {
         graph = boundary.currentGraph();
       } catch {
-        // Unsupported/custom starts are reported by Strategic Fit preflight. They provide no
-        // canonical graph against which durable semantic records can be invalidated safely.
         return { state: "unchanged", metadata };
       }
       const result = reconcileStrategicFitDocumentMetadata(metadata, {

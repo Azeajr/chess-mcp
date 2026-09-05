@@ -1,20 +1,11 @@
 import { createSignal } from "solid-js";
 
-/**
- * One place that decides whether a global document shortcut may fire, and one refcount for
- * "something is layered over the app". Those are the same fact, so they share a stack rather than
- * being tracked twice: an overlay pushes a scope, and the background is inert exactly while the
- * stack is non-empty. Tracking them separately is how a background can end up interactive behind a
- * dialog, or inert after every dialog has closed.
- */
 type ShortcutHandler = (event: KeyboardEvent) => void;
 
 export interface ShortcutRegistration {
   readonly id: string;
-  /** A single character means "requires Cmd/Ctrl"; a named key such as ArrowLeft stands alone. */
   readonly key: string;
   readonly handler: ShortcutHandler;
-  /** Only for shortcuts nothing else claims while typing — Cmd/Ctrl+S, not Cmd/Ctrl+Z. */
   readonly allowInTextFields?: boolean;
 }
 
@@ -22,7 +13,6 @@ const registrations: ShortcutRegistration[] = [];
 const scopes: string[] = [];
 const [scopeDepth, setScopeDepth] = createSignal(0);
 
-/** True while any overlay is layered over the app, so the background must be inert and hidden. */
 export const backgroundSuspended = () => scopeDepth() > 0;
 
 export function registerShortcut(registration: ShortcutRegistration): () => void {
@@ -33,11 +23,6 @@ export function registerShortcut(registration: ShortcutRegistration): () => void
   };
 }
 
-/**
- * Suspends global shortcuts and marks the background inert until the returned disposer runs.
- * Removes this scope's own entry rather than the top of the stack, so overlays closing out of
- * order (a nested dialog outliving its parent) cannot leave the count stranded above zero.
- */
 export function pushShortcutScope(name: string): () => void {
   const entry = `${name}:${scopes.length}:${Math.random()}`;
   scopes.push(entry);
@@ -68,7 +53,6 @@ function matches(event: KeyboardEvent, registration: ShortcutRegistration): bool
   return event.metaKey || event.ctrlKey;
 }
 
-/** Returns true when a registration claimed the event, so the caller knows it was handled. */
 export function dispatchShortcut(event: KeyboardEvent): boolean {
   if (scopes.length > 0) return false;
   const registration = registrations.find(

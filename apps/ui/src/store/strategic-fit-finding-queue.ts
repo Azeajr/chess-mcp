@@ -45,15 +45,10 @@ export interface StrategicFitFindingQueueView {
   readonly opening_options: readonly string[];
   readonly page: StrategicFitFindingPage;
   readonly canonical_total_count: number;
-  /** Retained selection: it survives paging, sorting, and filtering rather than being dropped. */
   readonly selected_finding_id: string | null;
-  /** True when the selected finding is among the rows this page mounts. */
   readonly selected_on_page: boolean;
-  /** Page offset that holds the selection in the current filtered order; `null` when filtered out. */
   readonly selected_page_offset: number | null;
-  /** 1-based position of the selection in the filtered order, for a logical "finding N of M". */
   readonly selected_position: number | null;
-  /** True when the selection is still in the report but excluded by the current queue filters. */
   readonly selected_filtered_out: boolean;
 }
 
@@ -80,7 +75,6 @@ export interface StrategicFitFindingQueueState {
   setOpeningFilter(opening: string): void;
   setPageOffset(offset: number): void;
   selectFinding(findingId: string | null): void;
-  /** Move the page to the one that holds the retained selection; a no-op when it is filtered out. */
   revealSelectedFinding(): void;
   dispose(): void;
 }
@@ -147,11 +141,6 @@ export function buildStrategicFitFindingQueueView(
         STRATEGIC_FIT_QUEUE_PAGE_SIZE;
   const offset = Math.min(Math.max(0, state.page_offset), lastOffset);
   const findings = sorted.slice(offset, offset + STRATEGIC_FIT_QUEUE_PAGE_SIZE);
-  /**
-   * Task 12.3 — paging changes which findings are mounted, never which finding is selected. A
-   * selection that sits on another page keeps its identity and reports where to find it; one the
-   * current filters exclude is disclosed as excluded rather than silently discarded.
-   */
   const selectedIndex =
     state.selected_finding_id === null
       ? -1
@@ -184,7 +173,6 @@ export function buildStrategicFitFindingQueueView(
   };
 }
 
-/** A canonical page carries the cursor that produced it and the cursor that continues it. */
 interface StrategicFitCursorPage {
   readonly result: StrategicFitAnalysisResult;
   readonly next_cursor: string | null;
@@ -226,8 +214,6 @@ function validPage(
   ) {
     throw new Error("The finding page did not match the current immutable report.");
   }
-  // A cursor that is missing where the report says more findings exist, or present where it says
-  // the walk is finished, is a paging identity this queue refuses to continue.
   const nextCursor = candidate.next_cursor ?? null;
   if (
     typeof candidate.cursor !== "string" ||
@@ -269,10 +255,6 @@ export function createStrategicFitFindingQueueState(
   let activeController: AbortController | null = null;
   let loadSequence = 0;
 
-  /**
-   * A sort or filter change re-derives the page, not the selection: the selected finding keeps its
-   * identity and the view reports where it now sits, or that the new filters exclude it.
-   */
   const resetPage = (patch: Partial<StrategicFitFindingQueueSnapshot>) => {
     setState((previous) => ({ ...previous, ...patch, page_offset: 0 }));
   };
@@ -285,8 +267,6 @@ export function createStrategicFitFindingQueueState(
     const all: StrategicFinding[] = [];
     const seenIds = new Set<string>();
     let offset = 0;
-    // Task 12.3: the first request opens the canonical order and every later one continues it by
-    // the cursor the previous page returned, so a large report is never re-derived from offsets.
     let cursor: string | null = null;
     try {
       while (offset < report.finding_page.total_count) {
@@ -434,8 +414,6 @@ export function createStrategicFitFindingQueueState(
             ? selected_finding_id
             : null,
       }));
-      // A selection made from another view — the map, the flow, the heatmap — lands on whatever
-      // page holds it, so the finding it names is reachable instead of merely remembered.
       const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
       if (selectedOffset !== null)
         setState((previous) => ({ ...previous, page_offset: selectedOffset }));

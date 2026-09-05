@@ -1,11 +1,3 @@
-/**
- * Deterministic Strategic Fit diversity classification and priority policy.
- *
- * This stage deliberately consumes already-calculated evidence. It does not infer intent,
- * objective soundness, coverage, or practical benefits. Those facts must be injected with their
- * provenance by the host/domain stages that own them. Unsupported benefits and unknown
- * alternatives therefore remain unknown rather than becoming recommendations.
- */
 import type { StrategicModeSelectionState } from "./modes.js";
 import type {
   CausalAttribution,
@@ -39,7 +31,6 @@ export const PRODUCTIVE_DIVERSITY_BENEFITS = [
 ] as const;
 export type ProductiveDiversityBenefit = (typeof PRODUCTIVE_DIVERSITY_BENEFITS)[number];
 
-/** A practical benefit is classification evidence only when an upstream source supports it. */
 export interface ProductiveDiversityTradeoff {
   readonly benefit: ProductiveDiversityBenefit;
   readonly supported: boolean;
@@ -48,9 +39,7 @@ export interface ProductiveDiversityTradeoff {
 }
 
 export interface StrategicDiversityIntent {
-  /** Confirmed profile or repertoire intent, never a merely inferred majority. */
   readonly matches_declared_objective: boolean;
-  /** Active persisted/user resolution, when one exists for this finding identity. */
   readonly resolution_state: FindingResolutionState | null;
 }
 
@@ -64,9 +53,7 @@ export interface StrategicDiversityClassificationInput {
   readonly alternative_state: StrategicAlternativeState;
   readonly intent: StrategicDiversityIntent;
   readonly productive_tradeoffs: readonly ProductiveDiversityTradeoff[];
-  /** Only issues that prevented a valid comparison belong here. */
   readonly blocking_data_quality_issue_ids: readonly string[];
-  /** Supplied by graph/distance evidence; move-order difference alone is insufficient. */
   readonly transpositionally_equivalent: boolean;
 }
 
@@ -92,17 +79,14 @@ export interface StrategicDiversityClassification {
   readonly findings_version: string;
   readonly classification: StrategicFitClassification;
   readonly reasons: readonly StrategicClassificationReason[];
-  /** Only supported tradeoffs are carried forward for explanation. */
   readonly productive_tradeoffs: readonly ProductiveDiversityTradeoff[];
 }
 
 export interface StrategicPriorityComponents {
-  /** Normalized magnitude score from the confidence/difference stage. */
   readonly difference: number;
   readonly expected_frequency: number;
   readonly learning_burden: number;
   readonly preference_mismatch: number;
-  /** Training can remain actionable when replacement is not. */
   readonly training_actionability: number;
 }
 
@@ -123,7 +107,6 @@ export const STRATEGIC_PRIORITY_WEIGHTS = Object.freeze({
   actionability: 0.1,
 });
 
-/** Deterministic presentation boundaries for the four frozen priority labels. */
 export const STRATEGIC_PRIORITY_THRESHOLDS = Object.freeze({
   review_now: 0.6,
   review_later: 0.3,
@@ -192,12 +175,6 @@ function hasPersistentDifference(difference: StrategicDifference): boolean {
   );
 }
 
-/**
- * Apply the frozen classification order conservatively. Validity and canonical equivalence are
- * resolved before user/product evidence; confirmed intent then takes precedence over inferred
- * cohort majorities. A route becomes a genuine inconsistency only when every frozen criterion is
- * supported.
- */
 export function classifyStrategicDiversity(
   input: StrategicDiversityClassificationInput,
 ): StrategicDiversityClassification {
@@ -292,7 +269,6 @@ export interface CalculateFindingPriorityInput {
   readonly actionability: number;
 }
 
-/** Calculate one replacement or training priority with the frozen five-component formula. */
 export function calculateFindingPriority(input: CalculateFindingPriorityInput): FindingPriority {
   if (input.confidence.analysis_version !== STRATEGIC_FIT_ANALYSIS_VERSION) {
     throw new Error("strategic_fit_findings_version_mismatch");
@@ -325,7 +301,6 @@ export function calculateFindingPriority(input: CalculateFindingPriorityInput): 
   };
 }
 
-/** Classify once, then calculate independently actionable replacement and training priorities. */
 export function assessStrategicFinding(
   input: StrategicFindingAssessmentInput,
 ): StrategicFindingAssessment {

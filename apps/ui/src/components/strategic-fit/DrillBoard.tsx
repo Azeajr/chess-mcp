@@ -1,12 +1,3 @@
-/**
- * A board that accepts exactly one move, for the training drill surface.
- *
- * Deliberately not `Board.tsx`: that one is bound to the app's game store, and attempting a drill
- * must not touch the working document or the current position. Deliberately not `ReadOnlyBoard`
- * either, which is `viewOnly` throughout. This is the same chessground bridge shape as
- * `ReadOnlyBoard`, with movement enabled for the side to move and disabled again the moment a move
- * is played — a drill records first-attempt recall, so a second move must not be possible.
- */
 import { createEffect, onCleanup, onMount } from "solid-js";
 import { Chessground } from "chessground";
 import type { Api } from "chessground/api";
@@ -16,26 +7,14 @@ import { drillOrientation, drillPosition } from "../../application/drill-move";
 
 export default function DrillBoard(props: {
   fen: string;
-  /** Called once, with the squares of the single move played. */
   onMove: (orig: string, dest: string) => void;
-  /** When true the board stops accepting input — the attempt is already recorded. */
   locked: boolean;
   label: string;
 }) {
   let element!: HTMLDivElement;
   let board: Api | undefined;
-  // The FEN chessground was last told to paint. Locking the board after a move re-runs the effect
-  // below, and chessground's `configure` does `if (config.fen) state.pieces = fenRead(config.fen)`
-  // — so passing the drill's FEN again would rub out the move the user just played and leave the
-  // `lastMove` highlight pointing at squares whose pieces had snapped back. The FEN is sent only
-  // when it actually changes, which is when a different drill is shown.
   let painted: string | undefined;
 
-  // The side to move, which is both the orientation to show the drill from and the colour
-  // chessground has to be told is on turn. Leaving `turnColor` at its `"white"` default made every
-  // black-to-move drill unplayable: chessground's `isMovable` requires `turnColor === piece.color`,
-  // so a black piece failed that check, took the premove branch instead, and the drag set a premove
-  // that never fires `movable.events.after` — no move, no feedback, no recorded attempt.
   const orientation = () => drillOrientation(props.fen);
 
   const movable = () => {
@@ -82,9 +61,6 @@ export default function DrillBoard(props: {
       turnColor: orientation(),
       draggable: { enabled: !props.locked },
       selectable: { enabled: !props.locked },
-      // The whole `movable` object is replaced on each set, so the `after` handler has to be
-      // included every time — passing only the destinations would drop it and the board would
-      // accept a move that reaches nobody.
       movable: movableConfig(),
     };
     board?.set(fen === painted ? config : { ...config, fen });

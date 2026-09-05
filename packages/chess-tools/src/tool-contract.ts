@@ -1,4 +1,3 @@
-/** Dependency-free application contract consumed by the MCP and browser hosts. */
 import { EXPLORER_RATING_BUCKETS, EXPLORER_SPEEDS } from "./explorer.js";
 import { assertDefined } from "./assert.js";
 import { STRATEGIC_FIT_PLAN_SECTION_KINDS } from "./strategic-fit/plan-synthesis.js";
@@ -51,7 +50,6 @@ export interface ToolContract {
     mcpInjects: readonly string[];
     resultDifference?: string;
   }>;
-  /** Canonical shared arguments. Host context fields may be optional in one adapter. */
   input?: ToolInput;
 }
 
@@ -328,12 +326,6 @@ const strategicFitProfile = object(
   },
   ["mode"],
 );
-/**
- * Interview-scoped preferences. Every field matches the canonical profile, but the bounds are
- * tighter than the analysis argument because a model authors these values without the user
- * watching a control move. Clearing an optional constraint back to "no limit" stays a Settings
- * action: this schema can propose a bound, not remove one.
- */
 const strategicFitIntentConceptId = () =>
   string(
     "Concept identity reported by the analysis, such as setup-family.castling.repertoire.kingside.",
@@ -363,12 +355,6 @@ const strategicFitIntentPreferences = object({
     "learning-concepts": number(0, 3),
   }),
 });
-/**
- * One section of a plan card for a retained exception. Free text is bounded, and every anchor list
- * addresses evidence the finding's own basis returned; the host refuses any identity or move that
- * basis does not contain, so this schema deliberately cannot express a position, line, or game of
- * the model's own.
- */
 const strategicFitPlanSection = object(
   {
     kind: { type: "string", enum: STRATEGIC_FIT_PLAN_SECTION_KINDS },
@@ -379,12 +365,6 @@ const strategicFitPlanSection = object(
   },
   ["kind", "text"],
 );
-/**
- * The bounds a redesign request may state. Every one names a metric the deterministic replacement
- * chain already measures, and there is deliberately nowhere in this schema to supply an evaluation,
- * a coverage figure, a legality claim, or a candidate line: the host reads all of those out of
- * retained evidence rather than accepting them as arguments.
- */
 const strategicFitPortfolioConstraints = object({
   maximum_engine_loss_cp: integer(0, 1000),
   minimum_expected_opponent_coverage: number(0, 1),
@@ -1394,8 +1374,6 @@ export function jsonSchemaForTool(name: string, host: ToolHost): Record<string, 
       ([key]) => !omitted.has(key),
     ),
   );
-  // Browser FEN/PGN/current-tree fields are context-injected; MCP Zod remains stricter where its
-  // transport requires them. Required entries absent from this host are removed mechanically.
   const required = (
     (host === "mcp"
       ? (contract.input.mcpRequired ?? contract.input.required)
@@ -1623,11 +1601,6 @@ function strategicFitPlanArgumentsError(value: Record<string, unknown>): string 
   return null;
 }
 
-/**
- * One call is exactly one of three steps: state the bounds, read the portfolio for confirmed
- * bounds, or select one of its options. Mixing them would let a single call both propose a
- * constraint and act on it, which is the confirmation this operation exists to require.
- */
 function strategicFitPortfolioArgumentsError(value: Record<string, unknown>): string | null {
   const constraints = value.constraints as Record<string, unknown> | undefined;
   const setId = value.constraint_set_id;

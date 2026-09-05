@@ -1,7 +1,3 @@
-/**
- * AnalysisPanel: the top-N engine lines for the current position, each tagged with its
- * repertoire fit (green/yellow/red) and your-side eval. Mirrors the board arrows.
- */
 import { For, Show } from "solid-js";
 import { analysisState, engineLines, reloadAnalysis, setEvalEnabled } from "../store/analysis";
 import { cloud } from "../store/cloud";

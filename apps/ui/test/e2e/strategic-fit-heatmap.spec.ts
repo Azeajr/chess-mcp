@@ -154,7 +154,6 @@ test("a repertoire without concept evidence shows an explicit unavailable heatma
   const dialog = await bootstrap(page, "1. e4 *", "heatmap-unavailable.pgn");
   const heatmap = dialog.locator(".concept-heatmap");
   await expect(heatmap).toHaveAttribute("data-heatmap-state", "unavailable");
-  // The section heading above the block already names the heatmap; the block states the condition.
   await expect(heatmap.locator("[data-heatmap-unavailable]")).toContainText(
     "Not available for this report",
   );

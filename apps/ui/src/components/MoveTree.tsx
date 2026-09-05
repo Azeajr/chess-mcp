@@ -1,7 +1,3 @@
-/**
- * Move list: mainline in sequence, variations indented (Lichess-style), recursive. The tree is
- * one page-level Tab stop; arrows move its roving active item without changing the board.
- */
 import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
 import type { Node as PgnNode, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
@@ -18,14 +14,6 @@ const pathKey = (path: Path) => (path.length ? path.join(",") : "root");
 const itemId = (path: Path) => `move-tree-item-${path.length ? path.join("-") : "root"}`;
 const groupId = (path: Path) => `move-tree-group-${path.length ? path.join("-") : "root"}`;
 
-/**
- * How deep into variations a move sits, which is what `aria-level` reports. Deliberately not the
- * path length: a PGN path grows one index per ply, so ply depth would make every mainline move its
- * own level and screen readers announce a level on every change — an announcement per arrow press
- * along the mainline, which is AG-3's "traversal produces speech floods" failure condition. Only a
- * non-zero index means a variation was entered, so counting those gives the mainline a single flat
- * level and matches what a repertoire user means by depth.
- */
 const variationLevel = (path: Path) => 1 + path.filter((index) => index >= 1).length;
 
 function moveLabel(san: string, ply: number, forceBlackDots: boolean): JSX.Element {
@@ -57,17 +45,10 @@ function moveAccessibleLabel(
 }
 
 export default function MoveTree() {
-  // Feature 3: per-branch collapse state, session-only (keyed by the parent's index path).
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
-  // Null means that the next Tab entry follows the board's current move.
   const [activePath, setActivePath] = createSignal<Path | null>(null);
   let treeElement: HTMLDivElement | undefined;
 
-  /**
-   * Where Tab enters the tree. The board's current move owns that slot, but the root has no
-   * rendered item: at the start position `currentPath()` is `[]`, which matches nothing, and the
-   * tree would have no tab stop at all. Fall back to the first move.
-   */
   const entryPath = (): Path => {
     const active = activePath();
     if (active !== null) return active;
@@ -111,7 +92,6 @@ export default function MoveTree() {
     );
   };
   const toggleGroup = (path: Path) => {
-    // Never hide either the board's current node or the roving focus target.
     if (currentInsideVariation(path) || activeInsideVariation(path)) return;
     const key = pathKey(path);
     setCollapsed((previous) => {
@@ -124,16 +104,11 @@ export default function MoveTree() {
 
   const activateMove = (path: Path, keepFocus = false) => {
     actions.goto(path);
-    focusLine(path); // Feature 2: drop a context marker into chat
-    // Navigating rebuilds every item, so the button that handled the activation is gone by the
-    // time the store settles. Without re-focusing, Enter drops focus to the body.
+    focusLine(path);
     if (keepFocus) focusItem(path);
     else setActivePath([...path]);
   };
 
-  // The line from the root to the current node, in plain sequence — the header strip so the user
-  // can read which moves got them here without tracing the tree. It stays pointer-accessible but
-  // has no independent page-level tab stop; the tree owns keyboard move navigation.
   const currentLine = createMemo(() => {
     const tree = currentTree();
     const current = currentPath();
@@ -172,7 +147,6 @@ export default function MoveTree() {
           ? [...parentPath, siblingIndex - 1]
           : path;
       case "ArrowRight":
-        // DV-2: prefer the first non-mainline reply; otherwise continue the mainline.
         if (node.children.length > 1) return [...path, 1];
         return node.children[0] ? [...path, 0] : path;
       case "ArrowLeft":
@@ -196,16 +170,12 @@ export default function MoveTree() {
       activateMove(active, true);
       return;
     }
-    // The collapse toggle is not a page-level Tab stop — a tree with one tab stop cannot also hand
-    // out one per branch — so the branch it controls needs a key inside the tree, or collapsing
-    // becomes pointer-only. Space, which no DV-2 arrow semantics claim, activates a leaf move.
     if (event.key === " ") {
       const branchPath = active.slice(0, -1);
       if (currentTree().nodeAt(branchPath).children.length > 1) {
         event.preventDefault();
         event.stopPropagation();
         toggleGroup(branchPath);
-        // Collapsing rebuilds the tree, so the focused item has to be re-established here too.
         focusItem(active);
         return;
       }
@@ -227,13 +197,6 @@ export default function MoveTree() {
     const previewed = previewedKeys();
     const collapsedSet = collapsed();
 
-    /**
-     * `position` is set only on variations, where "2 of 3" says something; a mainline move is not
-     * one of a set of alternatives and reporting "1 of 1" on every move is pure verbosity.
-     * `branch` is set only on the move that owns a variation group, and carries that group into
-     * `aria-expanded`/`aria-controls`/`aria-owns` — see the toggle below for why the state lives
-     * here rather than on the toggle itself.
-     */
     const moveButton = (
       node: ChildNode<PgnNodeData>,
       path: Path,
@@ -258,8 +221,6 @@ export default function MoveTree() {
         aria-setsize={position?.setsize}
         aria-expanded={branch ? branch.expanded : undefined}
         aria-controls={branch?.group}
-        // Reparents the variation group under this item in the accessibility tree. The group is a
-        // DOM sibling because the visual variation gutter sits beside the move label.
         aria-owns={branch?.group}
         tabIndex={isActive(path) ? 0 : -1}
         current={pathEq(path, current)}
@@ -273,8 +234,6 @@ export default function MoveTree() {
       </MoveTreeItem>
     );
 
-    // Render one line (a node's descendants): mainline inline, each sibling variation as an
-    // indented block. `blackDots` forces "N..." when a line starts on Black's move.
     const renderLine = (
       node: PgnNode<PgnNodeData>,
       basePath: Path,
@@ -289,10 +248,6 @@ export default function MoveTree() {
         if (main === undefined) break;
         const mainPath = [...path, 0];
 
-        // A branch point: ≥2 children. The separate control avoids a nested button and is not a
-        // page-level tab stop; ArrowRight gives keyboard users the agreed variation entry path.
-        // Resolved before the mainline move renders, because that move is the one that owns the
-        // group and has to carry its expanded state.
         const branch = cursor.children.length > 1;
         const branchPath = [...path];
         const isCollapsed =
@@ -394,10 +349,6 @@ export default function MoveTree() {
         <Show
           when={render().length}
           fallback={
-            /* An empty repertoire has exactly two ways forward and neither was offered here; the
-               panel stated the absence and stopped. Naming both, with the one that needs a file
-               picker as a real control, turns the largest empty surface on the screen into the
-               place the next action lives. */
             <div class="move-tree-empty">
               <p class="move-tree-empty-title">No moves yet</p>
               <p class="move-tree-empty-body">

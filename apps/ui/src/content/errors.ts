@@ -1,16 +1,13 @@
 export interface ErrorContent {
   readonly title: string;
   readonly cause?: string;
-  /** Stable discriminator for the card's recovery action, if the failure has one the user can act on. */
   readonly actionKey?: "retry" | "add-token";
-  /** Display label derived from the key at the call site; never matched against. */
   readonly action?: string;
 }
 
 export const ERROR_CONTENT = {
   invalid_arguments: { title: "Invalid command arguments" },
   invalid_fen: { title: "invalid fen" },
-  // WP-026 AC-4: retryable and token-gated failures carry their recovery action.
   engine_unavailable: {
     title: "Local engine unavailable",
     actionKey: "retry",

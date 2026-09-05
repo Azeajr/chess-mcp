@@ -50,7 +50,6 @@ export interface StrategicFitRequestSnapshot {
 interface StrategicFitLifecycleProgress {
   readonly done: number;
   readonly total?: number;
-  /** Canonical adapter message for the active/completed analysis phase. */
   readonly detail?: string;
 }
 
@@ -79,7 +78,6 @@ export interface StrategicFitCompletedResult {
   readonly request_snapshot: StrategicFitRequestSnapshot;
   readonly result: StrategicFitAnalysisResult;
   readonly completed_at: string;
-  /** Complete canonical finding identity snapshot, independent of the visible report page. */
   readonly findings_snapshot?: readonly StrategicFinding[];
   readonly reanalysis?: StrategicFitReanalysisSummary | null;
 }
@@ -319,10 +317,6 @@ function validFindingPage(
   return page;
 }
 
-/**
- * Lifecycle orchestration only. The injected command remains responsible for opening data,
- * profile/settings injection, Worker/cache use, projection, and its own final stale-result guard.
- */
 export function createStrategicFitLifecycleState(
   boundary: StrategicFitLifecycleBoundary,
 ): StrategicFitLifecycleState {
@@ -351,8 +345,6 @@ export function createStrategicFitLifecycleState(
     report: StrategicFitAnalysisResult,
     request: ActiveRequest,
   ): Promise<StrategicFinding[]> => {
-    // The browser contract always supplies canonical paging. Keeping lifecycle-only test/custom
-    // boundaries tolerant of a report shell preserves the orchestration boundary's narrow scope.
     const findingPage = (report as Partial<StrategicFitAnalysisResult>).finding_page;
     if (findingPage === undefined) return [];
     const reportFindings = report.findings as StrategicFinding[];
@@ -674,9 +666,6 @@ export function createStrategicFitLifecycleState(
       )
         return false;
 
-      // A review resolution changes analyzer settings but not the immutable evidence in the
-      // completed report. Task 6.4 owns the later affected-cohort reanalysis. Rebind only the
-      // settings snapshot here so the current evidence remains available for reversible review.
       const rebound: StrategicFitCompletedResult = {
         ...completed,
         request_snapshot: current,
@@ -832,7 +821,6 @@ export function scheduleStrategicFitReanalysis(request: StrategicFitReanalysisRe
   });
 }
 
-/** Install the current-document/settings watcher once from the App component's reactive owner. */
 export function startStrategicFitLifecycle(): void {
   if (lifecycleWatcherStarted) return;
   lifecycleWatcherStarted = true;
@@ -840,7 +828,6 @@ export function startStrategicFitLifecycle(): void {
     const current = currentBrowserSnapshot();
     const dataSourceIdentity = strategicFitDataSourceIdentity();
     const workspaceOpen = strategicFitWorkspaceOpen();
-    // Lifecycle state/progress writes must not retrigger graph/settings identity construction.
     untrack(() => {
       const previous = observedBrowserSnapshot;
       const previousDataSourceIdentity = observedBrowserDataSourceIdentity;
@@ -893,15 +880,6 @@ export function startStrategicFitLifecycle(): void {
   });
 }
 
-/**
- * WP-031: how much comparable evidence the completed report actually rests on.
- *
- * `"none"` means nothing was measured — no route reached the comparable-ply threshold, so every
- * finding is a statement about missing data rather than about the repertoire. `"limited"` means
- * some routes were comparable but preflight still degraded. `"full"` is an unqualified result.
- *
- * This is derived rather than stored so it cannot drift from the preflight payload it describes.
- */
 export type StrategicFitEvidenceState = "none" | "limited" | "full";
 
 export function evidenceStateFromPreflight(
@@ -918,7 +896,6 @@ export const strategicFitEvidenceState = (): StrategicFitEvidenceState | null =>
   return preflight ? evidenceStateFromPreflight(preflight) : null;
 };
 
-/** The comparable-ply threshold carried by a preflight payload, if one of its issues names it. */
 export function comparablePlyThresholdFromPreflight(
   preflight: StrategicFitPreflight,
 ): number | null {
@@ -929,10 +906,6 @@ export function comparablePlyThresholdFromPreflight(
   return null;
 }
 
-/**
- * The comparable-ply threshold as the analysis reported it. Read from the preflight issue payload
- * so the copy states the number the run actually used; null when no issue carries one.
- */
 export const strategicFitComparablePlyThreshold = (): number | null => {
   const lifecycle = browserLifecycle.snapshot();
   const preflight = lifecycle.current_result?.result.preflight;

@@ -1,17 +1,3 @@
-/**
- * Staged AI intent interview (Task 11.2).
- *
- * The assistant proposes structured profile preferences; the application shows the exact diff; the
- * user decides. A proposal is session-only state and never reaches document metadata, so an
- * unconfirmed inference behaves exactly like the existing provisional profile: visible, editable,
- * and never silently treated as fact.
- *
- * Acceptance deliberately owns no persistence of its own. It calls the Task 4.4 profile state, the
- * single writer for confirmed-versus-provisional intent, so there is no second path that could
- * bypass its explicit-intent rules. A proposal is bound to the document, revision, effective
- * profile, and analysis-settings identity it was computed against and fails closed when any of them
- * moved, because a diff the user is reading is only meaningful against the state it was drawn from.
- */
 import {
   StrategicFitIntentError,
   diffStrategicFitProfiles,
@@ -46,22 +32,14 @@ interface StrategicFitStagedProfileProposal {
   readonly settings_identity: string;
   readonly current_mode: StrategicFitProfileMode;
   readonly resulting_mode: StrategicFitProfileMode;
-  /** Exactly what acceptance will commit; recomputing it later could not be shown to the user. */
   readonly resulting_profile: StrategicFitProfile;
-  /** True when the proposal is a bare preset selection, which acceptance applies as that preset. */
   readonly preset_only: boolean;
-  /**
-   * True when the current profile is still the provisional inferred default. Accepting then also
-   * converts it into confirmed intent, which is a separate fact from any changed field and is kept
-   * out of the diff so an unchanged proposal is still recognized as changing nothing.
-   */
   readonly confirms_provisional_profile: boolean;
   readonly diff: readonly StrategicFitProfileDiffEntry[];
   readonly rationale: string | null;
   readonly created_at: string;
 }
 
-/** Model-facing result. It carries the handle and the diff, never a profile or settings identity. */
 export interface StrategicFitProfileProposalResult {
   readonly kind: "strategic_fit_profile_proposal";
   readonly proposal_id: string;
@@ -99,7 +77,6 @@ export interface StrategicFitIntentInterviewBoundary {
 export interface StrategicFitIntentInterviewState {
   proposals(): readonly StrategicFitStagedProfileProposal[];
   proposal(proposalId: string): StrategicFitStagedProfileProposal | undefined;
-  /** Throws `StrategicFitIntentError`; hosts map it to a structured result. */
   propose(input: StrategicFitIntentProposalInput): StrategicFitProfileProposalResult;
   accept(proposalId: string): StrategicFitProposalDecisionResult;
   reject(proposalId: string): StrategicFitProposalDecisionResult;
@@ -154,8 +131,6 @@ export function createStrategicFitIntentInterviewState(
     propose(input) {
       const patch = resolveStrategicFitIntentPatch(input);
       const current = boundary.currentProfile();
-      // A bare preset restores that preset's defaults; a preference edit on top of any mode becomes
-      // custom, matching what the settings form already does when the user saves a change.
       const presetOnly = patch.mode !== null && !patch.touches_preferences;
       const basePreferences =
         patch.mode === null
@@ -173,17 +148,9 @@ export function createStrategicFitIntentInterviewState(
               basePreferences,
             ),
           };
-      // resolveStrategicFitIntentPatch can reject a conflict when both lists occur in one patch,
-      // but a one-sided patch is merged with confirmed preferences here. Validate that effective
-      // result too, before computing a diff or staging anything: otherwise a later "avoid X" can
-      // coexist with the already-confirmed "prefer X", and replacement scoring gives avoidance
-      // precedence and silently forces intent fit to zero.
       assertConceptPreferencesDoNotConflict(resulting);
       const diff = diffStrategicFitProfiles(current, resulting);
       const confirmsProvisional = current.provisional || current.source === "inferred";
-      // A value-identical proposal against a still-provisional profile is not empty: accepting it
-      // converts the inferred default into explicit intent, which is exactly what the interview is
-      // for. Against a profile the user already confirmed, the same proposal asks for nothing.
       if (diff.length === 0 && !confirmsProvisional) {
         throw new StrategicFitIntentError(
           "strategic_fit_intent_no_change",
@@ -247,8 +214,6 @@ export function createStrategicFitIntentInterviewState(
       const result = proposal.preset_only
         ? boundary.selectProfile(proposal.resulting_mode)
         : boundary.updateCustom(proposal.resulting_profile.preferences);
-      // The profile state is the arbiter of whether a write happened. If it declined one, the
-      // proposal has not been applied and must not be reported to the user as accepted.
       if (result.state !== "updated") {
         update(proposalId, "stale");
         return {
@@ -295,7 +260,6 @@ export const acceptStrategicFitProfileProposal = (proposalId: string) =>
 export const rejectStrategicFitProfileProposal = (proposalId: string) =>
   browserIntentInterview.reject(proposalId);
 
-/** Browser command boundary: a validation failure becomes one structured, code-bearing result. */
 export function proposeStrategicFitProfile(
   input: StrategicFitIntentProposalInput,
 ): StrategicFitProfileProposalResult | { readonly error: string; readonly reason: string } {

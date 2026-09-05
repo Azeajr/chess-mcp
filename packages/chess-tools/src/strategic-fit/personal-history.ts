@@ -1,11 +1,3 @@
-/**
- * Optional personal-game frequency collection for Strategic Fit.
- *
- * Hosts fetch full PGNs through their existing platform adapters. This framework-free layer maps
- * each game onto the canonical repertoire graph, records departures without changing the graph,
- * and shrinks personal opponent-choice counts toward population probabilities. Network access and
- * credentials remain outside the deterministic analyzer.
- */
 import { positionKey } from "../congruence.js";
 import { mainline } from "../game.js";
 import type { GameMeta } from "../games.js";
@@ -15,7 +7,6 @@ import { STRATEGIC_FIT_ANALYSIS_MANIFEST } from "./version.js";
 import { assertDefined } from "../assert.js";
 import type { StrategicDecisionWeightInput, StrategicRouteWeightingOptions } from "./weights.js";
 
-/** Population-equivalent observations in the empirical-Bayes prior at each opponent decision. */
 export const STRATEGIC_PERSONAL_HISTORY_PRIOR_GAMES = 20;
 export const STRATEGIC_PERSONAL_HISTORY_DEFAULT_MAX_GAMES = 30;
 
@@ -43,7 +34,6 @@ export interface StrategicPersonalHistorySource {
 
 export interface StrategicPersonalHistoryCollectionOptions {
   readonly source: StrategicPersonalHistorySource;
-  /** Optional market weights collected by the host before personal-history mapping. */
   readonly population?: StrategicRouteWeightingOptions;
   readonly shouldCancel?: () => boolean;
 }
@@ -318,11 +308,6 @@ function emptyResult(
   };
 }
 
-/**
- * Map fetched PGNs to canonical decisions and create empirically shrunk opponent-choice weights.
- * A position contributes at most once per game, so repetitions cannot manufacture observations;
- * distinct move orders that transpose to the same canonical position aggregate naturally.
- */
 export function collectStrategicPersonalHistoryWeights(
   graph: RepertoireGraph,
   games: readonly GameMeta[] | null,

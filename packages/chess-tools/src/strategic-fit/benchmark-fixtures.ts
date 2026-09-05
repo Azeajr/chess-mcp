@@ -1,15 +1,3 @@
-/**
- * Task 12.4 — deterministic large-repertoire generators for the performance benchmark.
- *
- * A benchmark needs repertoires far larger than the behavioral fixtures, and a committed multi-
- * megabyte PGN would be an unreviewable blob. These generators produce the same tree byte for byte
- * on every machine and every run, so a recorded benchmark result can name the fixture it measured
- * by digest and two results are only ever compared when they measured the same tree.
- *
- * The generator observes analysis; it never participates in it. Nothing here is reachable from a
- * tool, and the trees it produces are ordinary legal repertoires that the analyzer treats exactly
- * as it treats a loaded PGN.
- */
 import { Chess } from "chessops/chess";
 import { makeSan } from "chessops/san";
 import type { Color } from "chessops/types";
@@ -20,11 +8,8 @@ import { assertDefined } from "../assert.js";
 export interface StrategicFitBenchmarkScale {
   readonly id: string;
   readonly description: string;
-  /** Upper bound on generated tree nodes; the tree stops growing the moment it is reached. */
   readonly target_nodes: number;
-  /** Deepest generated line in plies, so a scale is bounded in depth as well as in width. */
   readonly maximum_ply: number;
-  /** Opponent replies kept at each of their turns; the repertoire side always plays one move. */
   readonly replies: number;
   readonly repertoire_color: Color;
 }
@@ -33,12 +18,6 @@ function scale(value: StrategicFitBenchmarkScale): StrategicFitBenchmarkScale {
   return Object.freeze({ ...value });
 }
 
-/**
- * The gated scales are `small` and `standard`. `large` is defined at the plan's ten-thousand-node
- * size but is opt-in: a complete deterministic scan of that tree costs minutes rather than seconds
- * and does not fit in a default Node heap, which is a measurement worth taking deliberately rather
- * than on every focused verification run.
- */
 export const STRATEGIC_FIT_BENCHMARK_SCALES: readonly StrategicFitBenchmarkScale[] = Object.freeze([
   scale({
     id: "small",
@@ -76,14 +55,12 @@ export interface GeneratedStrategicFitRepertoire {
   readonly scale_id: string;
   readonly repertoire_color: Color;
   readonly pgn: string;
-  /** Content digest of `pgn`; a benchmark record names it so incomparable fixtures stay apart. */
   readonly digest: string;
   readonly nodes: number;
   readonly leaves: number;
   readonly max_depth: number;
 }
 
-/** FNV-1a over the generated PGN. It identifies a fixture; it is not a security primitive. */
 export function strategicFitFixtureDigest(value: string): string {
   let hash = 0xcbf29ce484222325n;
   for (let index = 0; index < value.length; index++) {
@@ -93,7 +70,6 @@ export function strategicFitFixtureDigest(value: string): string {
   return hash.toString(16).padStart(16, "0");
 }
 
-/** A seeded linear congruential sequence, so move selection is varied but fully reproducible. */
 function sequence(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
@@ -107,7 +83,6 @@ interface LegalReply {
   readonly after: Chess;
 }
 
-/** Legal replies in one canonical order, so the generated tree never depends on iteration order. */
 function sortedLegal(position: Chess): LegalReply[] {
   return enumerateLegal(position)
     .map(({ move, after }) => ({ san: makeSan(position, move), after }))
@@ -120,11 +95,6 @@ interface Frontier {
   readonly ply: number;
 }
 
-/**
- * Grow a repertoire-shaped tree breadth first: one move at each repertoire turn and a bounded fan
- * of replies at each opponent turn. Breadth-first growth keeps the tree balanced when the node
- * budget truncates it, so a scale's shape does not depend on where the budget happens to run out.
- */
 function grow(target: StrategicFitBenchmarkScale, seed: number): GameTree {
   const tree = new GameTree();
   const frontier: Frontier[] = [{ path: [], position: Chess.default(), ply: 0 }];
@@ -168,20 +138,12 @@ function describe(
 
 const BASE_SEED = 0x9e3779b9;
 
-/** Generate one scale's repertoire. Repeated calls produce byte-identical PGN. */
 export function generateStrategicFitBenchmarkRepertoire(
   target: StrategicFitBenchmarkScale,
 ): GeneratedStrategicFitRepertoire {
   return describe(target, grow(target, BASE_SEED));
 }
 
-/**
- * The deterministic local edit the incremental scenario measures: at the deepest opponent node that
- * can carry one, the last reply is dropped and a different legal reply is added in its place. That
- * is an ordinary repertoire edit — one branch leaves the tree and one enters it, every other route
- * keeps its identity, and the edit is deep enough that an incremental run's reuse is real reuse
- * rather than an artifact of the benchmark.
- */
 export function editStrategicFitBenchmarkRepertoire(
   target: StrategicFitBenchmarkScale,
   source: GeneratedStrategicFitRepertoire,
@@ -200,7 +162,6 @@ interface EditSite {
   readonly replacement: string;
 }
 
-/** Replace one opponent reply as deep in the tree as the fixture allows, in canonical order. */
 function replaceOneReply(target: StrategicFitBenchmarkScale, tree: GameTree): boolean {
   const frontier: Frontier[] = [{ path: [], position: Chess.default(), ply: 0 }];
   let cursor = 0;

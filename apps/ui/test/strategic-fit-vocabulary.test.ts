@@ -8,15 +8,6 @@ import {
   strategicFitTradeoffStatus,
 } from "../src/content/strategicFit";
 
-/**
- * WP-034 — the vocabulary sweep.
- *
- * Rendered-text assertions live in the browser suite; this file is the exhaustive source sweep,
- * because a retired primary label can hide in a component no e2e fixture happens to reach. It reads
- * the real source rather than a list of known files, so a new component cannot reintroduce the
- * vocabulary without failing here.
- */
-
 const uiSource = path.resolve(import.meta.dirname, "../src");
 
 function sourceFiles(dir: string): string[] {
@@ -27,7 +18,6 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/** JSX text and quoted UI strings, with comments and `data-`/type identifiers excluded. */
 function userFacingLines(file: string): { line: number; text: string }[] {
   const lines = readFileSync(file, "utf8").split("\n");
   const out: { line: number; text: string }[] = [];
@@ -58,10 +48,6 @@ function userFacingLines(file: string): { line: number; text: string }[] {
   return out;
 }
 
-/**
- * Identifiers, attribute keys, and payload field names legitimately keep the domain vocabulary;
- * only text a reader sees is in scope for AC-1..AC-3.
- */
 const MECHANICAL = [
   /data-[a-z-]*preflight/i,
   /data-[a-z-]*pareto/i,
@@ -79,20 +65,13 @@ const MECHANICAL = [
   /pareto_status|pareto\.|active_pareto|dominated_by/,
   /import .*(Preflight|Pareto)/,
   /"preflight"|'preflight'/,
-  // `"pareto-optimal"` and `"dominated"` are payload status values from the analysis contract, not
-  // labels; the UI maps them through strategicFitTradeoffStatus before rendering.
   /"pareto-optimal"|'pareto-optimal'/,
-  // Property access and JSX prop plumbing: `.preflight`, `preflight={...}`, `preflight ??`.
   /\.preflight\b/,
   /\bpreflight=\{/,
   /\bpreflight\s*(\?\?|!==|===)/,
   /\bconst preflight\b/,
 ];
 
-/**
- * Assistant- and MCP-facing prompt text keeps the workflow-contract vocabulary by PD-8: it is
- * consumed by the model and by MCP hosts, not rendered as a UI label.
- */
 const CONTRACT_VOCABULARY_FILES = ["llm/workflows.ts", "store/strategic-fit-portfolio.ts"];
 
 function isMechanical(text: string): boolean {
@@ -113,7 +92,6 @@ describe("WP-034 retired primary labels", () => {
       if (isContractVocabulary(file)) continue;
       for (const { line, text } of userFacingLines(file)) {
         if (!/pareto/i.test(text) || isMechanical(text)) continue;
-        // The expert pairing in the content module is the one sanctioned appearance.
         if (file.endsWith("content/strategicFit.ts") && /expert/i.test(text)) continue;
         offenders.push(`${path.relative(uiSource, file)}:${line} ${text.trim()}`);
       }
@@ -138,7 +116,6 @@ describe("WP-034 retired primary labels", () => {
     for (const file of files) {
       for (const { line, text } of userFacingLines(file)) {
         if (!/resolution proof|training exception|train the exception/i.test(text)) continue;
-        // Developer-facing throw sites are not UI labels.
         if (/throw new Error\(/.test(text)) continue;
         offenders.push(`${path.relative(uiSource, file)}:${line} ${text.trim()}`);
       }
@@ -168,7 +145,6 @@ describe("WP-034 definitions and shared help text", () => {
   });
 
   it("AC-4 marks every surface that mentions strategic distance with the definition", () => {
-    // A surface may only use the term if it also renders the definition element.
     const offenders: string[] = [];
     for (const file of sourceFiles(uiSource)) {
       const contents = readFileSync(file, "utf8");

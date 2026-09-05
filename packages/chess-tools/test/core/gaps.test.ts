@@ -9,11 +9,6 @@ test("SEVERITY_RANK orders the three severities so they can be compared numerica
   assert.ok(SEVERITY_RANK.medium < SEVERITY_RANK.high);
 });
 
-/**
- * First dimension: how much the uncovered move gives up against the opponent's best reply. All
- * scores are from the opponent's point of view, and `bestMoverCp` is held well above the edge caps
- * here so only the loss term is being measured.
- */
 test("gapSeverity grades by how close the uncovered move is to the opponent's best", () => {
   assert.equal(gapSeverity(200, 180), "high", "loses 20 — nearly as good as best");
   assert.equal(gapSeverity(200, 140), "medium", "loses 60");
@@ -27,10 +22,6 @@ test("gapSeverity puts its loss thresholds exactly at 30 and 80", () => {
   assert.equal(gapSeverity(200, 119), "low", "loss of 81 drops to low");
 });
 
-/**
- * Second dimension, the cap: a move the opponent barely benefits from is not a high-severity gap
- * however close to best it is. Below +25 for the opponent everything collapses to low.
- */
 test("gapSeverity caps everything at low when the opponent gains almost nothing", () => {
   assert.equal(gapSeverity(24, 24), "low", "zero loss, but the opponent stays level");
   assert.equal(gapSeverity(30, 24), "low");
@@ -50,7 +41,6 @@ test("gapSeverity puts its edge thresholds exactly at 25 and 60", () => {
   assert.equal(gapSeverity(59, 59), "medium", "+59 does not");
 });
 
-/** A move better than the engine's best still scores as no loss rather than a negative one. */
 test("gapSeverity treats a move that beats best as maximally close to best", () => {
   assert.equal(gapSeverity(100, 150), "high");
 });

@@ -537,7 +537,6 @@ test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixt
     repertoireRevision: `browser:${version()}`,
     openingTable: openings,
   });
-  // Both hosts project one page of the cached complete report and return its cursors with it.
   const equivalentPage = projectStrategicFitReport(
     completeStrategicFitReport(
       analyzeStrategicFit(currentTree(), strategicFitCompleteAnalysisOptions(equivalentOptions)),
@@ -673,7 +672,6 @@ test("browser annotation guidance validates pasted PGN only and keeps artifact t
 });
 
 test("actual chat requests transmit every canonical browser schema on natural, follow-up, and preset turns", async (t) => {
-  // The canonical contract owns the inventory; the assertion is completeness, not a fixed number.
   const canonicalBrowserSchemas = contractsForHost("browser").length;
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
@@ -1159,10 +1157,6 @@ test("history compaction preserves Strategic Fit identities, artifacts, actions,
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
 
-/**
- * Polls until `predicate` holds. Used instead of a fixed sleep so the cancellation assertions are
- * about controller wiring rather than about how fast the event loop happened to turn.
- */
 async function waitFor(predicate: () => boolean, attempts = 200): Promise<void> {
   for (let index = 0; index < attempts; index++) {
     if (predicate()) return;
@@ -1171,13 +1165,6 @@ async function waitFor(predicate: () => boolean, attempts = 200): Promise<void> 
   throw new Error("waitFor timed out");
 }
 
-/**
- * WP-027 AC-3/AC-4/AC-7: per-run cancellation is distinct from stopping the request.
- * A blocking executor holds each call open until the test releases it, so the assertions are about
- * the controller wiring rather than about timing. The regression this guards is the child
- * controller leaking: if a per-run cancel aborted the turn's signal, the second call would never
- * run and the turn would end early.
- */
 test("WP-027 cancelling one tool run leaves earlier runs intact and continues the turn", async () => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
@@ -1224,11 +1211,9 @@ test("WP-027 cancelling one tool run leaves earlier runs intact and continues th
   });
 
   const sending = chat.send("evaluate twice");
-  // Let the first call start, then complete it normally.
   await waitFor(() => started.length === 1);
   release.get("first")?.();
 
-  // Cancel the second run specifically — not the request.
   await waitFor(() => started.length === 2);
   const runningId = chat.toolRuns().find((run) => run.status === "running")?.id;
   assert.equal(runningId, "second");
@@ -1239,11 +1224,8 @@ test("WP-027 cancelling one tool run leaves earlier runs intact and continues th
   const runs = chat.toolRuns();
   const first = runs.find((run) => run.id === "first");
   const second = runs.find((run) => run.id === "second");
-  // AC-3: the cancelled run is cancelled; the earlier completed run is untouched.
   assert.equal(first?.status, "completed");
   assert.equal(second?.status, "cancelled");
-  // AC-3: the turn continued past the cancelled call rather than aborting — the transport was
-  // asked for a follow-up turn after both calls settled.
   assert.ok(turn >= 2, `expected the turn to continue, saw ${turn} transport calls`);
   assert.equal(chat.busy(), false);
 
@@ -1254,7 +1236,6 @@ test("WP-027 cancelling one tool run leaves earlier runs intact and continues th
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
 
-/** WP-027 AC-2: a later turn does not destroy the previous turn's run record. */
 test("WP-027 tool runs from an earlier turn survive the next turn", async () => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
@@ -1304,11 +1285,6 @@ test("WP-027 tool runs from an earlier turn survive the next turn", async () => 
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
 
-/**
- * F13: WP-027 AC-2 made runs durable across turns (the test above pins that), but durable and
- * unbounded are different things. Drive more runs than the cap through the real `send()` path and
- * assert the list stops growing, keeps the newest runs, and drops the oldest ones.
- */
 test("F13 retained tool runs are bounded and evict oldest-first", async () => {
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
@@ -1324,8 +1300,6 @@ test("F13 retained tool runs are bounded and evict oldest-first", async () => {
   settings.setApiKey("test-key");
   chat.clearChat();
 
-  // One turn per call keeps each turn's shape identical to the retention test above; the cap is a
-  // property of the accumulated list, not of any single turn.
   let call = 0;
   chat.setChatTransportForTesting(async (opts) => {
     const last = opts.messages.at(-1);
@@ -1373,7 +1347,6 @@ test("F13 retained tool runs are bounded and evict oldest-first", async () => {
   delete (globalThis as { localStorage?: unknown }).localStorage;
 });
 
-/** WP-027 AC-1: the chip's values are the prompt's values, by construction. */
 test("WP-027 the context chip block is the text the system prompt injects", async () => {
   const chat = await import("../src/store/chat.ts");
   const snapshot = chat.chatContextSnapshot();

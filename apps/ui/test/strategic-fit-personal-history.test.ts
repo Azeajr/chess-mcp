@@ -131,8 +131,6 @@ test("browser blends fetched Lichess PGNs with population weights before the Wor
         (route) => route.route_id === weighted.route_id && route.san_moves[1] === reply,
       ),
     )!.normalized_weight;
-  // The all-zero default preference vector means no source preference, so the independently
-  // normalized 90/10 market and 72/28 shrunk-personal estimates receive equal coefficients.
   assert.equal(byReply("e5"), 0.81);
   assert.equal(byReply("c5"), 0.19);
   assert.equal(

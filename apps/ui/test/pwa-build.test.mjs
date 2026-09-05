@@ -3,10 +3,6 @@ import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 
-/**
- * WP-019 AC-4: assertions over the output of the real production PWA build.
- * Run after `pnpm --filter @chess-mcp/ui build`; a missing build is a failure rather than a skip.
- */
 const dist = path.resolve(import.meta.dirname, "../dist");
 
 test("production manifest and referenced assets support the offline contract", async () => {

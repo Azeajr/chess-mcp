@@ -12,10 +12,6 @@ const SEMANTIC_KEYS = [
 const pointer = (base, key) => `${base}/${String(key).replaceAll("~", "~0").replaceAll("/", "~1")}`;
 const stable = (value) => JSON.stringify(value);
 
-/**
- * Recursively compare the executable subset of JSON Schema used by the canonical tool contract.
- * Transport-only prose (`description`, `title`, examples, and `$schema`) is deliberately ignored.
- */
 export function schemaSemanticDifferences(actual, expected, path = "$") {
   const differences = [];
   if (!actual || typeof actual !== "object" || Array.isArray(actual))

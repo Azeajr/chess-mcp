@@ -59,7 +59,6 @@ test("tablebaseLookup accepts every category the endpoint can return", async () 
   }
 });
 
-/** An unrecognised category must be narrowed to "unknown", never passed through untyped. */
 test("tablebaseLookup coerces an unrecognised category to unknown", async () => {
   const clock = withFakeClock();
   try {

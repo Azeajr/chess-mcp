@@ -31,7 +31,6 @@ await page.waitForTimeout(1000);
 await page.screenshot({ path: `${OUT}/30-strategic-fit-workspace.png`, fullPage: true });
 console.log("screenshotted workspace →", `${OUT}/30-strategic-fit-workspace.png`);
 
-// list visible stage tabs / nav inside the workspace
 const stageLabels = await page
   .locator('[aria-label="Strategic Fit stages"] *')
   .allInnerTexts()
@@ -50,7 +49,6 @@ if (await useBalanced.count()) {
     .catch(() => []);
   console.log("stage nav text (post-profile):", JSON.stringify(stageLabels2).slice(0, 800));
 
-  // try to find and click a "Run analysis" / "Analyze" style button
   const runBtn = page.getByRole("button", { name: /run|analyz|scan/i }).first();
   if (await runBtn.count()) {
     console.log("found run-ish button:", await runBtn.innerText());

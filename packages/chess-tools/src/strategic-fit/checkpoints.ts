@@ -1,12 +1,3 @@
-/**
- * Deterministic Strategic Fit checkpoint selection.
- *
- * Checkpoints are selected on the transposition-aware graph, but remain route-scoped because a
- * semantic position can occur at different moments in different move orders. Strategic milestone
- * events are aligned to the first position after a repertoire move that contains the event; fixed
- * ply horizons use the last such position at or before the requested horizon. Arbitrary editorial
- * endpoints are retained for navigation and evidence, but are never treated as matched endpoints.
- */
 import { Chess } from "chessops/chess";
 import { parseFen } from "chessops/fen";
 import { parseSquare, squareFile } from "chessops/util";
@@ -23,7 +14,6 @@ import { STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 import { assertDefined } from "../assert.js";
 
 export const DEFAULT_STRATEGIC_FIT_CHECKPOINT_PLIES = Object.freeze([12, 16, 20, 24] as const);
-/** A profile may replace the defaults, but cannot create an unbounded number of snapshots. */
 export const STRATEGIC_FIT_MAX_CONFIGURED_CHECKPOINTS = 16;
 
 export interface StrategicCheckpointSelectionOptions {
@@ -39,9 +29,7 @@ export interface MatchedStrategicCheckpoint {
   readonly position_id: string;
   readonly move_order_id: string;
   readonly decision_id: string;
-  /** Configured horizon, when this is a configured-ply checkpoint. */
   readonly requested_ply: number | null;
-  /** Ply at which the semantic event happened; selection may follow on the player's next move. */
   readonly event_ply: number;
 }
 
@@ -63,7 +51,6 @@ export type StrategicCheckpointMilestone =
 export interface StrategicRouteCheckpointSelection {
   readonly analysis_version: string;
   readonly route_id: string;
-  /** Frozen milestone order: opening, center, transformation, configured horizons, final. */
   readonly milestones: readonly StrategicCheckpointMilestone[];
 }
 
@@ -274,8 +261,6 @@ function firstCentralResolution(context: RouteContext): EventObservation | null 
   for (let ply = 1; ply < context.route.position_ids.length; ply++) {
     const facts = moveFacts(context, ply);
     const tensionResolved = facts.beforeCenter === "tense" && facts.afterCenter !== "tense";
-    // A routine opening pawn advance (for example 1.d4 d5) is not itself a resolution. A locked
-    // checkpoint is meaningful only after an observable central tension existed.
     const centerLocked = facts.beforeCenter === "tense" && facts.afterCenter === "locked";
     if (facts.centralPawnCapture || tensionResolved || centerLocked) {
       const san = assertDefined(context.route.san_moves[ply - 1]);
@@ -437,7 +422,6 @@ function selectForRoute(context: RouteContext): StrategicRouteCheckpointSelectio
   };
 }
 
-/** Select bounded, engine-free strategic milestones for every canonical repertoire route. */
 export function selectStrategicCheckpoints(
   graph: RepertoireGraph,
   options: StrategicCheckpointSelectionOptions = {},

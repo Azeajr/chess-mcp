@@ -1,9 +1,3 @@
-/**
- * Copy the browser Stockfish build into public/engine/ so Vite serves it at /engine/.
- * Runs on predev/prebuild. The single-threaded "lite" build needs no SharedArrayBuffer
- * (works without cross-origin isolation) and the wasm is ~7MB, not the 113MB full net.
- * The copied files are gitignored — regenerated from node_modules on install.
- */
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { mkdirSync, copyFileSync, existsSync } from "node:fs";
@@ -27,8 +21,6 @@ for (const f of FILES) {
   copyFileSync(src, dst);
 }
 
-// ECO openings table — the chat's identify_opening / congruence / batch_review parse it client-side.
-// Served as a static asset (fetched once at runtime), same file the Node server reads.
 const publicDir = join(here, "..", "public");
 const openingsSrc = join(here, "..", "..", "mcp-server", "data", "openings.tsv");
 if (existsSync(openingsSrc)) {

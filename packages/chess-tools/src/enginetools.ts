@@ -1,12 +1,3 @@
-/**
- * Engine-dependent orchestration shared by the Node MCP server and the browser PWA chat.
- *
- * Each function takes an injected `Analyse` callback so it is agnostic to where Stockfish runs
- * (Node `stockfish` wasm via engine.ts, or the browser Worker in apps/ui/src/engine/stockfish.ts).
- * The pure analysis (GameTree walking, structure classification, congruence) lives in the other
- * chess-tools modules; this layer adds the per-position engine searches and the result shaping
- * that the MCP tools return — so server and PWA produce identical output.
- */
 import { Chess } from "chessops/chess";
 import { parseFen, makeFen } from "chessops/fen";
 import { parseUci } from "chessops/util";
@@ -43,20 +34,16 @@ import { assertDefined } from "./assert.js";
 
 const MATE_CP = 100000;
 
-/** One engine line. Matches the Node engine's MultiLine and the (extended) browser one. */
 export interface EngineLine {
   uci: string;
   cp: number | null;
   mate: number | null;
   depth: number;
-  /** full principal variation, UCI moves. */
   pv: string[];
 }
 
-/** Injected engine: top-`multipv` lines for a FEN to `depth`, or null when unavailable. */
 export type Analyse = (fen: string, multipv: number, depth: number) => Promise<EngineLine[] | null>;
 
-/** Host-neutral controls for bounded multi-position operations. */
 export interface OperationControl {
   shouldCancel?: () => boolean;
   onProgress?: (done: number, total: number) => void;
@@ -97,19 +84,12 @@ async function mapBounded<T, R>(
 
 const chessFromFen = (fen: string) => Chess.fromSetup(parseFen(fen).unwrap()).unwrap();
 
-// Mate-sentinel NOTE: this file deliberately carries TWO magnitudes, and unifying them WOULD change tool
-// output (out of scope). The magnitude is therefore an explicit argument to whitePov, so each call site
-// states which it wants instead of hiding the choice in a hand-inlined copy (and a future sign fix can't
-// miss a stray copy): 100000 for internal decisive/severity math (analyze_game eval_cp, find_repertoire_gaps
-// severity, compare_moves mover_cp) vs 10000 for the published `eval`/`eval_cp` of suggest_* (via evalWhite).
 interface ScoreLine {
   cp: number | null;
   mate: number | null;
 }
-/** White-POV centipawns; a mate maps to ±mateCp (the caller picks the sentinel magnitude). */
 const whitePov = (l: ScoreLine, mateCp: number): number =>
   l.mate !== null ? (l.mate > 0 ? mateCp : -mateCp) : (l.cp ?? 0);
-/** whitePov flipped to the side to move (the mover). */
 const moverPov = (l: ScoreLine, moverIsWhite: boolean, mateCp: number): number =>
   (moverIsWhite ? 1 : -1) * whitePov(l, mateCp);
 const evalWhite = (l: ScoreLine) => whitePov(l, 10000);
@@ -125,23 +105,17 @@ const pvSan = (fen: string, pv: string[]): string => {
   return out.join(" ");
 };
 
-// --- game review (analyze_game / get_game_summary / export_annotated_pgn / batch_review) ---
-
 export interface MoveRecord {
   ply: number;
   color: Color;
   san: string;
   cp_loss: number;
   classification: MoveClass;
-  /** white-POV eval after the played move. */
   eval_cp: number;
-  /** best move at the position (SAN). */
   best_move: string;
-  /** white-POV eval of best play before the move. */
   best_eval: number;
 }
 
-/** One engine eval per mainline position (N+1 for N moves); cp_loss from consecutive white evals. */
 export async function analyzeMainline(
   pgn: string,
   depth: number,
@@ -156,14 +130,10 @@ export async function analyzeMainline(
   const scheduled = await mapBounded(fens, (fen) => analyse(fen, 1, depth), control);
   if (scheduled.cancelled) return null;
   const results = scheduled.results;
-  if (results.some((r) => r === null)) return null; // engine genuinely unavailable
+  if (results.some((r) => r === null)) return null;
   const evals = results.map((res, i) => {
     const l = assertDefined(res)[0];
     if (!l) {
-      // No lines ⇒ a terminal position (no legal moves); the engine returns []. This is only ever the
-      // final fenAfter, consumed as an `after` eval (its bestUci is never read). Checkmate ⇒ the side
-      // to move is mated (white-POV ∓MATE_CP); stalemate / insufficient material ⇒ a draw (0). Treating
-      // [] as engine_unavailable (the old bug) aborted the review of every game ending in mate.
       const pos = chessFromFen(assertDefined(fens[i]));
       return {
         whiteCp: pos.isCheckmate() ? (pos.turn === "white" ? -MATE_CP : MATE_CP) : 0,
@@ -173,9 +143,6 @@ export async function analyzeMainline(
     return { whiteCp: whitePov(l, MATE_CP), bestUci: l.uci };
   });
 
-  // A before-position always has a legal move (the game played one from it), so its bestUci is only
-  // empty if the engine misbehaved — report that as engine trouble, not the invalid_pgn the caller's
-  // catch would have labeled the moveSan("") throw as.
   if (moves.some((_, k) => assertDefined(evals[k]).bestUci === "")) return null;
 
   return moves.map((m, k) => {
@@ -197,42 +164,25 @@ export async function analyzeMainline(
   });
 }
 
-// --- find_repertoire_gaps (engine scan over decision nodes) ---
-
 export interface GapsOptions {
   depth?: number;
   minSeverity?: Severity;
   maxPositions?: number;
   limit?: number;
-  /**
-   * Optional explorer lookup (T2). When set, the surviving gaps are annotated with how often the
-   * uncovered move is actually played and re-ranked by frequency WITHIN each severity tier —
-   * severity stays the primary signal (an uncovered near-refutation matters even when rare);
-   * frequency breaks ties toward the holes actually faced. Explorer failure degrades the
-   * annotation to null, never the scan.
-   */
   popularity?: ExplorerLookup;
-  /** Called once with done=0 before the scan, then as each decision-node search completes
-   *  (completion order — the searches run concurrently). */
   onProgress?: (done: number, total: number) => void;
-  /** Cooperative cancel, checked around each node's search; a cancelled scan returns
-   *  `{ cancelled: true }`. In-flight searches still finish (they land in the eval cache). */
   shouldCancel?: () => boolean;
-  /** Maximum concurrently scheduled positions. Default 4; cancellation stops further scheduling. */
   concurrency?: number;
 }
 export interface Gap {
   path: Path;
-  /** Host-neutral SAN path to the decision node, suitable for follow-up tools. */
   san_path: string[];
   fen: string;
   uncovered_move: string;
   eval: number | null;
   mate: number | null;
   severity: Severity;
-  /** % of explorer games at this position playing the uncovered move (only when popularity requested; null on explorer miss). */
   played_pct?: number | null;
-  /** explorer game count for the uncovered move (same conditions). */
   played_games?: number | null;
 }
 export interface CoveredGap {
@@ -240,7 +190,6 @@ export interface CoveredGap {
   san_path: string[];
   fen: string;
   uncovered_move: string;
-  /** the prepared line this reply transposes into (shallowest SAN path). */
   joins_path: string[];
 }
 export type GapsResult =
@@ -251,7 +200,6 @@ export type GapsResult =
       positions_scanned: number;
       total_gaps: number;
       gaps: Gap[];
-      /** strong replies that look uncovered but transpose into prep — false gaps, not counted. */
       covered_by_transposition: CoveredGap[];
     };
 
@@ -277,9 +225,6 @@ export async function findRepertoireGaps(
       for (const l of res) {
         const san = moveSan(node.fen, l.uci);
         if (node.covered.includes(san)) continue;
-        // Transposition-first: a strong uncovered reply that walks into prep on a DIFFERENT line is
-        // not a real gap. Record it as covered-by-transposition instead of inflating the gap list —
-        // engine-free, on results the scan already computed.
         const after = Chess.fromSetup(parseFen(node.fen).unwrap()).unwrap();
         after.play(assertDefined(parseUci(l.uci)));
         const tgt = landsInCrossBranchPrep(keyMap, after, node.path);
@@ -318,8 +263,6 @@ export async function findRepertoireGaps(
     .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
     .slice(0, opts.limit ?? 10);
   if (opts.popularity && gaps.length) {
-    // One request per unique decision node (several gaps can share one), post-limit only —
-    // request budget ≤ limit at 1 req/s. The lookup caches, so transposition re-hits are free.
     const popularityLookup = opts.popularity;
     const fens = [...new Set(gaps.map((g) => g.fen))];
     const popularity = await mapBounded(
@@ -334,7 +277,6 @@ export async function findRepertoireGaps(
     const byFen = new Map(popularity.results);
     for (const g of gaps) {
       const pos = byFen.get(g.fen);
-      // A move absent from the explorer's top-moves list is (approximately) never played there.
       const m = pos?.moves.find((x) => x.san === g.uncovered_move);
       g.played_pct = pos ? (m?.played_pct ?? 0) : null;
       g.played_games = pos ? (m?.games ?? 0) : null;
@@ -354,29 +296,21 @@ export async function findRepertoireGaps(
   };
 }
 
-// --- audit_repertoire_moves (engine-check the user's own prescribed moves, tree-wide) ---
-
 export interface AuditOptions extends OperationControl {
   depth?: number;
-  /** Report findings with cp_loss >= this (default 50). */
   minCpLoss?: number;
   maxPositions?: number;
   limit?: number;
 }
 export interface AuditFinding {
-  /** SAN path from the root to the position (before the prescribed move). */
   path: string[];
   fen: string;
-  /** Your repertoire move here (canonical SAN). */
   prescribed: string;
-  /** Mover-POV cp (MATE_CP sentinel — same magnitude as the severity math). */
   prescribed_eval: number;
   best_move: string;
   best_eval: number;
-  /** best_eval - prescribed_eval, floored at 0. */
   cp_loss: number;
   classification: MoveClass;
-  /** best - second from the multipv-2 search (only-move signal); null when only one legal move. */
   best_margin: number | null;
 }
 export type AuditResult =
@@ -384,12 +318,6 @@ export type AuditResult =
   | { cancelled: true }
   | { color: Color; positions_scanned: number; moves_audited: number; findings: AuditFinding[] };
 
-/**
- * Walk every your-turn node (transposition-deduped, shallowest first), multipv-2 search, and rank
- * the prescribed moves by cp_loss vs the engine's best — "which of my repertoire moves are bad".
- * A prescribed move inside the multipv lines is scored directly; otherwise one extra single-PV
- * search of the position after it (the same 1-ply-offset comparison analyzeMainline makes).
- */
 export async function auditRepertoireMoves(
   tree: GameTree,
   color: Color,
@@ -406,7 +334,7 @@ export async function auditRepertoireMoves(
       if (res === null) return null;
       const findings: AuditFinding[] = [];
       let audited = 0;
-      if (!res.length) return { findings, audited }; // unreachable: the node has a stored child, so a legal move exists
+      if (!res.length) return { findings, audited };
       const moverIsWhite = node.fen.split(" ")[1] === "w";
       const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
       const first = assertDefined(res[0]);
@@ -417,7 +345,7 @@ export async function auditRepertoireMoves(
       for (const raw of node.covered) {
         const pos = chessFromFen(node.fen);
         const mv = parseSan(pos, raw);
-        if (!mv) continue; // tree moves are replay-verified at load; unreachable
+        if (!mv) continue;
         const prescribed = makeSan(pos, mv);
         audited++;
         const hit = bySan.get(prescribed);
@@ -429,8 +357,6 @@ export async function auditRepertoireMoves(
           const r = await analyse(makeFen(pos.toSetup()), 1, depth);
           if (r === null) return null;
           const l = r[0];
-          // [] ⇒ the prescribed move ENDS the game (same terminal contract as compareMoves):
-          // mate delivered is decisive for the mover; stalemate / insufficient material is a draw.
           prescribedCp = l
             ? -moverPov(l, pos.turn === "white", MATE_CP)
             : pos.isCheckmate()
@@ -469,26 +395,18 @@ export async function auditRepertoireMoves(
   };
 }
 
-// --- find_only_moves (criticality tagging + spaced-repetition drill deck) ---
-
 export interface OnlyMoveOptions extends OperationControl {
   depth?: number;
-  /** Tag positions where best − second ≥ this (default 100 — misremembering costs a "mistake"). */
   minMargin?: number;
   maxPositions?: number;
   linesLimit?: number;
 }
 export interface OnlyMoveFinding {
-  /** SAN path from the root to the position (before your move). */
   path: string[];
   fen: string;
-  /** Your repertoire move(s) here (canonical SAN) — the drill answer. */
   prescribed: string[];
   best_move: string;
-  /** false ⇒ compounded problem: an only-move position where the tree prescribes a non-best
-   *  move — fix via audit_repertoire_moves before drilling. */
   prescribed_is_best: boolean;
-  /** best − second, mover POV (MATE_CP sentinel when a mate line is involved). */
   margin: number;
   best_eval: number;
 }
@@ -496,7 +414,6 @@ export interface OnlyMoveLine {
   line: string[];
   critical: number;
   your_moves: number;
-  /** critical / your_moves, 2 dp — "sharpest lines to drill". */
   density: number;
 }
 export type OnlyMoveResult =
@@ -510,15 +427,6 @@ export type OnlyMoveResult =
       lines: OnlyMoveLine[];
     };
 
-/**
- * Tag your-turn positions where the engine's best move stands alone (best − second ≥ minMargin):
- * the "only move" positions where misremembering the repertoire is punished. Same walker and
- * multipv-2 search as auditRepertoireMoves but the opposite filter — the audit surfaces bad
- * prescriptions (cp_loss), this surfaces sharp positions regardless of prescription quality
- * (the healthy cp_loss-0 case never clears the audit's filter). `lines` ranks leaf lines by
- * tagged-position density, transposition-aware: a tagged node reached by two move orders counts
- * in both lines (it must be recalled in both).
- */
 export async function findOnlyMoves(
   tree: GameTree,
   color: Color,
@@ -534,7 +442,6 @@ export async function findOnlyMoves(
       const res = await analyse(node.fen, 2, depth);
       if (res === null) return null;
       const key = positionKey(node.fen);
-      // < 2 lines ⇒ a single legal move — literally forced, nothing to drill.
       if (res.length < 2) return { key, finding: null };
       const moverIsWhite = node.fen.split(" ")[1] === "w";
       const mcp = (l: EngineLine) => moverPov(l, moverIsWhite, MATE_CP);
@@ -545,7 +452,7 @@ export async function findOnlyMoves(
       const pos = chessFromFen(node.fen);
       const prescribed = node.covered.map((raw) => {
         const mv = parseSan(pos, raw);
-        return mv ? makeSan(pos, mv) : raw; // tree moves are replay-verified at load; fallback unreachable
+        return mv ? makeSan(pos, mv) : raw;
       });
       const best_move = moveSan(node.fen, first.uci);
       const finding: OnlyMoveFinding = {
@@ -572,8 +479,6 @@ export async function findOnlyMoves(
     .filter((f): f is OnlyMoveFinding => f !== null)
     .sort((a, b) => b.margin - a.margin);
 
-  // Line density: replay each leaf line counting your-turn decision positions (scanned only —
-  // a maxPositions cut must not deflate the denominator) and how many are tagged.
   const lines: OnlyMoveLine[] = [];
   for (const leaf of tree.leaves()) {
     const pos = Chess.default();
@@ -588,7 +493,7 @@ export async function findOnlyMoves(
         }
       }
       const mv = parseSan(pos, san);
-      if (!mv) break; // replay-verified at load; unreachable
+      if (!mv) break;
       pos.play(mv);
     }
     if (critical)
@@ -611,15 +516,9 @@ export async function findOnlyMoves(
 }
 
 const csvField = (s: string): string => (/[",\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s);
-/** "1.d4 d5 2.c4" — sanPath always starts at the root, so numbering is positional. */
 const numberedSan = (path: string[]): string =>
   path.map((san, i) => (i % 2 === 0 ? `${i / 2 + 1}.${san}` : san)).join(" ");
 
-/**
- * Serialize tagged only-move positions as a flashcard CSV (header row, RFC-4180 quoting):
- * front = numbered SAN path + side to move, back = prescribed move(s) + margin note, plus a fen
- * column for board-rendering card templates. Anki's importer maps the columns directly.
- */
 export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): string {
   const side = color === "white" ? "White" : "Black";
   const rows = findings.map((f) => {
@@ -634,22 +533,14 @@ export function onlyMoveDeckCsv(color: Color, findings: OnlyMoveFinding[]): stri
   return ["front,back,fen,margin", ...rows].join("\n") + "\n";
 }
 
-// --- export_annotated_repertoire (T6: analysis findings as portable PGN comments/NAGs) ---
-
 export type AnnotateSource = "audit" | "only_moves" | "gaps" | "congruence";
 export interface AnnotateOptions extends OperationControl {
-  /** Which analyses to embed (default: all four). */
   include?: AnnotateSource[];
-  /** Host-owned immutable revision disclosed to and checked against Strategic Fit evidence. */
   repertoireRevision: string;
   depth?: number;
-  /** Per-scan position cap; unset = each tool's own default (audit/gaps 20, only-moves 300). */
   maxPositions?: number;
-  /** audit filter (default 50). */
   minCpLoss?: number;
-  /** only-move filter (default 100). */
   minMargin?: number;
-  /** Gap severity filter (default medium); retained as a public compatibility input. */
   minSeverity?: Severity;
 }
 export type AnnotateResult =
@@ -658,27 +549,12 @@ export type AnnotateResult =
   | { cancelled: true }
   | { color: Color; pgn: string; annotated: Record<AnnotateSource, number> };
 
-/**
- * Hosts inject their canonical Strategic Fit execution boundary: the browser uses its Worker and
- * report cache, while MCP uses the handle cache and in-process analyzer. Direct domain callers may
- * omit this callback; congruence annotation is then skipped without pulling the heavy analyzer
- * into a host's execution bundle.
- */
 export type StrategicFitAnnotationReport = (
   control: OperationControl,
 ) => StrategicFitReport | Promise<StrategicFitReport>;
 
-// Same glyph mapping as export_annotated_pgn: $4 = blunder (??), $2 = mistake (?), $6 = dubious (?!).
 const ANNOTATE_NAG: Record<string, number> = { blunder: 4, mistake: 2, inaccuracy: 6 };
 
-/**
- * Run the selected repertoire analyses and embed every finding as a PGN comment (plus a NAG for
- * audit findings) at the flagged node of a CLONED tree — the findings become portable to any
- * board GUI instead of living only in tool JSON. The scans run on the source tree; the audit and
- * only-move scans share the same turnNodes walk + multipv-2 searches, so the eval cache collapses
- * the overlap. In-context truncation limits are the interactive tools' concern — the export
- * annotates the FULL finding sets (bounded by maxPositions, which caps the engine work).
- */
 export async function annotateRepertoire(
   tree: GameTree,
   color: Color,
@@ -748,7 +624,7 @@ export async function annotateRepertoire(
     if ("cancelled" in res) return res;
     for (const f of res.findings) {
       const d = childData([...f.path, f.prescribed]);
-      if (!d) continue; // findings come from this tree; unreachable
+      if (!d) continue;
       addNag(d, ANNOTATE_NAG[f.classification] ?? 6);
       const loss = f.cp_loss >= MATE_CP / 2 ? "decisively" : `${f.cp_loss}cp`;
       comment(
@@ -810,8 +686,6 @@ export async function annotateRepertoire(
     if ("error" in res) return res;
     if ("cancelled" in res) return res;
     for (const g of res.gaps) {
-      // Gap.path is the index path to the position OWED the reply; an empty path = the root
-      // (a Black repertoire's uncovered first move) → the game-level comment.
       const text = `gap: ${g.uncovered_move} not covered (severity ${g.severity})`;
       if (g.path.length === 0) (clone.game.comments ??= []).push(text);
       else comment((clone.nodeAt(g.path) as ChildNode<PgnNodeData>).data, text);
@@ -859,11 +733,6 @@ export async function annotateRepertoire(
   return { color, pgn: clone.toPgn(), annotated };
 }
 
-// --- shorten suggestion vetting (shared by the MCP tools and the PWA Shorten UI) ---
-
-/** C3 — quality of a shortcut: the line you'd ADOPT (transpose into joinsPath) vs the one you'd
- *  ABANDON (stay on linePath past atPly), on eval (at the fork) + structural fit (subtree distribution
- *  vs the repertoire aggregate). Recommends eval unless |evalDelta| ≤ tiebreak, then fit. */
 export interface ShortcutComparison {
   recommend: "stay" | "transpose";
   basis: "eval" | "fit" | "fit_eval_unavailable";
@@ -901,7 +770,6 @@ export async function compareShortcutLines(
   const yourEval = async (fen: string): Promise<number | null> => {
     const r = await analyse(fen, 1, opts.depth ?? 20);
     if (!r?.length) return null;
-    // After your move the side to move is the OPPONENT; moverPov gives their POV, so negate to yours.
     return -moverPov(assertDefined(r[0]), fen.split(" ")[1] === "w", MATE_CP);
   };
   const evalStay = await yourEval(stayFen);
@@ -909,9 +777,6 @@ export async function compareShortcutLines(
   const evalDelta = evalStay != null && evalTranspose != null ? evalStay - evalTranspose : null;
 
   const r2 = (x: number) => Math.round(x * 100) / 100;
-  // Blended structural fit (named structure + center + themes) — robust to unclassified positions, the
-  // same signal gap-fill uses. A branch's fit = mean fitScore over its leaf boards; unknownShare (the
-  // named-structure-unclassified share) stays informational but no longer forces the fit to 0.
   const profile = buildFitProfile(
     tree.leafPositions().map((p) => p.board),
     color,
@@ -957,8 +822,6 @@ export async function compareShortcutLines(
   };
 }
 
-/** C4 — coverage safety: prune the line's tail (linePath truncated to atPly+1) on a COPY, re-run the
- *  gap scan, and return gaps present after but not before (replies the pruned tail had been covering). */
 export interface ShortcutCoverage {
   prunes: string[];
   introduces_gap: boolean;
@@ -992,8 +855,6 @@ export async function checkShortcutCoverage(
     shouldCancel: opts.shouldCancel,
     concurrency: opts.concurrency,
   };
-  // Both scans in parallel (P1) — they share most positions, so the cache/in-flight dedupe
-  // collapses the overlap either way.
   const [before, after] = await Promise.all([
     findRepertoireGaps(tree, color, gapsOpts, analyse),
     findRepertoireGaps(edited.tree, color, gapsOpts, analyse),
@@ -1013,15 +874,10 @@ export async function checkShortcutCoverage(
   };
 }
 
-// --- resolve_dangling_stubs (engine-vetted: does a dangling stub rejoin prep?) ---
-
 export interface StubResolution {
-  /** SAN path to the dangling leaf (your-turn, owed a continuation). */
   path: string[];
   ply: number;
-  /** Engine-best SAN sequence that bridges the stub back into prep (present only when it does). */
   connects_via?: string[];
-  /** Prep line the bridge rejoins. */
   joins_path?: string[];
   joins_ply?: number;
 }
@@ -1033,12 +889,6 @@ const STUB_MAX_DEPTH = 4;
 const STUB_NODE_BUDGET = 40;
 const STUB_CP_THRESHOLD = 50;
 
-/**
- * For each dangling stub (your-turn leaf owed a move), check whether the color's engine-best moves
- * bridge it back into existing prep within a few plies (GameTree.extendedBridges). The dangling set
- * IS extendedBridges' frontier set, so they match by departure path. This is frontier_link / stub
- * resolution for the MCP + chat surfaces. Engine injected (chess-tools stays engine-free).
- */
 export async function resolveDanglingStubs(
   tree: GameTree,
   color: Color,
@@ -1079,12 +929,9 @@ export async function resolveDanglingStubs(
     },
     pickMoves,
   );
-  // pickMoves runs as extendedBridges' callback, not a direct call in this scope, so TS's control-flow
-  // analysis can't see the mutation and narrows engineOk to `true` here even though it's genuinely mutable.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!engineOk) return { error: "engine_unavailable" };
 
-  // extendedBridges ranks best-first; keep the first (best) extension per departure path.
   const byPath = new Map<string, (typeof ext)[number]>();
   for (const e of ext) {
     const k = e.fromPath.join(" ");
@@ -1107,8 +954,6 @@ export async function resolveDanglingStubs(
   return { resolved, dangling: out };
 }
 
-// --- compare_moves (rank caller-supplied SANs by engine, mover POV) ---
-
 export async function compareMoves(
   fen: string,
   moves: string[],
@@ -1126,10 +971,6 @@ export async function compareMoves(
       if (res === null) return { san: chk.canonical[0], error: "engine_unavailable" };
       const line = res[0];
       if (!line) {
-        // The move ENDS the game: finalFen is terminal (no legal replies), so the engine returns [] (not
-        // null). Distinguishing that from engine-unavailable (null) is the fix — otherwise a mating candidate
-        // was reported engine_unavailable (the same class as the analyzeMainline terminal bug). Checkmate ⇒
-        // this move wins for the mover (decisive +MATE_CP); stalemate / insufficient material ⇒ a draw (0).
         const moverWins = chessFromFen(chk.finalFen).isCheckmate();
         return {
           san: chk.canonical[0],
@@ -1155,13 +996,10 @@ export async function compareMoves(
       ((b.mover_cp as number | undefined) ?? -Infinity) -
       ((a.mover_cp as number | undefined) ?? -Infinity),
   );
-  // Rank only the scored candidates — a rank on an illegal/engine-error row reads as a real placement.
   let rank = 0;
   for (const o of out) if (o.mover_cp !== undefined) o.rank = ++rank;
   return { fen, candidates: out, ...(scheduled.cancelled ? { cancelled: true as const } : {}) };
 }
-
-// --- suggest_complementary_lines (engine + structure ranking from an anchor FEN) ---
 
 export interface SuggestComplementaryOptions {
   mode?: "low_memorization" | "sharp";
@@ -1202,8 +1040,8 @@ export async function suggestComplementaryLines(
   if (!res) return { error: "engine_unavailable" };
   const best = res.length ? moverCp(assertDefined(res[0])) : 0;
   const leafBoards = tree.leafPositions().map((p) => p.board);
-  const profile = buildFitProfile(leafBoards, color); // low_memorization: blended structural fit
-  const shares = profileStructureShares(leafBoards); // sharp: structure novelty (not a fit axis)
+  const profile = buildFitProfile(leafBoards, color);
+  const shares = profileStructureShares(leafBoards);
 
   const ranked: { entry: Record<string, unknown>; mcp: number }[] = [];
   for (const l of res) {
@@ -1251,23 +1089,17 @@ export async function suggestComplementaryLines(
   return result;
 }
 
-// --- suggest_gap_fills (opinionated best-eval / best-fit gap completion) ---
-
 export interface GapFillOption {
   kind: "best_eval" | "best_fit";
   reply: string;
-  /** Complete SAN line from the gap node: uncovered opponent move, reply, then engine tail. */
   line: string[];
-  /** Repertoire-side POV centipawns after the reply. */
   eval_cp: number;
-  /** Mean structural fit across the complete proposed line, 0..1. */
   fit: number;
 }
 
 export interface SuggestGapFillsOptions {
   depth?: number;
   limit?: number;
-  /** Override the repertoire-median target depth, primarily for bounded clients/tests. */
   target_plies?: number;
 }
 
@@ -1322,7 +1154,6 @@ async function buildGapFillLine(
   pos.play(move);
   const tail = await gapFillTail(makeFen(pos.toSetup()), pliesToAdd - 2, depth, analyse);
   const line = [uncoveredMove, reply, ...tail].slice(0, Math.max(2, pliesToAdd));
-  // The uncovered move is the opponent's, so an even-length line ends on the repertoire side.
   if (line.length % 2 === 1) line.pop();
   return line;
 }
@@ -1346,7 +1177,6 @@ function gapFillFit(
   return count ? Math.round((sum / count) * 100) / 100 : 0;
 }
 
-/** Return the same two actionable gap-fill choices for browser and MCP hosts. */
 export async function suggestGapFills(
   tree: GameTree,
   color: Color,

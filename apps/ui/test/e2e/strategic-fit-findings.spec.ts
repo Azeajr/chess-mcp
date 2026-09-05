@@ -705,11 +705,6 @@ const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: 
     { source: fn.toString(), arg },
   );
 
-/**
- * The workspace shows one stage at a time at every width, so a spec has to be on the stage whose
- * pane it inspects — the same click a reader makes. It lands on Overview after an analysis; this
- * file is almost entirely about the finding queue, so `stage` defaults to "findings".
- */
 async function showStage(
   dialog: ReturnType<Page["getByRole"]>,
   stage: "overview" | "findings" | "evidence" | "resolution",
@@ -822,17 +817,12 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await expect(expert).toContainText("core:fixture");
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 
-  // Selecting a finding advances to the Evidence stage, so come back to the queue before driving
-  // it from the keyboard — arrow keys move the selection without leaving the queue, which is the
-  // contract the next few assertions cover.
   await showStage(page, "findings");
   await first.locator("[data-finding-select]").focus();
   await page.keyboard.press("ArrowDown");
   const secondSelect = queue.locator("[data-finding-id='finding:02'] [data-finding-select]");
   await expect(secondSelect).toBeFocused();
   await expect(secondSelect).toHaveAttribute("aria-pressed", "true");
-  // No stage switch here: clicking the stage strip would move focus off the queue, and the Enter
-  // below has to land on the finding that ArrowDown selected.
   await expect(queue.locator("[data-finding-id='finding:02']")).toHaveAttribute(
     "data-finding-selected",
     "true",
@@ -909,7 +899,6 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await showStage(page, "findings");
   await first.locator("[data-finding-select]").click();
 
-  // Selecting a finding lands on Evidence; recording a decision is the stage after it.
   await showStage(page, "resolution");
   const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
   await expect(actions).toBeVisible();
@@ -931,7 +920,6 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await expect(
     dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"),
   ).toHaveText("2");
-  // The overview's drill-in lives on the Overview stage, and taking it moves to the queue.
   await showStage(page, "overview");
   await dialog.getByRole("button", { name: "Review unresolved findings" }).click();
   await showStage(page, "findings");
@@ -1564,7 +1552,6 @@ test("Black repertoire evidence labels every engine value from the repertoire po
 test("overview intents filter only the current report queue and can return to all findings", async ({
   page,
 }) => {
-  // The overview's drill-in lives on the Overview stage, and taking it moves to the queue.
   const { dialog, before } = await bootstrap(page, "white", false, "overview");
   await dialog.getByRole("button", { name: "Review opponent-forced findings" }).click();
 
@@ -1817,14 +1804,9 @@ test(
     const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
     const expert = evidencePane.locator(".strategic-fit-evidence-expert");
 
-    // The cohort editor's focus ring is the control under test here, and it lives on the
-    // resolution stage; the screenshots below are taken back on the evidence stage.
     await showStage(page, "resolution");
     const close = dialog.getByRole("button", { name: "Return to repertoire" });
     await close.focus();
-    // The stage's last control is the review loop's forward step, which sits after the resolution
-    // blocks because that is where the reader finishes deciding; the cohort editor is the one
-    // before it.
     await page.keyboard.press("Shift+Tab");
     await expect(dialog.locator("[data-resolution-next-finding]")).toBeFocused();
     await page.keyboard.press("Shift+Tab");
@@ -1898,7 +1880,6 @@ test("Replacement Lab opens only from an actionable current finding and closes w
 
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
   await expect(lab).toBeVisible();
-  // WP-007 AC-7 (UX-045): the workspace behind the Lab was aria-hidden but still interactive.
   const workspace = page.locator(".strategic-fit-workspace");
   await expect(workspace).toHaveAttribute("aria-hidden", "true");
   await expect(workspace).toHaveJSProperty("inert", true);
@@ -1985,12 +1966,6 @@ test("Black Replacement Lab is keyboard-contained, touch-sized, and transient ac
   await expect(page.getByRole("dialog", { name: "Replacement Lab" })).toHaveCount(0);
 });
 
-/**
- * WP-033 AC-5: the workspace and the lab are both on the Dialog primitive, so Escape must close the
- * lab first and leave the workspace open. This is the ordering that breaks if only one of the two
- * surfaces is migrated: every dialog listens on document in the capture phase, and the outer one
- * registered first, so without the primitive's nesting stack the workspace would answer instead.
- */
 test("Escape closes the nested Replacement Lab before the workspace behind it", async ({
   page,
 }) => {
@@ -2010,12 +1985,10 @@ test("Escape closes the nested Replacement Lab before the workspace behind it", 
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
   await expect(lab).toBeVisible();
 
-  // First Escape: the lab closes, the workspace survives.
   await page.keyboard.press("Escape");
   await expect(lab).toHaveCount(0);
   await expect(dialog).toBeVisible();
 
-  // Second Escape: now the workspace itself closes, proving the stack popped correctly.
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
 });
@@ -2300,29 +2273,6 @@ test("resolution proof stays claimless before rescan, binds post-commit report e
   expect(await chess(page, (api) => api.version())).toBe(version);
 });
 
-/**
- * WP-035 — the Review/Redesign split validation checkpoint.
- *
- * PD-5 fixes the product decision to *no split*: one workspace, not two focused modes. These two
- * tests are that decision's automated evidence rather than a research study. They drive both
- * journeys through the single workspace and record a machine-readable trace of every transition.
- *
- * Every transition asserts stage-state equality (the visible indicator equals the application's own
- * stage), that exactly one stage is marked current, and that no resolution control renders twice —
- * the duplicate-render regression WP-033 removed, and the strongest single piece of evidence that
- * one workspace is not overloaded.
- *
- * Scope note on the redesign journey. It ends at a revision-bound, confirmable atomic acceptance,
- * not at a mutated repertoire. Acceptance validates a nine-link identity chain
- * (`strategic-fit-changes.ts:410`) whose tree and metadata identities are hashes of the live
- * document, and whose change set must apply to the live tree. Only `stageChangeSet` can produce
- * those, from a change set constructed by `packages/chess-tools` against that exact tree — neither
- * is reachable from a browser test without adding a production seam, which is outside this
- * package's `docs/`-only scope. The applied outcome is therefore proven where the machinery
- * actually lives: `apps/ui/test/strategic-fit-changes.test.ts` stages through the real controller
- * and asserts the revision increments by exactly one. These tests prove the reachability and
- * safety of the redesign path; that test proves the apply. Neither claims the other's evidence.
- */
 const WP035_CONTROL_SELECTORS = [
   "[data-resolution-finding-id]",
   ".strategic-fit-train-exception",
@@ -2359,10 +2309,6 @@ interface Wp035Journey {
 const wp035Journeys: Wp035Journey[] = [];
 const wp035Metrics: Record<string, Record<string, number>> = {};
 
-/**
- * Records one transition and asserts its invariants immediately, so a failure names the transition
- * that broke instead of surfacing as a mismatched total at the end of the journey.
- */
 async function wp035Record(
   page: Page,
   journey: Wp035Journey,
@@ -2393,7 +2339,6 @@ async function wp035Record(
     WP035_CONTROL_SELECTORS as unknown as string[],
   );
 
-  // Every selector may render at most once; anything above one is a duplicate.
   const duplicateControlCount = Object.values(dom.counts).reduce(
     (total, count) => total + Math.max(0, count - 1),
     0,
@@ -2440,9 +2385,6 @@ function wp035Summarize(
     confirmableAcceptanceCount,
     transitionCount: journey.transitions.length,
     explicitRedesignEntryCount: journey.transitions.filter((t) => t.explicitRedesignAction).length,
-    // A redesign surface that *became* open on a transition nobody asked for. This is the number
-    // PD-5 actually rests on: review must never slide into redesign on its own. It counts entries,
-    // not presence — the lab legitimately stays open across the transitions that follow.
     implicitRedesignEntryCount: journey.transitions.filter(
       (t, index) =>
         t.redesignOpen &&
@@ -2482,8 +2424,6 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
   await actions.getByRole("radio", { name: /Defer/ }).check();
   await wp035Record(page, journey, "decision-chosen", "review-decision", "resolution");
 
-  // Saving a resolution re-runs the analysis, so wait for the new report the way the existing
-  // review tests do rather than racing the pane's re-render.
   const requestId = () =>
     chess(
       page,
@@ -2492,8 +2432,6 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
   const beforeRequest = await requestId();
   await actions.getByRole("button", { name: "Save resolution" }).click();
   await expect.poll(requestId).not.toBe(beforeRequest);
-  // Re-selecting the finding after the re-analysis: saving a resolution produces a new report, and
-  // the resolution pane renders against the current report's selection.
   await showStage(page, "findings");
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   await showStage(page, "resolution");
@@ -2503,7 +2441,6 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
   );
   await wp035Record(page, journey, "decision-saved", "review-decided", "resolution");
 
-  // Reviewing reaches a decision without mutating the repertoire.
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 
@@ -2529,7 +2466,6 @@ test("WP-035 redesign journey reaches a revision-bound acceptance through one ex
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   await wp035Record(page, journey, "finding-selected", "review-evidence", "evidence");
 
-  // The redesign surface does not exist until the explicit action below opens it.
   const lab = page.getByRole("dialog", { name: "Replacement Lab" });
   await expect(lab).toHaveCount(0);
   await showStage(page, "resolution");
@@ -2563,16 +2499,12 @@ test("WP-035 redesign journey reaches a revision-bound acceptance through one ex
   await expect(review).toBeVisible();
   await wp035Record(page, journey, "change-review-ready", "redesign-review", "resolution");
 
-  // The acceptance is revision-bound and gated: the control names the exact revision it would
-  // apply at and stays disabled until that revision is explicitly confirmed.
   const accept = review.getByRole("button", { name: /Accept one atomic change at revision/ });
   await expect(accept).toBeDisabled();
   await review.getByRole("checkbox", { name: /I confirm document revision/ }).check();
   await expect(accept).toBeEnabled();
   await wp035Record(page, journey, "acceptance-confirmable", "redesign-confirmable", "resolution");
 
-  // Reaching the acceptance control mutates nothing; only accepting can, and that path's applied
-  // outcome is proven against the real controller in apps/ui/test/strategic-fit-changes.test.ts.
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 
@@ -2624,14 +2556,10 @@ test("a created training item records an attempt only once a move is played on i
   const training = dialog.locator("[data-training-finding-id='finding:01']");
   await training.getByRole("button", { name: "Create training item" }).click();
 
-  // Creating the item registers targets. It must not invent an attempt: recall evidence may only
-  // come from a move the user actually played.
   const afterCreate = await chess(page, (api) => api.strategicFitTrainingPerformance());
   expect(afterCreate.targets.length).toBeGreaterThan(0);
   expect(afterCreate.attempts).toEqual([]);
 
-  // Creating an item triggers reanalysis, which remounts the panel; the finding has to be
-  // re-selected before it is on screen again. The training test above relies on the same sequence.
   await expect
     .poll(() =>
       chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
@@ -2646,8 +2574,6 @@ test("a created training item records an attempt only once a move is played on i
   const active = reopened.locator(".strategic-fit-drill-active").first();
   await expect(active).toBeVisible();
 
-  // The fixture's first drill is the position after 1. e4 e5 with a prepared Nf3 — one of the two
-  // drills the exported artifact asserts above, which pins their content but not their order.
   await expect(active).toHaveAttribute("data-drill-expected", "Nf3");
   await expect(active).toHaveAttribute(
     "data-drill-fen",
@@ -2658,34 +2584,22 @@ test("a created training item records an attempt only once a move is played on i
   await expect(board).toHaveClass(/manipulable/u);
   await expect(reopened.locator("[data-drill-locked='false']")).toBeVisible();
 
-  // Still no attempt: rendering a drill is not attempting one.
   const afterOpening = await chess(page, (api) => api.strategicFitTrainingPerformance());
   expect(afterOpening.attempts).toEqual([]);
 
-  // Now play it. This is the whole move → SAN → recall-comparison → recorded-attempt path running
-  // in a real browser for the first time; before `helpers/board.ts` existed it was reachable only
-  // from the unit tests in test/strategic-fit-drill.test.ts and test/strategic-fit-training.test.ts.
   await dragMove(board, "g1", "f3");
 
-  // Asserted against the store rather than the drill's own result banner, because recording an
-  // attempt schedules a reanalysis that unmounts the whole resolution column — the banner is on
-  // its way out by the time this runs, and the recorded attempt is the durable evidence anyway.
   await expect
     .poll(() => chess(page, (api) => api.strategicFitTrainingPerformance().attempts.length))
     .toBe(1);
   const [attempt] = (await chess(page, (api) => api.strategicFitTrainingPerformance())).attempts;
-  expect(attempt.recalled).toBe(true); // g1f3 is the prepared Nf3
+  expect(attempt.recalled).toBe(true);
   expect(attempt.response_time_ms).toBeGreaterThan(0);
 });
 
 test("a black-to-move drill is playable, and a legal wrong move is recorded as not recalled", async ({
   page,
 }) => {
-  // A Black repertoire so the drill is Black to move — the case a White fixture cannot reach.
-  // `DrillBoard` used to leave chessground's `turnColor` at its "white" default while setting
-  // `movable.color` to the side to move, and chessground's `isMovable` demands the two agree: a
-  // black piece failed that check, fell through to the premove branch instead, and the drag set a
-  // premove that never fires `movable.events.after`. The board looked live and recorded nothing.
   const { dialog } = await bootstrap(page, "black");
   const queue = dialog
     .locator("#strategic-fit-pane-findings")
@@ -2713,13 +2627,9 @@ test("a black-to-move drill is playable, and a legal wrong move is recorded as n
   const board = active.locator(".cg-wrap");
   await expect(board).toHaveClass(/orientation-black/u);
   await selectSquare(board, "d7");
-  // The regression guard: with `turnColor` wrong these are the markers the board offers instead of
-  // real destinations, and the piece can only be premoved.
   expect(await premoveSquares(board)).toEqual([]);
   expect((await destinationSquares(board)).sort()).toEqual(["d5", "d6"]);
 
-  // d5 is legal here and is not the prepared e5, which is what separates "recorded a miss" from
-  // "recorded nothing": an illegal move would also leave the attempt list empty.
   await dragMove(board, "d7", "d5");
   await expect
     .poll(() => chess(page, (api) => api.strategicFitTrainingPerformance().attempts.length))
@@ -2738,15 +2648,10 @@ test("the resolution stage offers the next unresolved finding, closing the revie
   await showStage(page, "findings");
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
 
-  // Evidence already offers "Record a decision"; before this, Resolution offered nothing, so
-  // getting to the next finding meant going back to the stage strip and re-finding your place in
-  // a queue the saved finding had just dropped out of.
   await showStage(page, "resolution");
   const next = dialog.locator("[data-resolution-next-finding]");
   await expect(next).toBeVisible();
 
-  // Three findings are unresolved in the fixture report. The one under review is not offered as
-  // its own successor, so two remain — the count states the scope the button walks.
   await expect(dialog.locator(".strategic-fit-resolution-next span")).toHaveText("2 remaining");
 
   await next.click();
@@ -2755,8 +2660,6 @@ test("the resolution stage offers the next unresolved finding, closing the revie
     "evidence",
   );
 
-  // Asserted through the resolution pane rather than the queue: the successor may sit on a page the
-  // queue has not mounted, and the point is which finding is under review, not which row is drawn.
   await showStage(page, "resolution");
   const actions = dialog.locator("[data-resolution-finding-id]");
   await expect(actions).toHaveCount(1);

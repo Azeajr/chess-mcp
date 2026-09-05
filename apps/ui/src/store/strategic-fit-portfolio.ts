@@ -1,18 +1,3 @@
-/**
- * Staged constrained portfolio redesign (Task 11.5).
- *
- * The user states a redesign goal in their own terms; the assistant turns it into bounds. Three
- * steps, on purpose. The bounds are validated and shown for confirmation, and they bind nothing
- * until the user confirms them. Only then does a portfolio exist, and every option in it is one of
- * the Replacement Lab's already-generated candidates with its own Task 8.6 scoring, Task 8.7 safety
- * evidence, and Task 8.8 change set — the assistant chooses among them, it does not produce them.
- * Selecting an option stages that existing change set through the Task 9.3 review path, which still
- * requires the user's revision-bound confirmation before anything is applied.
- *
- * This store writes nothing. It holds no profile path — a confirmed constraint is a bound on one
- * redesign, never a durable preference; making it durable stays the intent interview's job through
- * the single profile writer.
- */
 import {
   StrategicFitPortfolioError,
   buildStrategicFitPortfolio,
@@ -57,7 +42,6 @@ interface StrategicFitPortfolioSelection {
   readonly stage_id: string | null;
 }
 
-/** Model-facing constraint result. Nothing binds until the user confirms it in the application. */
 export interface StrategicFitPortfolioConstraintResult {
   readonly kind: "strategic_fit_portfolio_constraints";
   readonly constraint_set_id: string;
@@ -71,7 +55,6 @@ export interface StrategicFitPortfolioConstraintResult {
   readonly next_step: string;
 }
 
-/** Model-facing portfolio result. Every number in it was measured, not supplied. */
 export interface StrategicFitPortfolioViewResult extends StrategicFitPortfolioResult {
   readonly kind: "strategic_fit_portfolio";
   readonly constraint_set_id: string;
@@ -97,7 +80,6 @@ export interface StrategicFitPortfolioBoundary {
   currentDocumentId(): string;
   currentRevision(): number;
   currentProfile(): Parameters<typeof detectStrategicFitPortfolioConflicts>[1]["profile"];
-  /** Retained Replacement Lab evidence; null when there is nothing to choose among. */
   evidence(): StrategicFitPortfolioEvidence | null;
   stageOption(
     candidateId: string,
@@ -115,9 +97,7 @@ export interface StrategicFitPortfolioState {
   constraintSets(): readonly StrategicFitStagedConstraintSet[];
   constraintSet(id: string): StrategicFitStagedConstraintSet | undefined;
   selection(): StrategicFitPortfolioSelection | null;
-  /** Throws `StrategicFitPortfolioError`; hosts map it to a structured result. */
   propose(input: StrategicFitPortfolioConstraintInput): StrategicFitPortfolioConstraintResult;
-  /** Throws `StrategicFitPortfolioError`; hosts map it to a structured result. */
   portfolio(constraintSetId: string): StrategicFitPortfolioViewResult;
   select(constraintSetId: string, optionId: string): Promise<StrategicFitPortfolioSelectionResult>;
   confirm(constraintSetId: string): {
@@ -160,7 +140,6 @@ export function createStrategicFitPortfolioState(
     return current;
   };
 
-  /** A confirmed set is usable only while the document and revision it was confirmed against hold. */
   const usableSet = (constraintSetId: string): StrategicFitStagedConstraintSet => {
     const staged = find(constraintSetId);
     if (!staged) {
@@ -273,8 +252,6 @@ export function createStrategicFitPortfolioState(
       }
       const previous = selection();
       const outcome = await boundary.stageOption(option.candidate_id, option.action);
-      // The change controller is the arbiter of whether anything was staged. A failure leaves the
-      // portfolio with nothing selected rather than a selection the user might read as pending.
       if (!outcome.ok) {
         setSelection({
           constraint_set_id: constraintSetId,
@@ -289,8 +266,6 @@ export function createStrategicFitPortfolioState(
         };
       }
       if (previous?.status === "staged" && previous.option_id !== optionId) {
-        // One staged change at a time: the review path discards the prior stage as it takes the new
-        // one, so the superseded selection must stop presenting itself as staged.
         setSelection({ ...previous, status: "superseded" });
       }
       setSelection({
@@ -373,7 +348,6 @@ export const strategicFitPortfolioSelection = () => browserPortfolio.selection()
 export const confirmStrategicFitPortfolioConstraints = (id: string) => browserPortfolio.confirm(id);
 export const rejectStrategicFitPortfolioConstraints = (id: string) => browserPortfolio.reject(id);
 
-/** Browser command boundary: a validation failure becomes one structured, code-bearing result. */
 export async function proposeStrategicFitPortfolio(input: {
   readonly constraints?: unknown;
   readonly rationale?: unknown;

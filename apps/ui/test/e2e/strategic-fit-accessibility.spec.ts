@@ -70,19 +70,6 @@ test("phone stage tabs support keyboard navigation and every touch action is at 
   const { dialog } = await openWorkspace(page, true);
   const overview = dialog.getByRole("tab", { name: "Overview" });
 
-  /*
-   * `bringToFront` then `click` — not a bare `.focus()`.
-   *
-   * On CI this failed with Playwright reporting the freshly focused tab as "inactive" while its
-   * aria-selected and tabindex attributes were already correct. "inactive" is a *page*-level
-   * state: the browser context is not the focused one, so element-level `.focus()` cannot make
-   * `toBeFocused` true no matter how long it retries. Raising the page and activating the control
-   * the way a user would is what actually establishes focus.
-   *
-   * This surfaced when F16 made the neighbouring stage-layout AC-2 test perform real analysis
-   * work; that spec has always run on WebKit, and the added contention exposed the latent
-   * assumption that this page was frontmost.
-   */
   await page.bringToFront();
   await overview.click();
   await expect(overview).toBeFocused();

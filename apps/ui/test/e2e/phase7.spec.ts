@@ -232,11 +232,6 @@ test("the working document restores from IndexedDB after reload", async ({ page 
   await chess(page, (api) => api.loadPgn("1. e4 e5 2. Nf3 Nc6 *", "autosaved.pgn"));
   await chess(page, (api) => api.goto([0, 0, 0]));
 
-  // Poll the durable record instead of outwaiting the ~400 ms autosave debounce with a fixed
-  // sleep. A sleep races the debounce under the throttled runner, and worse, a regression that
-  // pushed the write past the sleep would be indistinguishable from flake. This waits for the
-  // actual precondition — the row being on disk — so the reload below can only fail for a real
-  // restore defect.
   await expect
     .poll(() =>
       page.evaluate(
@@ -275,19 +270,12 @@ test("structured command errors render as distinct result cards", async ({ page 
     }),
   );
   await expect(page.getByRole("alert")).toContainText("Search criteria required");
-  // WP-026 AC-1: the raw error code is hidden behind the technical-details toggle, which the UX
-  // pass moved from the chat panel header into Settings with the other display preferences.
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("checkbox", { name: /technical details/i }).check();
   await page.getByRole("button", { name: "Close settings" }).click();
   await expect(page.getByRole("alert")).toContainText("missing_criteria");
 });
 
-/*
- * `test.slow(title, body)` is not a test declaration — `test.slow()` is a *modifier*, and this
- * form was silently accepted while registering nothing. The scenario below never ran on any
- * engine. Declared properly with the modifier inside the body.
- */
 test("long direct analysis exposes a working cancel action", async ({ page }) => {
   test.slow();
   await chess(page, (api) => api.loadPgn("1. e4 (1. d4 d5 2. c4) e5 2. Nf3 Nc6 3. Bb5"));

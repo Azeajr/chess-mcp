@@ -1,10 +1,3 @@
-/**
- * Deterministic, engine-free preflight validation for Strategic Fit.
- *
- * The preflight deliberately describes input quality only. It never makes a
- * strategic-fit verdict, and it walks the raw tree defensively so malformed
- * host data becomes a structured blocking issue instead of an exception.
- */
 import { Chess } from "chessops/chess";
 import { INITIAL_FEN, makeFen, parseFen } from "chessops/fen";
 import { parseSan } from "chessops/san";
@@ -24,19 +17,11 @@ import type {
 } from "./types.js";
 import { STRATEGIC_FIT_ANALYSIS_VERSION } from "./version.js";
 
-/**
- * Same as `Array.isArray`, but returns a plain `boolean` instead of a type predicate. `children`
- * here is `unknown` (untrusted, possibly-malformed tree data); `Array.isArray`'s `arg is any[]`
- * predicate would collapse it — and every element drawn from it — down to `any`, which then
- * leaks into `visit`'s strictly-typed `object` parameter instead of staying `unknown`.
- */
 function isPlainArray(value: unknown): boolean {
   return Array.isArray(value);
 }
 
-/** The first frozen configured checkpoint in the Strategic Fit design. */
 export const STRATEGIC_FIT_MIN_COMPARABLE_PLY = 12;
-/** Comparing fewer than two routes cannot establish a cohort baseline. */
 export const STRATEGIC_FIT_MIN_COMPARABLE_ROUTES = 2;
 
 export interface StrategicFitPreflightOptions {
@@ -126,8 +111,6 @@ function makeIssue(
     kind,
     severity,
     message,
-    // Semantic route IDs are assigned by the repertoire graph in Task 1.2. Preflight retains
-    // exact source paths so the graph/analyzer can attach those IDs without inventing path IDs.
     affected_route_ids: [],
     affected_source_paths: paths.map((path) => [...path]),
     details,
@@ -257,13 +240,6 @@ function pathsFor(problems: readonly ReplayProblem[]): readonly (readonly string
   return problems.map((problem) => problem.path);
 }
 
-/**
- * Inspect a parsed repertoire before Strategic Fit analysis.
- *
- * `ready` means only that the input can proceed to evidence extraction. It is never a claim that
- * the repertoire is strategically consistent. Degraded inputs remain analyzable with explicit
- * evidence limitations; blocking inputs must not proceed to position analysis.
- */
 export function preflightStrategicFit(
   tree: GameTree,
   options: StrategicFitPreflightOptions,
@@ -307,8 +283,6 @@ export function preflightStrategicFit(
     );
   }
 
-  // A custom FEN must never be replayed from the standard position. The raw tree shape is enough
-  // to report whether it is empty, but route evidence is intentionally withheld.
   const replay = customStart?.unsupported
     ? { routes: [], malformed: [], illegal: [], duplicatePaths: [], transpositionPaths: [] }
     : replayTree(tree);

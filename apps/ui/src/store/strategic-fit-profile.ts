@@ -1,10 +1,3 @@
-/**
- * Document-scoped Strategic Fit profile state.
- *
- * The shared metadata contract remains canonical. This module adds only user/inference mutation
- * semantics, deterministic input normalization, report invalidation, and the browser singleton
- * wired through Task 4.3's debounced metadata boundary.
- */
 import {
   STRATEGIC_SIGNAL_FAMILIES,
   STRATEGIC_FIT_PROFILE_MODES,
@@ -122,7 +115,6 @@ function featureFamilyWeights(
   return Object.values(result).every((weight) => weight === 0) ? { ...fallback } : result;
 }
 
-/** Normalize an advanced preference patch without allowing one malformed value to reset siblings. */
 export function normalizeStrategicFitProfilePreferences(
   input: StrategicFitProfilePreferencesInput | undefined,
   base: StrategicFitProfilePreferences = DEFAULT_PROFILE.preferences,
@@ -179,7 +171,6 @@ export function normalizeStrategicFitProfilePreferences(
   };
 }
 
-/** Named profiles intentionally use canonical optional defaults until distinct values are designed. */
 export function strategicFitPresetProfile(mode: StrategicFitProfileMode): StrategicFitProfile {
   if (!PROFILE_MODE_SET.has(mode)) throw new Error("strategic_fit_invalid_profile_mode");
   return {
@@ -191,7 +182,6 @@ export function strategicFitPresetProfile(mode: StrategicFitProfileMode): Strate
   };
 }
 
-/** Stable enough for normalized profile snapshots and browser stale-result guards. */
 export function strategicFitProfileIdentity(profile: StrategicFitProfile): string {
   return JSON.stringify(profile);
 }
@@ -205,8 +195,6 @@ export function createStrategicFitProfileState(
     inferenceRevision();
     const id = boundary.currentDocumentId();
     const persisted = boundary.currentMetadata().profile;
-    // An external metadata restore/import may publish explicit intent while an old session-only
-    // inference exists. Explicit durable intent wins and clears only this document's inference.
     if (persisted.source === "explicit" || !persisted.provisional) {
       inferredProfiles.delete(id);
       return persisted;

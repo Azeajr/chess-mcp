@@ -1,9 +1,3 @@
-/**
- * Chat-proposed lines. The model proposes a line (SAN) for the current position; it is validated
- * (never grafted illegal), shown as a blue board arrow + an entry in the AnalysisPanel, and
- * inserted into the GameTree only on explicit Accept. Arrows render only while the board is at
- * the position the line was proposed for.
- */
 import { createSignal } from "solid-js";
 import type { Node, PgnNodeData } from "chessops/pgn";
 import { validateLine, type Path } from "@chess-mcp/chess-tools";
@@ -17,20 +11,11 @@ interface Suggestion {
   sans: string[];
   comment?: string;
   firstUci?: string;
-  /**
-   * WP-028 AC-2: which chat message produced this suggestion, so the card can link back to it.
-   * Optional because suggestions predating the link still render; the link is simply absent.
-   */
   sourceMessageIndex?: number;
 }
 
-/**
- * Feature 1: a user-staged preview promoted from a chat suggestion. At most one is active. It
- * paints a gold arrow on the board + highlights the part of the line already in the tree, until
- * the user Accepts (grafts it) or Rejects (clears it).
- */
 interface PreviewLine {
-  id: string; // == the Suggestion id it was promoted from
+  id: string;
   fromPath: Path;
   sans: string[];
   firstUci?: string;
@@ -66,7 +51,6 @@ export function setStagedEditsForTesting(edits: StagedEdit[]) {
   setStagedEdits(edits);
 }
 
-/** Validate and retain a non-mutating edit preview. The full preview tree never enters chat. */
 export function stageEdit(
   action: EditAction,
   path: string[],
@@ -178,7 +162,6 @@ export function rejectStagedEdit(id: string) {
 
 export const stagedEdit = (id: string) => stagedEdits().find((item) => item.id === id);
 
-/** Validate against the current position and stage a proposal. Returns a tool-result payload. */
 export function addSuggestion(sans: string[], comment?: string, sourceMessageIndex?: number) {
   const check = validateLine(fen(), sans);
   if (!check.ok) {
@@ -212,25 +195,14 @@ export function rejectSuggestion(id: string) {
   setSuggestions((prev) => prev.filter((x) => x.id !== id));
 }
 
-/**
- * Discard every pending suggestion, rejecting the staged edit behind each one.
- *
- * Emptying the list is not enough. A staged edit outlives the panel: `StagedEditResult` in the chat
- * transcript reads `stagedEdit(id)` directly and keeps offering Accept for as long as the edit is
- * `pending`. Clearing the panel without rejecting them left those cards live, so a user who thought
- * they had dismissed the suggestions could still graft one into the repertoire from the transcript.
- */
 export function clearSuggestions() {
   for (const suggestion of suggestions()) rejectStagedEdit(suggestion.id);
   setSuggestions([]);
 }
 
-// --- Feature 1: preview staging (one active at a time) ---
-
 const [preview, setPreview] = createSignal<PreviewLine | null>(null);
 export { preview };
 
-/** Promote a staged suggestion to the active preview. Clicking the active one again clears it. */
 export function stagePreview(id: string) {
   if (preview()?.id === id) {
     setPreview(null);
@@ -247,11 +219,6 @@ export function clearPreview() {
   setPreview(null);
 }
 
-/**
- * Stage a preview directly from a path + SAN line (no chat Suggestion needed). Used by the
- * repertoire panel's Tier B actions (extend / fix). Validates against the position at fromPath;
- * returns {ok:false} if the line is illegal there.
- */
 export function stagePreviewLine(fromPath: Path, sans: string[]) {
   const startFen = currentTree().fenAt(fromPath);
   const chk = validateLine(startFen, sans);
@@ -260,7 +227,6 @@ export function stagePreviewLine(fromPath: Path, sans: string[]) {
   return { ok: true as const };
 }
 
-/** Accept the active preview: graft it into the tree and clear (also drops a matching suggestion). */
 export function acceptPreview() {
   const p = preview();
   if (!p) return;
@@ -271,7 +237,6 @@ export function acceptPreview() {
   setSuggestions((prev) => prev.filter((x) => x.id !== p.id));
 }
 
-/** Gold arrow for the active preview's first move, only while the board is at its fromPath. */
 export const previewArrow = (): Arrow[] => {
   const p = preview();
   if (!p?.firstUci || !pathEq(p.fromPath, currentPath())) return [];
@@ -285,11 +250,6 @@ export const previewArrow = (): Arrow[] => {
   ];
 };
 
-/**
- * Index-path keys (joined) of the preview line's moves that already exist in the tree — the
- * shared prefix before the line diverges into new territory. MoveTree glows these. A brand-new
- * line shares no nodes, so the gold arrow is the only cue; that's expected.
- */
 export const previewedKeys = (): Set<string> => {
   const out = new Set<string>();
   const p = preview();
@@ -299,12 +259,12 @@ export const previewedKeys = (): Set<string> => {
   try {
     node = tree.nodeAt(p.fromPath);
   } catch {
-    return out; // stale fromPath
+    return out;
   }
   let idx = [...p.fromPath];
   for (const san of p.sans) {
     const ci = node.children.findIndex((c) => c.data.san === san);
-    if (ci < 0) break; // line diverges from the existing tree here
+    if (ci < 0) break;
     idx = [...idx, ci];
     const child = node.children[ci];
     if (child === undefined) break;
@@ -314,7 +274,6 @@ export const previewedKeys = (): Set<string> => {
   return out;
 };
 
-/** Blue arrows for proposals at the current position (distinct from engine green/yellow/red). */
 export const suggestionArrows = (): Arrow[] =>
   suggestions().flatMap((suggestion) => {
     const firstUci = suggestion.firstUci;

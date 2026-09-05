@@ -1,11 +1,3 @@
-/**
- * Deterministic Replacement Lab candidate-seed generation.
- *
- * This domain consumes a validated Task 8.2 pivot, the canonical repertoire graph, and optional
- * host-injected opening-database evidence. It performs no network work. Results are seeds for Task
- * 8.5 expansion, never full ReplacementCandidate proposals: the mandatory full-subtree contract in
- * replacement-types.ts remains the only finished-candidate shape.
- */
 import { assertDefined } from "../assert.js";
 import { Chess } from "chessops/chess";
 import { makeFen, parseFen } from "chessops/fen";
@@ -103,7 +95,6 @@ export interface ReplacementOpeningDatabasePositionEvidence {
   readonly fen: string;
 }
 
-/** Population evidence remains White-POV, matching the explorer transport. */
 export interface ReplacementOpeningDatabasePopularity {
   readonly games: number;
   readonly played_pct: number;
@@ -121,7 +112,6 @@ export interface ReplacementOpeningDatabaseMoveEvidence {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Completed host evidence. Hosts may fetch it; this module only validates and consumes it. */
 export interface ReplacementOpeningDatabaseEvidence extends StrategicFitReplacementVersioned {
   readonly evidence_id: string;
   readonly state: ReplacementDatabaseEvidenceState;
@@ -170,7 +160,6 @@ export interface ReplacementCandidateSeed extends StrategicFitReplacementVersion
     | "engine-objective-quality";
   readonly maximum_database_popularity: number | null;
   readonly source_kinds: readonly ReplacementCandidateSourceKind[];
-  /** Navigation only; candidate identity is pivot plus semantic outcome. */
   readonly source_san_paths: readonly (readonly string[])[];
   readonly database_evidence_ids: readonly string[];
   readonly provenance: readonly ReplacementCandidateSourceProvenance[];
@@ -351,9 +340,6 @@ function jsonKey(value: JsonValue): string {
   return `{${Object.keys(record)
     .sort(compareStrings)
     .map((key) => {
-      // JsonValue legitimately includes `null`, so assertDefined (which also rejects `null`) is
-      // not safe here; only `undefined` (a genuinely absent key) would be an error, and `key`
-      // came from this same record's own `Object.keys`, so it is always present.
       const propertyValue = record[key];
       if (propertyValue === undefined) {
         throw new Error(`strategic_fit_replacement_missing_property: ${key}`);
@@ -503,9 +489,6 @@ function pivotCompatibilityError(
       "Maximum candidate budget must be a non-negative safe integer.",
     ];
   }
-  // result (input.pivot_result) is caller-supplied evidence from a prior pipeline stage — possibly
-  // stale, cached, or reconstructed from a serialized boundary — so its `status`/version/owner
-  // literals must be revalidated at runtime rather than trusted from the static type.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (result.status !== "selected" || result.pivot.status !== "actionable") {
     return [
@@ -1165,7 +1148,6 @@ function sourceResults(
   );
 }
 
-/** Generate bounded, canonical candidate seeds from local preparation and injected database data. */
 export function generateReplacementCandidates(
   input: GenerateReplacementCandidatesInput,
 ): ReplacementCandidateGenerationResult {
@@ -1176,8 +1158,6 @@ export function generateReplacementCandidates(
   }
 
   const pivot = input.pivot_result.pivot as ReplacementActionablePivotEvidence;
-  // pivotCompatibilityError already returned null above, which only happens after it confirmed a
-  // position with this exact position_id is present and current in this same graph.
   const pivotPosition = assertDefined(
     input.graph.positions.find((position) => position.position_id === pivot.position_id),
   );

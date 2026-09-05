@@ -34,8 +34,6 @@ jobs:
         with:
           node-version: 26
 
-      # Downloads from this workflow run only; the name binds it to the validated revision.
-      # Both push branches and workflow_dispatch pass through the same required validation job.
       - name: Download validated PWA
         uses: actions/download-artifact@v6
         with:

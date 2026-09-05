@@ -98,10 +98,6 @@ export async function basicAccessibilityViolations(root: Locator): Promise<strin
     }
 
     const headings = [...container.querySelectorAll("h1, h2, h3, h4, h5, h6")].filter(visible);
-    // A document scope needs an h1, and so does a dialog: WP-007 established that a dialog root is
-    // its own heading outline, which is why every Dialog titles itself with an h1. A panel inside
-    // the page is neither - it must preserve the hierarchy it contains without inventing a page
-    // heading whose real owner is elsewhere in the document.
     const requiresDocumentHeading =
       container === document.body ||
       container === document.documentElement ||
@@ -177,10 +173,6 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
     )) {
       if (!visible(candidate) || candidate.matches(":disabled")) continue;
       const input = candidate instanceof HTMLInputElement ? candidate : null;
-      // An input clipped to nothing is never the thing a finger lands on — the visually-hidden
-      // file/checkbox pattern puts the real target on the wrapping label. Measuring the raw input
-      // asks its box to be 44px for a control no pointer can reach, which is satisfiable by
-      // resizing something invisible; measure the label instead, which is what the user hits.
       const clipped = (element: HTMLElement) => {
         const style = getComputedStyle(element);
         return style.clip !== "auto" || style.clipPath !== "none";
@@ -191,16 +183,6 @@ export async function touchTargetViolations(root: Locator, minimum = 44): Promis
         ? (candidate.closest<HTMLElement>("label") ?? candidate)
         : candidate;
       const rect = target.getBoundingClientRect();
-      /*
-       * A control may paint smaller than it can be hit. The guideline is about what a finger
-       * lands on, and the app's remedy for a deliberately thin control is an absolutely-positioned
-       * `::before` overlay larger than the painted box — the dividers have always done this, and
-       * the evaluation bar does it too now that it is the switch that turns evaluation on: a 28px
-       * rail beside the board with a 44px hit area, rather than a 44px rail taking that width off
-       * the board itself. Measure any such overlay, not just the ones on role="separator": the
-       * conditions below (absolutely positioned, still hit-testable) are what makes a pseudo an
-       * expanded target rather than decoration.
-       */
       const hitArea = getComputedStyle(candidate, "::before");
       const expandsHitArea =
         hitArea.content !== "none" &&
@@ -243,7 +225,6 @@ export async function keyboardReachable(root: Locator, selector: string): Promis
   const page = root.page();
   const reached = new Set<string>();
   await root.focus();
-  // Dense panels can place related composite entry points dozens of controls apart in DOM order.
   for (let index = 0; index < Math.max(128, markers.length * 4); index++) {
     await page.keyboard.press("Tab");
     const marker = await page.evaluate(

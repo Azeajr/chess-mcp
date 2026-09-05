@@ -1,15 +1,3 @@
-/**
- * Bounded conversation projections over an immutable Strategic Fit report.
- *
- * The assistant must be able to discuss a report without receiving it. These projections return
- * only what a grounded explanation needs — report identity, overview state, one bounded finding
- * list, and one finding with its evidence and navigable SAN paths — under fixed size limits.
- *
- * Deliberately excluded: source provenance records and snapshots, the analysis manifest,
- * full metric values, complete reference identity lists, and any host document artifact such as
- * PGN, FEN, file names, or persisted metadata. Report identity and staleness rules are reused from
- * `report-projection.ts`, so a stale report or finding identity fails closed there.
- */
 import type {
   ConfidenceCap,
   EvidenceComparisonDimension,
@@ -30,7 +18,6 @@ import {
   type StrategicFitCursorPageInput,
 } from "./report-projection.js";
 
-/** Fixed bounds. Every truncation is disclosed in the projection rather than silently applied. */
 export const STRATEGIC_FIT_CONVERSATION_LIMITS = Object.freeze({
   findings_page_default: 10,
   findings_page_maximum: 25,
@@ -61,7 +48,6 @@ export interface StrategicFitConversationText {
 
 export interface StrategicFitConversationPath {
   readonly san: readonly string[];
-  /** True when the path was shortened for transport; navigation still starts from the root. */
   readonly truncated: boolean;
 }
 
@@ -74,7 +60,6 @@ export interface StrategicFitConversationMetric {
   readonly metric_id: StrategicFitMetricId;
   readonly state: string;
   readonly unit: string;
-  /** Present only for scalar metrics; composite values stay in the workspace views. */
   readonly value: number | null;
   readonly reason: string | null;
 }
@@ -355,8 +340,6 @@ function findingsProjection(
     kind: "page",
     expected_repertoire_revision: request.expected_repertoire_revision,
     expected_report_id: request.report_id,
-    // The conversation page is narrower than a workspace page, so the resolved conversation limit
-    // travels with the request; omitting it would silently widen a chat message to the report page.
     page: { ...request.page, limit: requestedLimit },
     ...(request.sort === undefined ? {} : { sort: request.sort }),
   });
@@ -462,11 +445,6 @@ export interface StrategicFitConversationErrorResult {
   readonly reason: string;
 }
 
-/**
- * Structured result for an identity that is not resolvable in a host's bounded report cache.
- * Reports are dropped by eviction, revision change, and settings change, so an absent identity is
- * reported as unavailable instead of being answered from an older report.
- */
 export const strategicFitReportUnavailableResult = (
   reportId: string,
 ): StrategicFitConversationErrorResult => ({
@@ -474,7 +452,6 @@ export const strategicFitReportUnavailableResult = (
   reason: `Strategic Fit report ${reportId} is not available for the current repertoire; run the analysis again to obtain a current report.`,
 });
 
-/** Shared host mapping from a projection failure to one structured, code-bearing result. */
 export function strategicFitConversationErrorResult(
   error: unknown,
 ): StrategicFitConversationErrorResult {
@@ -484,10 +461,6 @@ export function strategicFitConversationErrorResult(
   throw error;
 }
 
-/**
- * Project one bounded conversation view. Identity, revision, and finding staleness are enforced by
- * the shared report projection, so an outdated report or finding identity fails closed.
- */
 export function projectStrategicFitConversation(
   report: StrategicFitReport,
   request: StrategicFitConversationRequest,

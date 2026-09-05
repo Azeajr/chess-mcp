@@ -3,10 +3,6 @@ import type { StrategicFitAnalysisManifest } from "./types.js";
 export const STRATEGIC_FIT_SCHEMA_VERSION = "2.0.0";
 export const STRATEGIC_FIT_ANALYSIS_VERSION = "2.0.0";
 
-/**
- * Frozen component manifest for reproducible Strategic Fit result and cache identities.
- * Component versions advance independently when their deterministic behavior changes.
- */
 export const STRATEGIC_FIT_ANALYSIS_MANIFEST: StrategicFitAnalysisManifest = Object.freeze({
   schema_version: STRATEGIC_FIT_SCHEMA_VERSION,
   analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,

@@ -1,4 +1,3 @@
-/** Pending promotion: a pawn move awaiting the user's piece choice (modal). */
 import { createSignal } from "solid-js";
 import type { Color } from "./game";
 

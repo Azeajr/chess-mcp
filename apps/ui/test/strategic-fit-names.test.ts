@@ -1,11 +1,3 @@
-/**
- * WP-030 — fixture-driven validation of cohort name derivation.
- *
- * Covers the capsule's required automated validation: dominant-opening coverage, collision
- * handling, stable numbering, line counts, and the Comparison group fallback below one half.
- * Fixtures are hand-built minimal shapes rather than a full analysis run, so each rule is asserted
- * in isolation and a failure names the rule that broke.
- */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -32,7 +24,6 @@ const finding = (cohortId: string, openingScope: string, index = 0) =>
   }) as unknown as NameInput["findings"][number];
 
 test("a dominant opening at or above the threshold names the cohort", () => {
-  // 3 of 4 findings = 0.75 coverage, comfortably above one half.
   const [name] = deriveCohortNames({
     cohorts: [cohort("cohort:aaaaaaaaaaaaaaaa", 5)],
     findings: [
@@ -67,7 +58,6 @@ test("exactly one half coverage still names the cohort — the threshold is incl
 });
 
 test("below one half coverage falls back rather than misnaming a mixed cohort", () => {
-  // No scope reaches half: 2/5 is the best. A single opening name would misrepresent the cohort.
   const [name] = deriveCohortNames({
     cohorts: [cohort("cohort:cccccccccccccccc", 9)],
     findings: [
@@ -109,7 +99,6 @@ test("two cohorts resolving to the same opening are visibly disambiguated", () =
     names.map((entry) => entry.name),
     ["Sicilian Defense 1", "Sicilian Defense 2"],
   );
-  // Distinct labels are the point: a reader must be able to tell the two apart (AC-3).
   assert.equal(new Set(names.map((entry) => entry.label)).size, 2);
   assert.deepEqual(
     names.map((entry) => entry.disambiguator),
@@ -153,7 +142,6 @@ test("numbering is stable against finding order, not just cohort order", () => {
 });
 
 test("a tie between opening scopes resolves deterministically", () => {
-  // 2 and 2 out of 4: both reach the threshold, so the winner must not depend on input order.
   const build = (scopes: readonly string[]) =>
     deriveCohortNames({
       cohorts: [cohort("cohort:7777777777777777", 4)],
@@ -201,7 +189,6 @@ test("formatCohortLabel singularises a single line", () => {
 });
 
 test("no derived name contains a raw cohort identifier", () => {
-  // AC-1's baseline check looks for `cohort:<16 hex>` in rendered text outside details/code.
   const names = deriveCohortNames({
     cohorts: [cohort("cohort:abcdef0123456789", 3)],
     findings: [finding("cohort:abcdef0123456789", "Sicilian Defense", 0)],
@@ -221,7 +208,6 @@ test("the index keys names by the exact cohort id so lookups round-trip", () => 
 
   const index = cohortNameIndex(report);
 
-  // The id is untouched — chat retrieval and override flows still resolve by it (AC-5, AC-6).
   assert.equal(index.get("cohort:0f0f0f0f0f0f0f0f")?.name, "Sicilian Defense");
   assert.equal(index.size, report.cohorts.length);
 });

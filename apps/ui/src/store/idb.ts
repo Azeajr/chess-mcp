@@ -1,7 +1,3 @@
-/**
- * Minimal IndexedDB key-value store (no dependency). Used to persist the File System Access
- * FileHandle across sessions — handles are structured-cloneable, so they survive in IndexedDB.
- */
 const DB_NAME = "chess-repertoire";
 const STORE = "kv";
 
@@ -70,7 +66,6 @@ export interface IdbAtomicMutation {
   readonly delete?: boolean;
 }
 
-/** Commit related document records in one IndexedDB transaction. */
 export async function idbMutateAtomically(mutations: readonly IdbAtomicMutation[]): Promise<void> {
   const db = await open();
   await new Promise<void>((resolve, reject) => {

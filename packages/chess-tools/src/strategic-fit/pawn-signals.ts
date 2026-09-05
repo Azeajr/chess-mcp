@@ -1,11 +1,3 @@
-/**
- * Deterministic pawn-topology and center-dynamics observations for Strategic Fit.
- *
- * This layer describes positions; it does not judge whether a pawn feature is good or bad and it
- * does not claim that a single-position observation is persistent. Task 1.7 owns persistence over
- * route checkpoints. Approximate observations are explicitly named as candidates and retain their
- * classifier confidence and provenance.
- */
 import { assertDefined } from "../assert.js";
 import { parseFen } from "chessops/fen";
 import type { Board } from "chessops/board";
@@ -118,7 +110,6 @@ export const PAWN_FORMATION_IDS = [
 export type PawnFormationId = (typeof PAWN_FORMATION_IDS)[number];
 
 export interface NamedPawnFormationObservation {
-  /** Stable language-neutral identity; the legacy classifier label is evidence, not identity. */
   readonly formation_id: PawnFormationId;
   readonly classifier_label: string | null;
 }
@@ -161,7 +152,6 @@ export interface LikelyPawnBreak {
   readonly to: string;
   readonly challenges: readonly string[];
   readonly advance_length: 1 | 2;
-  /** Geometric readiness only; this is not an engine or objective-quality claim. */
   readonly readiness: "geometrically-available";
   readonly confidence: number;
 }
@@ -413,8 +403,6 @@ function groupedByFile(board: Board, color: Color, names: readonly string[]): Pa
 
 function individualPawnGroups(board: Board, color: Color, names: readonly string[]): PawnGroup[] {
   return names.map((name) => {
-    // names always originates from isolatedPawns/doubledPawns on this same board+color, which
-    // derive from the same board.pieces(color, "pawn") set as pawnSquares, so a match always exists.
     const square = assertDefined(
       pawnSquares(board, color).find((candidate) => makeSquare(candidate) === name),
     );
@@ -737,7 +725,6 @@ function subjectSignals(
   ];
 }
 
-/** Extract deterministic, engine-free pawn and center observations from one legal position. */
 export function extractPawnSignals(board: Board, repertoireColor: Color): PawnSignalReport {
   const classification = classifyStructure(board);
   const tension = centerTensionPairs(board, repertoireColor);
@@ -798,7 +785,6 @@ export function extractPawnSignals(board: Board, repertoireColor: Color): PawnSi
   };
 }
 
-/** Convenience boundary for callers that do not otherwise need a chessops board. */
 export function extractPawnSignalsFromFen(fen: string, repertoireColor: Color): PawnSignalReport {
   return extractPawnSignals(parseFen(fen).unwrap().board, repertoireColor);
 }

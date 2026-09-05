@@ -1,11 +1,3 @@
-/**
- * Deterministic Strategic Fit learning concepts.
- *
- * Concept rules consume only stable or irreversible trajectory evidence. They intentionally stay
- * conservative: this module records an observed setup, exchange, prerequisite, or plan pattern;
- * it does not infer chess value, tactical soundness, or an unsupported strategic intention.
- * Language-neutral concept IDs are kept separate from English display labels.
- */
 import type {
   JsonValue,
   StrategicFitSourceProvenance,
@@ -21,12 +13,6 @@ import {
 } from "./version.js";
 import { assertDefined } from "../assert.js";
 
-/**
- * Same as `Array.isArray`, but returns a plain `boolean` instead of a type predicate. Use this
- * (instead of `Array.isArray` directly) when checking a precisely-typed `JsonValue` field that's
- * still needed with its precise type afterward — `Array.isArray`'s `arg is any[]` predicate would
- * silently collapse every later reference to that expression down to `any`.
- */
 function isPlainArray(value: unknown): boolean {
   return Array.isArray(value);
 }
@@ -81,7 +67,6 @@ export interface StrategicConcept {
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
 
-/** Labels are a presentation catalog and never participate in concept identity or overlap. */
 export interface StrategicConceptLabel {
   readonly concept_id: string;
   readonly locale: "en";
@@ -111,16 +96,9 @@ export interface StrategicConceptOverlap {
   readonly shared_concept_ids: readonly string[];
   readonly left_only_concept_ids: readonly string[];
   readonly right_only_concept_ids: readonly string[];
-  /** Jaccard overlap. Two routes with no supported concepts have overlap 1. */
   readonly overlap: number;
 }
 
-/**
- * Leading segment of every concept identity this classifier can emit. It is deliberately narrower
- * than the category list: `tactical-risk-prerequisite` is a category, while the emitted identities
- * use the `tactical-prerequisite` namespace. Callers that accept concept identities from outside
- * the analyzer — a settings field or a model-authored preference proposal — validate against this.
- */
 export const STRATEGIC_CONCEPT_ID_NAMESPACES = [
   "endgame-tendency",
   "exchange",
@@ -134,11 +112,6 @@ export type StrategicConceptIdNamespace = (typeof STRATEGIC_CONCEPT_ID_NAMESPACE
 const CONCEPT_ID_MAXIMUM_CHARACTERS = 128;
 const CONCEPT_ID_PATTERN = /^[a-z][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+$/;
 
-/**
- * True only for an identity this classifier could actually have produced. It checks shape, not
- * presence: a concept the current repertoire never reaches is still a valid thing to prefer or
- * avoid, but an invented identity is not.
- */
 export function isStrategicConceptId(value: unknown): value is string {
   if (typeof value !== "string" || value.length > CONCEPT_ID_MAXIMUM_CHARACTERS) return false;
   if (!CONCEPT_ID_PATTERN.test(value)) return false;
@@ -480,8 +453,6 @@ function emitPawnExpansionPlans(
     const expansion = objectValue(value[side]);
     if (!expansion) continue;
     for (const wing of ["queenside", "kingside"] as const) {
-      // One advanced wing pawn is ordinary opening development. Two observed pawns are the
-      // conservative deterministic threshold for naming an expansion plan.
       if (stringArray(expansion[wing]).length < 2) continue;
       emit(
         concepts,
@@ -724,11 +695,6 @@ function extractRouteConcepts(
   };
 }
 
-/**
- * Derive one retained trajectory's concepts with the canonical classifier rules. Presentation
- * projections over a completed report use this instead of rebuilding a full dictionary; the
- * result is byte-identical to the dictionary entry the analyzer produced for the same trajectory.
- */
 export function deriveStrategicRouteConcepts(
   trajectory: StrategicTrajectory,
   labels = new Map<string, StrategicConceptLabel>(),
@@ -736,7 +702,6 @@ export function deriveStrategicRouteConcepts(
   return extractRouteConcepts(trajectory, labels);
 }
 
-/** Build the versioned concept dictionary for every trajectory in a report. */
 export function buildStrategicConceptDictionary(
   trajectories: StrategicTrajectoryReport,
 ): StrategicConceptDictionary {
@@ -770,7 +735,6 @@ export function buildStrategicConceptDictionary(
   };
 }
 
-/** Compute deterministic route-level concept overlap without using display labels. */
 export function computeStrategicConceptOverlap(
   left: StrategicRouteConcepts,
   right: StrategicRouteConcepts,

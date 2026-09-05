@@ -1,8 +1,3 @@
-/**
- * Task 12.5 regression guard: no production source may reintroduce the removed Congruence V1
- * analyzer, the one-move `suggest_replacement_line` pivot, or the temporary `analyze_repertoire_congruence`
- * legacy projection. Scans only production source trees; tests and docs are out of scope here.
- */
 import { readFile, readdir } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);

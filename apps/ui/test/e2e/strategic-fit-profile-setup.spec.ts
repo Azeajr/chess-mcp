@@ -113,20 +113,6 @@ const openWorkspace = async (page: Page) => {
   return { opener, dialog };
 };
 
-/**
- * Open one of the settings `<details>` sections, and confirm it stayed open.
- *
- * A bare `getByText(name).click()` is a *toggle* aimed by text position, not an "open", and the
- * sections are filled in from the top down — so the dialog reflows underneath the click, and a
- * click that misses, lands twice, or is undone by a re-render leaves the section shut. Everything
- * inside a closed `<details>` is `display: none`, so the next assertion then waits out its whole
- * timeout on an element that is present and will never be visible. That is exactly how this flaked
- * on CI (`Opening popularity` resolved on all thirteen polls and stayed hidden).
- *
- * Clicking the section's own `<summary>`, and only while the section reports itself closed, is
- * idempotent under all three of those causes: it re-clicks if the state did not take, and does
- * nothing if it did.
- */
 const openSection = async (dialog: Locator, name: string) => {
   const summary = dialog.locator("summary").filter({ hasText: name });
   const isOpen = () => summary.evaluate((el) => el.closest("details")?.open === true);
@@ -188,8 +174,6 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
       name: "How should Strategic Fit review your repertoire?",
     }),
   ).toHaveCount(0);
-  // One, not four: the workspace shows the current stage's pane at every width. The assertion is
-  // still "setup is behind us and the workspace body is rendering", which is what it always meant.
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByText(/Balanced · Inferred · provisional/)).toBeVisible();
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({

@@ -1,7 +1,3 @@
-/**
- * Side-panel entry point. The card leads with the user's problem rather than the feature's name,
- * and keeps the no-side-effects sentence the audit identified as already correct.
- */
 export const STRATEGIC_FIT_ENTRY = {
   question: "Is your repertoire asking you to learn too many different plans?",
   summary:
@@ -10,16 +6,8 @@ export const STRATEGIC_FIT_ENTRY = {
   action: "Open Strategic Fit",
 } as const;
 
-/**
- * WP-031: copy for the two evidence-limited states.
- *
- * The zero-comparable-route case is terminal — the analysis ran, but no route reached the
- * comparable-ply threshold, so there is nothing to compare and every finding would be a statement
- * about missing data. The remedies are the two things that actually change that outcome.
- */
 export const STRATEGIC_FIT_EVIDENCE = {
   noneTitle: "Not enough comparable evidence to analyze",
-  /** `ply` is the threshold the run reported; the sentence adapts when it is unavailable. */
   noneBody: (routeCount: number, comparableCount: number, ply: number | null) =>
     ply === null
       ? `This repertoire has ${routeCount} ${routeCount === 1 ? "route" : "routes"}, and ${comparableCount} of them reach far enough to compare. Strategic Fit compares the ideas behind lines that run deep enough to have ideas, so there is nothing for it to weigh up yet.`
@@ -48,13 +36,6 @@ export { strategicFitPlanSectionLabel } from "@chess-mcp/chess-tools";
 export { STRATEGIC_FIT_LIFECYCLE_LABELS } from "../components/strategic-fit/AnalysisLifecycle";
 export { STRATEGIC_FIT_PROFILE_LABELS } from "../components/strategic-fit/ProfileSetup";
 
-/**
- * WP-034: one UI vocabulary for mechanism-heavy Strategic Fit surfaces.
- *
- * Expert terms remain available as secondary text, but headings, table columns, and status labels
- * answer the user's question first. The assistant/MCP workflow contract deliberately keeps its
- * existing terminology per PD-8.
- */
 export const STRATEGIC_FIT_VOCABULARY = {
   evidenceCheck: {
     title: "Evidence check results",
@@ -142,10 +123,6 @@ export function strategicFitTradeoffStatus(
   return { plain: "Not enough evidence to compare", expert: "Pareto status unavailable" };
 }
 
-/**
- * Exact protected propositions. Tests match these byte-for-byte and also verify their owning source
- * remains present. Never paraphrase these while doing vocabulary cleanup.
- */
 export const STRATEGIC_FIT_PROTECTED_STATEMENTS = {
   withheldEvidence: "Withheld evidence exists; it is not absent, and it cannot be cited in a plan",
   stagedSave: "Nothing is saved until you accept",

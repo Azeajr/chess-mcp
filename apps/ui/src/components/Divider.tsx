@@ -1,12 +1,3 @@
-/**
- * Draggable divider. Reports the pointer delta along its axis since the last move via
- * onResize (the caller turns it into a new panel size); onEnd fires on pointerup so the caller
- * can persist. Pointer capture keeps the drag alive when the cursor leaves the hit area.
- *
- * axis="x" (default): vertical bar, col-resize, reports horizontal delta.
- * axis="y": horizontal bar, row-resize, reports vertical delta — used by the phone layout to
- * resize the pinned board.
- */
 interface DividerProps {
   onResize: (delta: number) => void;
   onEnd?: () => void;
@@ -16,7 +7,6 @@ interface DividerProps {
   value: number;
   min: number;
   max: number;
-  /** Whether a positive pointer delta increases (+1) or decreases (-1) aria-valuenow. */
   valueDirection?: 1 | -1;
 }
 

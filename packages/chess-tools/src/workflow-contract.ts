@@ -1,4 +1,3 @@
-/** Dependency-free semantic workflow guidance shared by browser prompts and MCP skills. */
 import type { StrategicFitFindingSort } from "./strategic-fit/analyze.js";
 import type {
   StrategicFitConversationFinding,
@@ -17,12 +16,6 @@ export interface WorkflowStep {
   mcpTools: readonly string[];
 }
 
-/**
- * Dotted field paths of one bounded conversation projection. Guidance may only tell the model to
- * cite a field the Task 11.1 retrieval actually returns, so renaming a projection field breaks the
- * guidance at compile time instead of leaving the model citing something that no longer exists.
- * Array-valued fields terminate the path: their elements are described in prose, not addressed.
- */
 type ProjectionPath<T> = T extends readonly unknown[]
   ? never
   : T extends object
@@ -42,7 +35,6 @@ export type StrategicFitCitation =
   | StrategicFitFindingsCitation
   | StrategicFitFindingCitation;
 
-/** One requested depth of explanation for a finding the conversation already retrieved. */
 export interface WorkflowExplanationLevel {
   readonly id: "intermediate" | "expert" | "concise" | "training";
   readonly title: string;
@@ -50,11 +42,6 @@ export interface WorkflowExplanationLevel {
   readonly cite: readonly StrategicFitFindingCitation[];
 }
 
-/**
- * One natural-language question mapped to the retrieval that answers it. `view` is `null` when the
- * report does not own the question and another canonical operation does; the model still selects
- * that operation from its own contract rather than from words in the question.
- */
 export interface WorkflowGroundedQuery {
   readonly id: string;
   readonly question: string;
@@ -77,7 +64,6 @@ export interface WorkflowContract {
   goal: string;
   steps: readonly WorkflowStep[];
   report: readonly string[];
-  /** Present only where a family owns explanation and exploration guidance of its own. */
   explanations?: WorkflowExplanationContract;
 }
 
@@ -92,11 +78,6 @@ export const WORKFLOW_INVARIANTS = [
   "Treat Strategic Fit replacement results as revision-bound atomic previews. Compare full candidate subtrees and retained unavailable/partial evidence; never infer pruning, auto-accept a staged browser change, or imply MCP archive/undo support.",
 ] as const;
 
-/**
- * Explanation and exploration guidance for a Strategic Fit report the conversation already holds.
- * Every level and question names the retrieval view that answers it and the exact projection fields
- * it may cite, so an explanation is assembled from returned evidence instead of narrated around it.
- */
 export const STRATEGIC_FIT_EXPLANATIONS: WorkflowExplanationContract = {
   goal: "Explain a Strategic Fit report the conversation already produced, at the depth the user asked for, using only what the bounded retrieval views returned.",
   rules: [
@@ -447,7 +428,6 @@ function renderGroundedQuery(query: WorkflowGroundedQuery): string {
   return `- "${query.question}" ${source} ${query.answer} ${citations(query.cite)} Missing evidence: ${query.missing}`;
 }
 
-/** Render one family's explanation and exploration guidance for either host. */
 export function renderWorkflowExplanations(contract: WorkflowExplanationContract): string {
   return [
     "## Explanation and exploration contract",
@@ -495,7 +475,6 @@ export function renderWorkflowGuidance(family: WorkflowFamily, host: WorkflowHos
   ].join("\n");
 }
 
-/** Compact all-family method index for natural/Auto conversation without a preset. */
 export function renderWorkflowOverview(host: WorkflowHost): string {
   return [
     "## Shared method index",

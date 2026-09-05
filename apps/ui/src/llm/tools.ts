@@ -1,4 +1,3 @@
-/** OpenRouter schema projection plus a thin adapter to the application-owned command client. */
 import type { ToolSchema } from "./openrouter";
 import { contractsForHost, jsonSchemaForTool } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";

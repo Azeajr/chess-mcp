@@ -9,12 +9,6 @@ import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 import { expect } from "playwright/test";
 
-/**
- * WP-019 required automated validation: publish production build A, then production build B at
- * the same origin and exercise the real generated service-worker lifecycle. This is deliberately
- * separate from the dev-seam spec: a green mock cannot prove Workbox actually leaves B waiting.
- */
-
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../../..");
 const uiDist = path.join(root, "apps/ui/dist");
@@ -33,7 +27,6 @@ const mime = new Map([
 ]);
 
 function build(id) {
-  // Flagged A/B builds must never replace the ordinary, validated deployment artifact.
   const output = path.join(workspace, `build-${id}`);
   execFileSync(
     "pnpm",
@@ -117,7 +110,6 @@ async function verifyOfflineProduction(browser, origin) {
     assert.equal((await savedDocument(page)).documentId, beforeReload.documentId);
     assert.equal((await savedDocument(page)).pgn, beforeReload.pgn);
 
-    // Edit through the real board while offline, then prove that the edit survives a reload.
     await playMove(page, "e7", "e5");
     await expect.poll(async () => (await savedDocument(page))?.pgn ?? "").toContain("1. e4 e5");
     const edited = await savedDocument(page);
@@ -147,7 +139,6 @@ async function verifyOfflineProduction(browser, origin) {
       assert.ok(result.bytes > 0, `${asset} contains data`);
     }
 
-    // A new worker cannot satisfy this with the app's persisted evaluation cache.
     const bestmove = await page.evaluate(
       () =>
         new Promise((resolve, reject) => {
@@ -201,7 +192,6 @@ function staticServer() {
       "Content-Type",
       mime.get(path.extname(target)) ?? "application/octet-stream",
     );
-    // Updates must never be hidden behind the test server's HTTP cache.
     response.setHeader("Cache-Control", "no-store");
     if (relative === "sw.js") response.setHeader("Service-Worker-Allowed", "/");
     response.end(readFileSync(target));
@@ -231,15 +221,11 @@ try {
   await page.goto(origin, { waitUntil: "networkidle" });
   await page.waitForSelector(".app[data-build-id='A']");
 
-  // First install activates normally because there is no previous worker. Reload once so A is the
-  // controlling worker before publishing B.
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
   await page.waitForSelector(".app[data-build-id='A']");
 
-  // A real running operation must hold the prompt back even after B has installed and is waiting.
-  // No opening lookup ran before disconnecting, so an in-memory table cannot hide missing precache.
   await context.setOffline(true);
   const opening = await page.evaluate(() => window.__pwaLifecycleTest.identifyOpening("1. e4 *"));
   assert.deepEqual(opening, { eco: "B00", name: "King's Pawn Game", ply: 1 });
@@ -271,15 +257,12 @@ try {
   const updateToast = page.locator(".ui-toast", { hasText: "A new version is ready." });
   await updateToast.waitFor({ state: "visible" });
 
-  // Later dismisses only this page. Reloading A re-registers against the still-waiting B worker and
-  // the prompt returns, proving the pending worker was not discarded.
   await updateToast.getByRole("button", { name: "Later" }).click();
   assert.equal(await updateToast.count(), 0);
   await page.reload({ waitUntil: "networkidle" });
   await page.waitForSelector(".app[data-build-id='A']");
   await updateToast.waitFor({ state: "visible" });
 
-  // Only Reload sends skipWaiting and transitions the app itself from build A to build B.
   await Promise.all([
     page.waitForNavigation({ waitUntil: "networkidle" }),
     updateToast.getByRole("button", { name: "Reload" }).click(),

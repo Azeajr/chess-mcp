@@ -1,10 +1,3 @@
-/**
- * Pure, engine-free composition root for the Congruence 2.0 Strategic Fit pipeline.
- *
- * Every optional or non-deterministic input is injected. The analyzer does not read a clock,
- * contact a network service, use an engine, or keep module-level run state. Long-running hosts can
- * observe the six frozen phases and cooperatively cancel between deterministic stages.
- */
 import type { Color } from "../congruence.js";
 import type { OpeningTable } from "../openings.js";
 import type { GameTree } from "../pgn.js";
@@ -95,10 +88,6 @@ import { sortStrategicFitFindings } from "./report-projection.js";
 
 export const STRATEGIC_FIT_DEFAULT_PAGE_LIMIT = 50;
 
-/**
- * The core never reads the wall clock. Hosts that need a real generation time inject one; the
- * stable fallback keeps direct calls and worker replays byte-equivalent.
- */
 export const STRATEGIC_FIT_DETERMINISTIC_GENERATED_AT = "1970-01-01T00:00:00.000Z";
 
 export const STRATEGIC_FIT_FINDING_SORTS = [
@@ -118,7 +107,6 @@ export interface StrategicFitFindingPageInput {
 export interface StrategicFitFindingPage {
   readonly offset: number;
   readonly limit: number;
-  /** Count before paging; changing page size never changes this value. */
   readonly total_count: number;
   readonly returned_count: number;
   readonly has_more: boolean;
@@ -126,7 +114,6 @@ export interface StrategicFitFindingPage {
 
 export interface StrategicFitRouteAssessmentInput {
   readonly route_id: string;
-  /** Omitted public inputs apply to every finding on the route; persisted inputs target one finding. */
   readonly semantic_finding_id?: string;
   readonly matches_declared_objective?: boolean;
   readonly resolution_state?: StrategicFinding["resolution_state"];
@@ -147,36 +134,18 @@ export interface AnalyzeStrategicFitOptions {
   readonly modes?: StrategicModeDetectionOptions;
   readonly distance?: StrategicDistanceOptions;
   readonly training?: StrategicTrainingMetricEvidence;
-  /** Confirmed intent/resolution and alternative evidence; absence remains explicitly unknown. */
   readonly routeAssessments?: readonly StrategicFitRouteAssessmentInput[];
   readonly sort?: StrategicFitFindingSort;
   readonly page?: StrategicFitFindingPageInput;
   readonly generatedAt?: string;
   readonly runId?: string;
-  /**
-   * Host-owned incremental index. It memoizes deterministic stages under a content identity, so
-   * supplying one changes cost only: report identity, findings, and provenance are unaffected and
-   * the index therefore never participates in report or cache identity.
-   */
   readonly index?: StrategicFitIndexCache;
-  /**
-   * Affected-cohort scope from the host's semantic comparison. It bounds the work the index claims
-   * to reuse and is recorded as plan evidence; it can never substitute a value.
-   */
   readonly recomputationScope?: StrategicFitRecomputationScope;
-  /**
-   * Checkpoint sink for a host that can be interrupted. It receives the whole-stage values an
-   * indexed run has already produced, so a later run of the same content, revision, settings, and
-   * generation can restore them instead of recomputing them. A checkpoint is evidence of completed
-   * work, never a findings source: it carries no report, and it cannot change what an analysis
-   * returns. It is emitted only alongside an index, whose content identities it is expressed in.
-   */
   readonly onCheckpoint?: (stage: StrategicFitJobCheckpointStage) => void;
   readonly shouldCancel?: () => boolean;
   readonly onProgress?: (progress: StrategicFitProgress) => void;
 }
 
-/** Resolve profile feature weights unless an explicit one-off analyzer override was supplied. */
 export function strategicFitProfileDistanceOptions(
   profile: StrategicFitProfile,
   override?: StrategicDistanceOptions,
@@ -184,7 +153,6 @@ export function strategicFitProfileDistanceOptions(
   return override ?? { feature_family_weights: profile.preferences.feature_family_weights };
 }
 
-/** A page is a projection of one immutable logical report, not a separate analysis result. */
 export interface StrategicFitAnalysisResult extends StrategicFitReport {
   readonly finding_page: StrategicFitFindingPage;
 }
@@ -728,8 +696,6 @@ function candidates(context: FindingContext): FindingCandidate[] {
     }
   }
 
-  // A terminal canonical position shared by distinct routes is a genuine move-order equivalence,
-  // even when short evidence prevents a strategic cohort from being actionable.
   const cohortByRoute = new Map<string, StrategicCohort>();
   for (const cohort of context.modes.cohorts) {
     for (const routeId of [...cohort.route_ids, ...cohort.excluded_route_ids]) {
@@ -780,9 +746,6 @@ function distinctFeatureValues(
     .map(([, value]) => value);
   if (sorted.length === 0) return null;
   if (sorted.length === 1) {
-    // `sorted[0]` may legitimately be JSON `null` (a real feature value) — assertDefined would
-    // wrongly throw on that, so only guard against the (unreachable, given the length check)
-    // `undefined` case that noUncheckedIndexedAccess forces onto the type.
     const only = sorted[0];
     if (only === undefined) throw new Error("distinctFeatureValues: sorted[0] missing");
     return only;
@@ -852,9 +815,6 @@ function stableFromPly(candidate: FindingCandidate): number | null {
 }
 
 function temporalPersistence(candidate: FindingCandidate): number {
-  // NOT equivalent to `candidate.comparison?.distance === null`: when comparison is undefined
-  // that chain evaluates to `undefined === null` (false), so the guard would stop returning 0
-  // for a missing comparison and fall through to read `.matched_checkpoint_keys` off undefined.
   // eslint-disable-next-line @typescript-eslint/prefer-optional-chain
   if (!candidate.comparison || candidate.comparison.distance === null) return 0;
   const count = candidate.comparison.matched_checkpoint_keys.length;
@@ -1209,10 +1169,6 @@ function blockedResult(
   };
 }
 
-/**
- * Run the complete deterministic Strategic Fit pipeline and return one immutable page projection.
- * Summary counts and report identity are calculated from all findings before paging.
- */
 export function analyzeStrategicFit(
   tree: GameTree,
   options: AnalyzeStrategicFitOptions,
@@ -1250,7 +1206,6 @@ export function analyzeStrategicFit(
   if (normalized.graph === null) return blockedResult(options, profile, normalized.preflight);
   const graph = normalized.graph;
   const contentKey = normalized.contentKey;
-  /** Emitted after a phase completes, so an interrupted job keeps exactly what it finished. */
   const checkpoint = (phaseIndex: number, trajectories: StrategicTrajectoryReport | null): void => {
     if (options.onCheckpoint === undefined || generation === null) return;
     options.onCheckpoint({

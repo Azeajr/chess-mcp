@@ -1,11 +1,3 @@
-/**
- * Deterministic confidence and difference-magnitude calculations for Strategic Fit.
- *
- * Confidence measures whether a strategic difference is correctly identified and explained. It
- * deliberately does not measure chess quality or how different the positions are. Difference
- * magnitude similarly excludes engine and database quality: it combines only strategic distance,
- * persistence, supported concept novelty, and how early the difference becomes stable.
- */
 import type {
   ConfidenceCap,
   ConfidenceCapReason,
@@ -21,7 +13,6 @@ import { STRATEGIC_FIT_ANALYSIS_MANIFEST, STRATEGIC_FIT_ANALYSIS_VERSION } from 
 
 export const STRATEGIC_CONFIDENCE_VERSION = STRATEGIC_FIT_ANALYSIS_MANIFEST.components.confidence;
 
-/** The frozen design does not privilege one confidence component, so each receives equal weight. */
 export const STRATEGIC_CONFIDENCE_COMPONENT_WEIGHTS: Readonly<
   Record<ConfidenceComponentKind, number>
 > = Object.freeze(
@@ -54,11 +45,9 @@ export interface StrategicConfidenceInput {
   readonly cohort_coherence: number;
   readonly opening_data_quality: number;
   readonly causal_attribution_quality: number;
-  /** Set by the evidence layer when incomplete routes materially limit comparison. */
   readonly substantial_incomplete_line_share: boolean;
   readonly unresolved_classifier_conflict: boolean;
   readonly opening_taxonomy_available: boolean;
-  /** Allows useful structural evidence to survive missing taxonomy, but only under the frozen cap. */
   readonly strong_structural_evidence: boolean;
 }
 
@@ -67,7 +56,6 @@ export interface StrategicDifferenceInput {
   readonly persistence: number;
   readonly new_concept_count: number;
   readonly stable_from_ply: number | null;
-  /** Defaults to the frozen engine-free analysis horizon at ply 24. */
   readonly stability_horizon_ply?: number;
 }
 
@@ -196,7 +184,6 @@ function weightedGeometricScore(components: readonly ConfidenceComponent[]): num
   );
 }
 
-/** Combine the seven frozen confidence components, then apply every evidence-derived hard cap. */
 export function calculateFindingConfidence(input: StrategicConfidenceInput): FindingConfidence {
   const components = confidenceComponents(input);
   const uncappedScore = Math.round(weightedGeometricScore(components) * 100);
@@ -246,7 +233,6 @@ function validateDifferenceInput(input: StrategicDifferenceInput): number {
   return horizon;
 }
 
-/** Classify a normalized magnitude score at the deterministic one-third boundaries. */
 export function classifyDifferenceMagnitude(score: number): DifferenceMagnitude {
   requireUnitInterval("magnitude-score", score);
   if (score >= DIFFERENCE_MAGNITUDE_THRESHOLDS.major) return "major";
@@ -254,10 +240,6 @@ export function classifyDifferenceMagnitude(score: number): DifferenceMagnitude 
   return "minor";
 }
 
-/**
- * Score the four frozen magnitude dimensions with equal weight. Concept novelty saturates without
- * an arbitrary maximum; stability depth is normalized over the configured comparison horizon.
- */
 export function scoreStrategicDifferenceMagnitude(
   input: StrategicDifferenceInput,
 ): StrategicDifferenceMagnitudeScore {
@@ -289,7 +271,6 @@ export function scoreStrategicDifferenceMagnitude(
   };
 }
 
-/** Calculate the finding-facing difference object; objective-quality data is intentionally absent. */
 export function calculateStrategicDifference(input: StrategicDifferenceInput): StrategicDifference {
   const assessment = scoreStrategicDifferenceMagnitude(input);
   return {

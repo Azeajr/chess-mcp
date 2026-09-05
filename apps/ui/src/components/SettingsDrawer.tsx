@@ -1,7 +1,3 @@
-/**
- * Settings drawer: OpenRouter API key, model slug, and Lichess API token (persisted to
- * localStorage by the settings store). The keys are stored in plaintext — noted to the user.
- */
 import { For, Show } from "solid-js";
 import { settingsOpen, setSettingsOpen } from "../store/ui";
 import Dialog from "./primitives/Dialog";
@@ -22,9 +18,6 @@ import Field from "./primitives/Field";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
 
 export default function SettingsDrawer() {
-  // WP-026 AC-4 / WP-021 AC-2: a recovery action or the chat setup card can request that focus
-  // land on a specific field. Dialog's own initialFocus does the work, so the target is only a
-  // selector lookup — no post-mount refocus, which would fight the dialog's focus management.
   const focusSelector = () => {
     const target = settingsFocusTarget();
     return target ? `input[data-settings-field='${target}']` : undefined;

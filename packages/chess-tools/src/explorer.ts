@@ -1,22 +1,3 @@
-/**
- * Lichess opening-explorer client (explorer.lichess.org) + the theory-depth walk built on it.
- * Two databases: `lichess` (online games, rating/speed-filtered — the practical-play default)
- * and `masters` (OTB 2200+ FIDE). Over the rate-limited, offline-safe apiclient — miss/offline
- * → null, never throws.
- *
- * AUTH: since ~2026-03 the explorer requires a login (post-DDoS; the endpoints declare
- * `security: OAuth2` in the Lichess API spec) — anonymous requests 401. The host wires a
- * personal API token (no scopes needed) via setExplorerToken(); without one every lookup
- * degrades to null, and hosts should say so rather than let it read as "offline".
- *
- * Responses are cached in-memory per process, keyed by db + transposition key + filters. No
- * persistence on purpose: the lichess db grows daily, and a stale popularity number is silently
- * wrong (unlike a stale engine eval, which is merely shallow). The per-process cache is what
- * collapses transposition re-hits and repeated tool calls, where the 1 req/s limiter hurts.
- *
- * Per-move and per-position win counts are white-POV always (the API's convention, matching
- * cloud_eval) — NOT side-to-move.
- */
 import { makeFen } from "chessops/fen";
 import { Chess } from "chessops/chess";
 import { parseSan } from "chessops/san";
@@ -43,15 +24,10 @@ export type ExplorerRatingBucket = (typeof EXPLORER_RATING_BUCKETS)[number];
 
 export interface ExplorerFilters {
   db?: ExplorerDb;
-  /** lichess db only. Default blitz/rapid/classical — practical play, not bullet noise. */
   speeds?: readonly ExplorerSpeed[];
-  /** lichess db only: the explorer's 0..2500 rating buckets. Default 1800+ — club-strength opposition. */
   ratings?: readonly ExplorerRatingBucket[];
-  /** Lichess: inclusive YYYY-MM. Masters: inclusive YYYY. */
   since?: string;
-  /** Lichess: inclusive YYYY-MM. Masters: inclusive YYYY. */
   until?: string;
-  /** How many top moves to return (0 = counts only). Default 12. */
   movesLimit?: number;
 }
 
@@ -75,9 +51,7 @@ export interface ExplorerMove {
   san: string;
   uci: string;
   games: number;
-  /** % of games at this position that played this move (0-100, 1dp). */
   played_pct: number;
-  /** white-POV outcome shares (0-100, 1dp). */
   white_pct: number;
   draw_pct: number;
   black_pct: number;
@@ -86,16 +60,13 @@ export interface ExplorerMove {
 
 export interface ExplorerPosition {
   total_games: number;
-  /** white-POV outcome shares over all games here (0-100, 1dp). */
   white_pct: number;
   draw_pct: number;
   black_pct: number;
   opening: { eco: string; name: string } | null;
-  /** Most-played moves, frequency-desc (the API's order). */
   moves: ExplorerMove[];
 }
 
-/** A position lookup — the injection point tools take so tests can stub the network. */
 export type ExplorerLookup = (fen: string) => Promise<ExplorerPosition | null>;
 
 export const DEFAULT_EXPLORER_SPEEDS: readonly ExplorerSpeed[] = ["blitz", "rapid", "classical"];
@@ -124,7 +95,6 @@ interface RawExplorer {
 const pct = (n: number, total: number) => (total ? Math.round((n / total) * 1000) / 10 : 0);
 
 let explorerToken: string | null = null;
-/** Lichess personal API token (no scopes) — required by the explorer since ~2026-03. */
 export function setExplorerToken(token: string | null): void {
   explorerToken = token?.trim() ? token.trim() : null;
 }
@@ -136,14 +106,10 @@ const cache = new Map<string, ExplorerPosition>();
 
 function uniqueSorted<T>(values: readonly T[], order: (value: T) => number): T[] {
   const unique = [...new Set(values)];
-  // `order` both validates and ranks, so it must be applied to every value explicitly:
-  // Array.prototype.sort does not invoke its comparator for a list of fewer than two elements,
-  // which let a lone invalid speed or rating bucket through unchecked and into the request URL.
   for (const value of unique) order(value);
   return unique.sort((left, right) => order(left) - order(right));
 }
 
-/** Validate and canonicalize every population filter before URL or cache-key construction. */
 export function normalizeExplorerFilters(filters: ExplorerFilters = {}): NormalizedExplorerFilters {
   const db = filters.db ?? "lichess";
   const movesLimit = filters.movesLimit ?? 12;
@@ -205,12 +171,10 @@ function normalizedExplorerFilterKey(normalized: NormalizedExplorerFilters): str
   ].join("|");
 }
 
-/** Population-only identity reused by Strategic Fit provenance and report cache inputs. */
 export function explorerFilterKey(filters: ExplorerFilters = {}): string {
   return normalizedExplorerFilterKey(normalizeExplorerFilters(filters));
 }
 
-/** Pure request construction keeps URL and cache identity under one tested contract. */
 export function explorerRequest(fen: string, filters: ExplorerFilters = {}): ExplorerRequest {
   const normalized = normalizeExplorerFilters(filters);
   const filterKey = normalizedExplorerFilterKey(normalized);
@@ -227,11 +191,6 @@ export function explorerRequest(fen: string, filters: ExplorerFilters = {}): Exp
   return { url, cache_key: cacheKey, filter_key: filterKey, filters: normalized };
 }
 
-/**
- * Explorer stats at `fen`, or null on miss/offline. Successful responses (including 0-game
- * positions — valid data) are cached; failures are not, so a transient blip doesn't poison
- * the process.
- */
 export async function explorerPosition(
   fen: string,
   filters: ExplorerFilters = {},
@@ -274,27 +233,17 @@ export async function explorerPosition(
   return out;
 }
 
-// --- theory depth (where each repertoire line leaves known games) ---
-
 export interface TheoryDepthOptions {
-  /** A position with fewer explorer games than this is "out of theory". Default 100 (use ~5 for masters). */
   minGames?: number;
-  /** Explorer-query budget — bounds wall-clock at 1 req/s. Default 60. */
   maxPositions?: number;
-  /** Host-provided cooperative cancellation check for long explorer walks. */
   shouldCancel?: () => boolean;
-  /** Reports completed explorer queries against the configured query budget. */
   onProgress?: (done: number, total: number) => void;
 }
 
 export interface TheoryLine {
-  /** Full SAN line to the leaf. */
   san_path: string[];
-  /** Ply of the first out-of-theory position (= how many plies of the line are book), or null when the whole line stays inside theory. */
   theory_exit_ply: number | null;
-  /** Explorer games at the first out-of-theory position (null when the line never exits). */
   games_at_exit: number | null;
-  /** Explorer games at the deepest in-theory position reached on this line. */
   games_at_last_theory: number;
 }
 
@@ -302,23 +251,13 @@ export type TheoryDepthResult =
   | { error: "explorer_unavailable" }
   | {
       positions_queried: number;
-      /** true when the query budget ran out — `lines` covers only the visited subtree. */
       truncated: boolean;
       lines_skipped: number;
-      /** Per-leaf verdicts, earliest theory exit first (never-exits last). */
       lines: TheoryLine[];
       median_exit_ply: number | null;
       cancelled?: true;
     };
 
-/**
- * Walk the repertoire from the root, querying the explorer at each position, and mark where each
- * line's game count collapses below `minGames` — the ply where the line leaves known theory and
- * memorization stops paying. Once a position is out of theory the walk does NOT descend (children
- * can only be rarer), and transpositions are queried once — so queries ≈ unique in-theory
- * positions, not tree size. One transient lookup failure is retried once; a second failure aborts
- * (offline aborts on the first query, so a long walk can't half-complete silently).
- */
 export async function theoryDepth(
   tree: GameTree,
   opts: TheoryDepthOptions,
@@ -327,7 +266,7 @@ export async function theoryDepth(
   const minGames = opts.minGames ?? 100;
   const maxPositions = opts.maxPositions ?? 60;
 
-  const seen = new Map<string, ExplorerPosition | null>(); // walk-local transposition dedupe
+  const seen = new Map<string, ExplorerPosition | null>();
   let queried = 0;
   let budgetOut = false;
   let offline = false;
@@ -340,8 +279,6 @@ export async function theoryDepth(
     }
     const key = positionKey(fen);
     if (seen.has(key)) {
-      // `seen`'s value type legitimately includes `null` (a cached "offline" lookup) — only
-      // reject the `undefined` that Map.get's signature adds, which `.has()` above already rules out.
       const cached = seen.get(key);
       if (cached === undefined) throw new Error("theoryDepth: seen cache inconsistent");
       return cached;
@@ -357,7 +294,7 @@ export async function theoryDepth(
       cancelled = true;
       return null;
     }
-    res ??= await lookup(fen); // one retry through the rate limiter
+    res ??= await lookup(fen);
     if (opts.shouldCancel?.()) {
       cancelled = true;
       return null;
@@ -367,7 +304,6 @@ export async function theoryDepth(
     return res;
   };
 
-  // Collect every leaf line under `node` without further queries (used below an exit / the budget).
   const leavesUnder = (node: Node<PgnNodeData>, sanPath: string[], acc: string[][]) => {
     if (!node.children.length) {
       acc.push(sanPath);
@@ -379,7 +315,6 @@ export async function theoryDepth(
   const lines: TheoryLine[] = [];
   let skipped = 0;
 
-  // DFS carrying the position; `lastTheoryGames` = games at the deepest in-theory node so far.
   const walk = async (
     node: Node<PgnNodeData>,
     pos: Chess,
@@ -391,20 +326,15 @@ export async function theoryDepth(
       return;
     }
     const res = await query(makeFen(pos.toSetup()));
-    // TS's narrowing doesn't see that `query` (a closure over `offline`) can flip it to true, so
-    // it treats `offline` as still-false here — verified with the TS checker; the guard is real
-    // and needed, since a failed lookup inside `query` sets `offline = true` before returning.
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (offline) return;
     if (res === null) {
-      // budget ran out — everything under here is unvisited
       const acc: string[][] = [];
       leavesUnder(node, sanPath, acc);
       skipped += acc.length;
       return;
     }
     if (res.total_games < minGames) {
-      // theory exits here: every leaf below shares this exit ply
       const acc: string[][] = [];
       leavesUnder(node, sanPath, acc);
       for (const p of acc)
@@ -439,8 +369,6 @@ export async function theoryDepth(
   };
 
   await walk(tree.game.moves, Chess.default(), [], 0);
-  // Same TS narrowing gap as above: `walk`/`query` mutate `cancelled`/`offline` through their
-  // closures, which the checker can't see through, but the awaited walk really can set either.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   if (cancelled)
     return {

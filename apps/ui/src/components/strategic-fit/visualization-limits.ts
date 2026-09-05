@@ -1,46 +1,17 @@
-/**
- * Task 10.4 — deterministic render bounds shared by every Strategic Fit visualization.
- *
- * A large report must not produce a page that cannot be interacted with, and it must not produce a
- * chart that silently drops evidence either. Every bound here withholds only from the drawn chart
- * or from the first table window, always reports exactly how much it withheld so the view can
- * disclose it, and always leaves the complete list reachable through an explicit control or the
- * print/export mode.
- */
 import type { StrategicMapResolutionState } from "@chess-mcp/chess-tools";
 
-/**
- * Caps are chosen so the heaviest supported report still renders a bounded DOM. They are exported
- * because the behavioral tests assert against them rather than against magic numbers.
- */
 export const VISUALIZATION_RENDER_LIMITS = {
-  /** Plotted map circles before the map switches to deterministic grid clusters. */
   map_points: 300,
-  /** Transposition lines drawn at once; the rest stay disclosed as a count. */
   map_edges: 200,
-  /** Branch-list rows in the first window. */
   map_rows: 100,
-  /** Heatmap concept columns in the first window. */
   heatmap_columns: 40,
-  /** Heatmap cohort rows in the first window. */
   heatmap_rows: 40,
-  /** Flow nodes drawn per depth column before the lightest ones aggregate into one marker. */
   flow_nodes_per_column: 12,
-  /** Flow outline rows in the first window. */
   flow_rows: 150,
-  /** Pareto points drawn at once. */
   pareto_points: 120,
-  /** Rows in a Replacement Lab change-review list window. */
   review_rows: 60,
-  /**
-   * Task 12.3 — rows a virtualized list may mount at once. This is not a second capping rule: the
-   * caps above still decide what a first window *shows* and what it discloses as withheld, while
-   * this one decides only how many of an already-complete list are in the DOM at a time.
-   */
   virtual_rows: 60,
-  /** Columns a virtualized grid may mount at once, so a wide grid bounds its cells too. */
   virtual_columns: 24,
-  /** Rows a virtualized grid may mount at once; rows times columns bounds the mounted cells. */
   virtual_grid_rows: 24,
 } as const;
 
@@ -49,11 +20,9 @@ export interface BoundedWindow<T> {
   readonly shown: number;
   readonly total: number;
   readonly withheld: number;
-  /** True when `items` is the whole list, so a view can honestly call itself complete. */
   readonly complete: boolean;
 }
 
-/** Bounded first window over a deterministic list; `expanded` lifts the cap without reordering. */
 export function boundedWindow<T>(
   items: readonly T[],
   limit: number,
@@ -79,40 +48,26 @@ export function boundedWindow<T>(
   };
 }
 
-/** Rows kept mounted on each side of the scrolled viewport so scrolling does not flash blank rows. */
 export const VIRTUAL_WINDOW_OVERSCAN = 6;
 
 export interface VirtualWindow<T> {
   readonly items: readonly T[];
-  /** Logical index of the first mounted item; the list itself is never reordered or filtered. */
   readonly start: number;
   readonly mounted: number;
   readonly total: number;
-  /** Pixels of unmounted list before and after the mounted rows, so scroll geometry stays honest. */
   readonly lead: number;
   readonly trail: number;
-  /** True when every item is mounted, so a view can honestly call itself complete. */
   readonly complete: boolean;
 }
 
 export interface VirtualWindowOptions {
   readonly rowSize: number;
-  /** Measured viewport in the scrolling axis; `0` before measurement falls back to the mount cap. */
   readonly viewportSize: number;
   readonly scrollOffset: number;
   readonly maximumMounted?: number;
   readonly overscan?: number;
 }
 
-/**
- * Task 12.3 — deterministic mounted window over a complete, already-ordered list.
- *
- * The complete list stays reachable by scrolling: nothing is dropped, filtered, or reordered, and
- * the unmounted remainder is represented as exact leading and trailing space so the scrollbar
- * describes the logical total rather than the mounted subset. The mounted count is bounded by
- * `maximumMounted` regardless of how many items exist, which is what keeps a report with thousands
- * of routes or concepts from producing thousands of DOM rows.
- */
 export function virtualWindow<T>(
   items: readonly T[],
   options: VirtualWindowOptions,
@@ -180,11 +135,6 @@ function cell(value: number, grid: number): number {
   return Math.min(grid - 1, Math.max(0, index));
 }
 
-/**
- * Deterministic square-grid aggregation over the plotted coordinate space. A cluster sits at the
- * weight-weighted centroid of its members, then is drawn entirely inside its own grid cell so two
- * clusters can never overlap: an overlapping marker is one a pointer cannot reach.
- */
 export function clusterStrategicMapPoints(
   points: readonly ClusterablePoint[],
   limit: number = VISUALIZATION_RENDER_LIMITS.map_points,
@@ -208,7 +158,6 @@ export function clusterStrategicMapPoints(
   );
   const largest = ordered.reduce((maximum, [, members]) => Math.max(maximum, members.length), 0);
   const cellSize = 100 / grid;
-  /** A marker never crosses its cell, so no two markers can cover each other's click target. */
   const maximumRadius = Math.max(0.5, (cellSize / 2) * 0.9);
   const clusters = ordered.map(([key, members]) => {
     const [row, column] = key.split(":").map((part) => Number(part)) as [number, number];
@@ -284,14 +233,9 @@ export interface ClusteredMapEdge {
 
 export interface ClusteredMapEdges {
   readonly edges: readonly ClusteredMapEdge[];
-  /** Transpositions whose two branches landed in the same cluster and cannot be drawn as a line. */
   readonly within_cluster_count: number;
 }
 
-/**
- * Remap transposition lines onto clusters. Lines inside one cluster have no length to draw, so they
- * are counted and disclosed instead of being dropped without a word.
- */
 export function clusterStrategicMapEdges(
   edges: readonly ClusterableEdge[],
   clusters: readonly StrategicMapCluster[],
@@ -356,11 +300,6 @@ export interface DecisionFlowColumnSplit<TNode> {
   readonly aggregated: readonly TNode[];
 }
 
-/**
- * Keep the heaviest steps of a depth column drawable and fold the remaining lighter ones into one
- * marker. The aggregate always represents at least two steps, so a single extra step is drawn
- * rather than hidden behind a marker that would say the same thing in more words.
- */
 export function splitDecisionFlowColumn<TNode>(
   column: readonly TNode[],
   limit: number,
@@ -399,12 +338,6 @@ function unionIds(values: readonly (readonly string[])[]): readonly string[] {
   return [...new Set(values.flat())];
 }
 
-/**
- * Re-point links at the aggregate markers that replaced their endpoints and merge the duplicates
- * that result. Weight is summed rather than sampled, so every step's shares still add up exactly
- * after aggregation. Links whose two ends collapsed into the same marker have nothing left to show
- * and are dropped from the drawing only.
- */
 export function mergeDecisionFlowLinks(
   links: readonly MergeableFlowLink[],
   replacementByNodeId: ReadonlyMap<string, string>,
@@ -463,13 +396,8 @@ export function mergeDecisionFlowLinks(
   );
 }
 
-/** Below this the diagram stops shrinking and the scroll container takes over. */
 export const DECISION_FLOW_MINIMUM_SCALE = 0.6;
 
-/**
- * Fit a wide flow to the measured container down to a legibility floor. A chart that already fits
- * is never enlarged, and a chart that cannot fit at the floor keeps its horizontal scroll.
- */
 export function decisionFlowScale(containerWidth: number | null, chartWidth: number): number {
   if (containerWidth === null || containerWidth <= 0 || chartWidth <= 0) return 1;
   if (chartWidth <= containerWidth) return 1;

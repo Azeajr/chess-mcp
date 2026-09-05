@@ -15,7 +15,6 @@ import { START_FEN } from "./fixtures.ts";
 
 const HOSTS: ToolHost[] = ["mcp", "browser"];
 
-/** Every contract must be reachable by name, or a host can advertise a tool it cannot dispatch. */
 test("the name index covers every contract exactly once", () => {
   assert.equal(TOOL_CONTRACT_BY_NAME.size, TOOL_CONTRACTS.length, "a duplicate name shadows one");
   for (const contract of TOOL_CONTRACTS) {
@@ -45,7 +44,6 @@ test("toolContract names the tool it could not find rather than returning undefi
 
 test("toolDefault reads a declared default and falls back when there is none", () => {
   assert.equal(toolDefault("validate_fen", "definitely_absent", "fallback"), "fallback");
-  // Any contract that declares defaults must return them rather than the fallback.
   const withDefaults = TOOL_CONTRACTS.find((c) => Object.keys(c.defaults ?? {}).length > 0);
   assert.ok(withDefaults, "at least one contract declares defaults");
   const [key, value] = Object.entries(withDefaults.defaults)[0] ?? [];
@@ -75,7 +73,6 @@ test("jsonSchemaForTool closes every schema to unknown properties", () => {
   }
 });
 
-/** repertoire_id is injected from browser context, so it must never be asked of a browser caller. */
 test("jsonSchemaForTool omits repertoire_id from browser schemas", () => {
   const browserSchema = jsonSchemaForTool("find_only_moves", "browser");
   const mcpSchema = jsonSchemaForTool("find_only_moves", "mcp");
@@ -135,7 +132,6 @@ test("validateToolArguments names the missing required argument", () => {
   if (!result.ok) assert.equal(result.reason, "missing required argument: fen");
 });
 
-/** An unknown key is refused rather than ignored, so a typo cannot silently do nothing. */
 test("validateToolArguments refuses an unknown argument", () => {
   const result = validateToolArguments("validate_fen", { fen: START_FEN, depht: 3 }, "mcp");
   assert.equal(result.ok, false);
@@ -167,7 +163,6 @@ test("validateToolArguments enforces integer bounds at both ends", () => {
   }
 });
 
-/** A NaN or Infinity passes a naive typeof check, so the number branch must exclude them. */
 test("validateToolArguments rejects a non-finite number", () => {
   for (const value of [Number.NaN, Infinity, -Infinity]) {
     const result = validateToolArguments(
@@ -201,10 +196,6 @@ test("validateToolArguments accepts an empty array where no minimum is declared"
   assert.equal(result.ok, true);
 });
 
-/**
- * Every contract that declares required arguments must reject the empty call. This is a sweep
- * rather than a per-tool case: it catches a contract whose required list stops being enforced.
- */
 test("every tool with required arguments rejects an empty call", () => {
   for (const host of HOSTS) {
     for (const contract of contractsForHost(host)) {
@@ -218,12 +209,6 @@ test("every tool with required arguments rejects an empty call", () => {
   }
 });
 
-/**
- * `validateToolArguments` has a branch that passes arguments straight through for a contract with
- * no `input`, which would mean no validation at all for that tool. Today every contract declares
- * one, so the branch is unreachable — asserted here so that adding an input-less tool trips this
- * test and the author has to decide deliberately that it should bypass validation.
- */
 test("every contract declares an input schema, so nothing bypasses validation", () => {
   const withoutInput = TOOL_CONTRACTS.filter((contract) => !contract.input).map((c) => c.name);
   assert.deepEqual(withoutInput, [], "these tools would accept any arguments unchecked");

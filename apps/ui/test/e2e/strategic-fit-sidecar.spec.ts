@@ -204,28 +204,11 @@ test("sidecar UI rejects malformed and stale/cross-document previews without mut
   });
   const confirm = page.getByRole("button", { name: "Confirm metadata import" });
 
-  /*
-   * Two distinct guards protect this flow, and the original test conflated them:
-   *
-   *   1. A source/target document-id mismatch *disables* the confirm button until the mismatch is
-   *      explicitly acknowledged (StrategicFitTransfer.tsx).
-   *   2. Staleness — the document, revision, or metadata changing after the preview was taken —
-   *      is rejected by the store when confirmation is attempted (strategic-fit-sidecar.ts).
-   *
-   * This sidecar is same-document, so guard 1 does not apply and the button is enabled. Loading a
-   * different PGN then makes the preview stale, which is guard 2. Asserting the enabled state
-   * before clicking is what removes the race: previously the click could arrive while the control
-   * was momentarily unavailable, and Playwright would retry against it until the 30 s test
-   * timeout. That is why this failed on chromium under full-suite load while passing when the
-   * file ran scoped — a latent flake on every engine, not a browser difference, so the
-   * `@engine-bound` tag added for F18 was the wrong fix and is reverted.
-   */
   await expect(
     confirm,
     "a same-document preview is confirmable before it goes stale",
   ).toBeEnabled();
 
-  // Invalidate the preview by swapping the document underneath it, then confirm anyway.
   await chess(page, (api) => api.loadPgn("1. d4 d5 *", "other.pgn"));
   await confirm.click();
 

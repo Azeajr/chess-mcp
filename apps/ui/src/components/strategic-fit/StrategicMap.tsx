@@ -58,7 +58,6 @@ export interface StrategicMapViewModel {
 
 const VIEW_MARGIN = 8;
 const VIEW_SPAN = 100 - VIEW_MARGIN * 2;
-/** Points never fade out entirely: low confidence dims, it does not hide. */
 const MINIMUM_OPACITY = 0.35;
 
 export const STRATEGIC_MAP_RESOLUTION_LABELS: Readonly<
@@ -195,10 +194,6 @@ export default function StrategicMap(props: {
       (edge) => routeIds.has(edge.from_route_id) && routeIds.has(edge.to_route_id),
     );
   });
-  /**
-   * Beyond the cap the drawing switches to deterministic grid clusters. Every branch stays in the
-   * branch list below, so aggregation changes what is drawn and never what is reported.
-   */
   const clustering = createMemo(() =>
     clusterStrategicMapPoints(
       visiblePoints().map((view) => ({
@@ -234,16 +229,11 @@ export default function StrategicMap(props: {
       listExpanded() || strategicFitPrintExportMode(),
     ),
   );
-  /**
-   * Task 12.3 — the branch list keeps its Task 10.4 first window and its disclosure, and mounts that
-   * window through a bounded scrolling viewport. Print and export still render every row.
-   */
   const listRows = createVirtualRows({
     items: () => listWindow().items,
     rowSize: VIRTUAL_TABLE_ROW_HEIGHT,
     enabled: () => !strategicFitPrintExportMode(),
   });
-  /** A branch selected from the chart or a cluster is scrolled into the mounted window. */
   createEffect(() => {
     const routeId = selectedRouteId();
     if (routeId === null || listRows.window().complete) return;

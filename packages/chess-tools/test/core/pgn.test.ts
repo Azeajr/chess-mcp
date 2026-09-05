@@ -15,17 +15,11 @@ import {
   someLegal,
   positionKey,
 } from "../../src/index.ts";
-// Not re-exported from the package index; imported from the module under test directly.
 import { rejectFenSetup } from "../../src/pgn.ts";
 import { ITALIAN_FEN, START_FEN, START_LEGAL_MOVES } from "./fixtures.ts";
 
 const SIMPLE_PGN = '[Event "T"]\n\n1. e4 e5 2. Nf3 *\n';
 
-/**
- * Both orders reach the Italian position — 1. e4 e5 2. Nf3 Nc6 3. Bc4 and 1. e4 e5 2. Bc4 Nc6
- * 3. Nf3 — confirmed identical by `validate_line`. The mainline and the variation converge, which
- * is what makes this usable for transposition and key-index assertions.
- */
 const TRANSPOSITION_PGN = '[Event "T"]\n\n1. e4 e5 2. Nf3 (2. Bc4 Nc6 3. Nf3) 2... Nc6 3. Bc4 *\n';
 
 test("fromPgn builds a tree and stats counts nodes, leaves and depth", () => {
@@ -41,7 +35,6 @@ test("fromPgn keeps variations as branches rather than flattening them", () => {
 });
 
 test("fromPgn merges additional games into one tree", () => {
-  // Repertoire exports write each line as its own game; they must merge, not become two trees.
   const merged = GameTree.fromPgn(
     '[Event "A"]\n\n1. e4 e5 2. Nf3 *\n\n[Event "B"]\n\n1. e4 e5 2. Bc4 *\n',
   );
@@ -53,11 +46,6 @@ test("fromPgn rejects a PGN with no game in it", () => {
   assert.throws(() => GameTree.fromPgn(""), /no game found/u);
 });
 
-/**
- * chessops stores a syntactically valid but illegal SAN verbatim, so without the construction-time
- * replay such a PGN would load and only fail later, inconsistently: stats() counts structurally and
- * would report a leaf that leaves() skips.
- */
 test("fromPgn rejects an illegal move at construction rather than at first use", () => {
   assert.throws(() => GameTree.fromPgn('[Event "T"]\n\n1. e4 e4 *\n'), /illegal move in PGN: e4/u);
 });
@@ -126,12 +114,6 @@ test("playMove rejects squares that are not on the board", () => {
   assert.throws(() => tree.playMove([], "e2", "hh"), /bad square/u);
 });
 
-/**
- * Regression guard. The original check was `makeSanAndPlay(...) === "--"`, which is chessops' SAN
- * for a null move rather than its answer for an illegal one — given e2e5 it returns "e5" and plays
- * it. Every one of these was therefore appended to the tree with a plausible SAN, breaking the
- * invariant `assertLegal` enforces on the PGN path: that every stored line can be replayed.
- */
 test("playMove rejects an illegal move instead of appending it with a plausible SAN", () => {
   for (const [orig, dest] of [
     ["e2", "e5"], // pawn three squares
@@ -171,7 +153,6 @@ test("childSansAt returns nothing at a leaf", () => {
 test("allPositionKeys collects one key per distinct position, not one per node", () => {
   const tree = GameTree.fromPgn(TRANSPOSITION_PGN);
   const keys = tree.allPositionKeys();
-  // Eight nodes, but the two orders converge, so the Italian position is one key shared by two.
   assert.equal(tree.stats().nodes, 8);
   assert.equal(keys.size, 7);
   assert.ok(keys.has(positionKey(ITALIAN_FEN)));
@@ -197,7 +178,6 @@ test("buildKeyIndex counts occurrences and keeps the shallowest path for each ke
   const italian = positionKey(ITALIAN_FEN);
   assert.equal(keyCount.get(italian), 2, "two nodes carry the converged position");
   assert.equal(keyMap.get(italian)?.ply, 5);
-  // Both routes are five plies, so the first one visited wins; the mainline is visited first.
   assert.deepEqual(keyMap.get(italian)?.sanPath, ["e4", "e5", "Nf3", "Nc6", "Bc4"]);
 });
 
@@ -209,16 +189,13 @@ test("isPrefix accepts an ancestor or the path itself and rejects a sibling", ()
   assert.equal(isPrefix([0, 0], [0, 1]), false, "siblings are unrelated");
 });
 
-/** A transposition into the line's own continuation is not a cross-branch find. */
 test("landsInCrossBranchPrep ignores the line's own ancestors and descendants", () => {
   const tree = GameTree.fromPgn(TRANSPOSITION_PGN);
   const { keyMap } = buildKeyIndex(tree.game.moves);
   const italianPos = tree.positionAt([0, 0, 0, 0, 0]);
 
-  // Asking from the mainline node that already owns the shallowest path: same line, so null.
   assert.equal(landsInCrossBranchPrep(keyMap, italianPos, [0, 0, 0, 0, 0]), null);
 
-  // Asking from the variation branch: a different line reaches it, so it is a real target.
   const found = landsInCrossBranchPrep(keyMap, italianPos, [0, 0, 1, 0, 0]);
   assert.deepEqual(found?.sanPath, ["e4", "e5", "Nf3", "Nc6", "Bc4"]);
   assert.equal(found?.ply, 5);
@@ -239,7 +216,6 @@ test("pruneTailPath keeps the line up to and including the re-route node", () =>
 test("enumerateLegal produces every legal move with the position it leads to", () => {
   const moves = enumerateLegal(Chess.default());
   assert.equal(moves.length, START_LEGAL_MOVES.length);
-  // `after` must be a distinct position, not an alias of the one passed in.
   const start = Chess.default();
   const [first] = enumerateLegal(start);
   assert.ok(first);

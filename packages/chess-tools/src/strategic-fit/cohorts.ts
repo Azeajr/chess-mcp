@@ -1,11 +1,3 @@
-/**
- * Deterministic hierarchical cohort formation for Strategic Fit.
- *
- * Opening families remain descriptive containers. Actionable comparison neighborhoods require
- * narrower taxonomy (or additional shared strategic/player-decision evidence), while canonical
- * transpositions are always kept together. User overrides operate on semantic route/decision
- * identities and never remove excluded routes from data-quality accounting.
- */
 import { assertDefined } from "../assert.js";
 import type { RepertoireGraph, RepertoireGraphDecision, RepertoireGraphRoute } from "./graph.js";
 import type { OpeningTaxonomy, RepertoireOpeningTaxonomy } from "./taxonomy.js";
@@ -42,19 +34,16 @@ interface StrategicCohortOverrideBase {
 
 export interface StrategicCohortMergeOverride extends StrategicCohortOverrideBase {
   readonly kind: "merge";
-  /** Exact semantic routes to extract from their inferred cohorts and merge. */
   readonly route_ids: readonly string[];
 }
 
 export interface StrategicCohortSplitOverride extends StrategicCohortOverrideBase {
   readonly kind: "split";
-  /** Exact semantic routes to extract as one separate cohort. */
   readonly route_ids: readonly string[];
 }
 
 export interface StrategicCohortExclusionOverride extends StrategicCohortOverrideBase {
   readonly kind: "exclude";
-  /** Exact routes and/or every route below a semantic decision may be excluded. */
   readonly route_ids?: readonly string[];
   readonly decision_ids?: readonly string[];
 }
@@ -80,7 +69,6 @@ export interface StrategicOpeningContainer {
   readonly container_id: string;
   readonly taxonomy_id: string | null;
   readonly taxonomy_level: "family" | "unknown";
-  /** Display-only label. IDs remain stable and language-neutral. */
   readonly label: string | null;
   readonly route_ids: readonly string[];
   readonly included_route_ids: readonly string[];
@@ -336,8 +324,6 @@ function sameNarrowOpeningScope(left: RouteContext, right: RouteContext): boolea
   const rightFamily = right.taxonomy.family?.taxonomy_id ?? null;
   if (leftFamily === null || leftFamily !== rightFamily) return false;
 
-  // A family-only label becomes comparable only with additional shared strategic and player
-  // context. This keeps broad labels such as "Sicilian Defense" descriptive by default.
   const sharedRepertoireDecisions = intersection(
     left.repertoireDecisionIds,
     right.repertoireDecisionIds,
@@ -350,8 +336,6 @@ function sameNarrowOpeningScope(left: RouteContext, right: RouteContext): boolea
 
 function trajectoriesShareNeighborhood(left: RouteContext, right: RouteContext): boolean {
   if (left.comparableCheckpointKinds.size === 0 || right.comparableCheckpointKinds.size === 0) {
-    // Keep incomplete evidence beside its inferred opening cohort so it is counted and labeled,
-    // rather than manufacturing a one-route comparison that appears conclusive.
     return true;
   }
   if (intersection(left.comparableCheckpointKinds, right.comparableCheckpointKinds).length === 0) {
@@ -774,7 +758,6 @@ function taxonomyProvenance(taxonomy: RepertoireOpeningTaxonomy): StrategicFitSo
   };
 }
 
-/** Form descriptive opening containers and narrower deterministic comparison cohorts. */
 export function formStrategicCohorts(
   graph: RepertoireGraph,
   taxonomy: RepertoireOpeningTaxonomy,
@@ -790,7 +773,6 @@ export function formStrategicCohorts(
   const groups = applyStructuralOverrides(inferredRouteGroups(graph, contexts), overrides);
   const excludedRouteIds = exclusionState(graph, groups, overrides);
 
-  // Build container identities before cohorts, then fill their cohort references afterward.
   const emptyContainers = makeContainers(contexts, [], excludedRouteIds);
   const cohorts = groups
     .map((group) =>

@@ -175,10 +175,6 @@ export default function ReplacementLab() {
     }
   });
 
-  // Focus entry, the focus trap, Escape, and focus restoration are the Dialog primitive's job now
-  // (WP-033 AC-5). Dialog's nesting stack is what makes Escape close this lab before the workspace
-  // behind it: both are on the same primitive, so the topmost one answers the key.
-
   return (
     <Dialog
       title="Replacement Lab"

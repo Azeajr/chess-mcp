@@ -1,10 +1,3 @@
-/**
- * Generate data/openings.tsv (the ECO lookup table) from lichess-org/chess-openings (CC0).
- * Each source row is eco<TAB>name<TAB>pgn; we replay the PGN with chessops and key the opening
- * by positionKey (placement+turn+castling+ep) — the SAME key the lookup uses, so the table is
- * self-consistent and free of the python-chess-vs-chessops EPD parity risk. Re-run to refresh:
- *   node apps/mcp-server/scripts/build-openings.mjs
- */
 import { Chess } from "chessops/chess";
 import { parseSan } from "chessops/san";
 import { makeFen } from "chessops/fen";

@@ -1,4 +1,3 @@
-/** Canonical Task 8.10 public envelope over the complete Task 8.3-8.8 evidence chain. */
 import type { GameTree } from "../pgn.js";
 import {
   applyReplacementChangeSet,
@@ -73,7 +72,6 @@ export interface ReplacementToolV2FindingInput {
 export interface ReplacementToolV2EngineInput {
   readonly depth: number;
   readonly multipv: number;
-  /** Missing engine evidence stays explicit; it is never converted into a passing soundness claim. */
   readonly allow_unavailable_evidence: boolean;
 }
 
@@ -98,7 +96,6 @@ export interface ReplacementToolV2Input {
   readonly coverage: ReplacementToolV2CoverageInput;
   readonly retention: readonly ReplacementToolV2RetentionInput[];
   readonly candidate_ids: readonly string[];
-  /** Complete immutable Task 8.3-8.7 evidence, including per-item illegal/unavailable results. */
   readonly safety: ReplacementSafetySimulationResult;
 }
 
@@ -162,19 +159,11 @@ function canonicalRequest(request: ReplacementRequest): ReplacementRequest {
   };
 }
 
-/**
- * Array.isArray narrows to `any[]` per lib.d.ts, which would erase `values`'s precise
- * `StrategicFitSourceProvenance[]` element type for the `.every()` call below. This plain-boolean
- * wrapper keeps the runtime defensiveness (values is caller-supplied and may not actually be an
- * array) without leaking `any`.
- */
 function isPlainArray(value: unknown): boolean {
   return Array.isArray(value);
 }
 
 function validProvenance(values: readonly StrategicFitSourceProvenance[]): boolean {
-  // values is caller-supplied; despite the static element type promising a non-null object shape,
-  // a real caller can send malformed entries (including null holes), so this revalidates at runtime.
   /* eslint-disable @typescript-eslint/no-unnecessary-condition */
   return (
     isPlainArray(values) &&
@@ -242,9 +231,6 @@ function result(
 
 function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | null {
   const request = input.replacement_request;
-  // input is a caller-supplied public tool boundary; its `contract`/version fields are typed as
-  // exact literals by the internal contract, but a real caller (or a stale/mismatched client) can
-  // send anything at runtime, so these must be revalidated rather than trusted from the static type.
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (input.contract !== REPLACEMENT_TOOL_V2_CONTRACT || input.candidate_ids.length === 0)
     return "invalid-request";
@@ -320,10 +306,6 @@ function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | n
     const simulated = input.safety.candidates.find(
       (candidate) => candidate.candidate_id === entry.candidate_id,
     );
-    // entry is caller-supplied retention input; prune_explicitly_confirmed is typed as the literal
-    // `true` once action is "replace", but this is a safety-critical confirmation flag arriving
-    // from an external boundary, so it must be revalidated as exactly `true` (not just truthy) —
-    // `!== true` is intentional here, not a boolean-literal-compare simplification opportunity.
     /* eslint-disable @typescript-eslint/no-unnecessary-condition, @typescript-eslint/no-unnecessary-boolean-literal-compare */
     if (
       simulated?.action !== entry.action ||
@@ -335,11 +317,6 @@ function boundary(input: ReplacementToolV2Input): ReplacementToolV2ErrorCode | n
   return null;
 }
 
-/**
- * Canonical producer for Task 8.8 previews from a retained, immutable Task 8.7 result.
- * Candidate discovery/engine/explorer work is intentionally not fabricated here: until Phase 9,
- * public hosts expose this V2 branch only when a caller already holds the complete retained result.
- */
 export function produceReplacementToolV2Previews(
   sourceTree: GameTree,
   input: ReplacementToolV2Input,
@@ -521,5 +498,4 @@ export function produceReplacementToolV2Previews(
   );
 }
 
-/** Compatibility name retained for Task 8.10 callers. */
 export const composeReplacementToolV2 = produceReplacementToolV2Previews;

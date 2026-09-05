@@ -143,7 +143,6 @@ export interface ReplacementLabStateBoundary extends ReplacementLabApplicationBo
   discardStage(stageId: string): Promise<StrategicFitChangeOperationResult>;
   onReviewAccepted?(stage: StrategicFitStagedChange): void;
   onLabClosed?(): void;
-  /** True while a post-acceptance mutation (undo) is in flight and the lab must not discard its outcome. */
   labCloseBlocked?(): boolean;
 }
 
@@ -916,9 +915,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
     acceptReview,
     rejectReview,
     synchronize,
-    /** DEV harness only: installs immutable presentation evidence without running providers. */
     setResultForTesting,
-    /** DEV harness only: installs a revision-bound review snapshot for accessibility coverage. */
     setReviewForTesting,
   };
 }
@@ -946,12 +943,6 @@ const browserBoundary: ReplacementLabStateBoundary = {
 export const replacementLab = createReplacementLabState(browserBoundary);
 export const replacementLabSnapshot = replacementLab.snapshot;
 
-/**
- * Constrained portfolio redesign (Task 11.5) reads this lab's retained evidence and stages through
- * this lab's review path. It gets no generation, scoring, or staging of its own: an option is one of
- * the candidates already generated here, and choosing one is the same revision-bound staging the
- * comparison view performs.
- */
 registerStrategicFitPortfolioSource({
   evidence: () => {
     const current = replacementLab.snapshot();
@@ -972,8 +963,6 @@ registerStrategicFitPortfolioSource({
   stageOption: async (candidateId, action) => {
     const staged = await replacementLab.stageReview(candidateId, action);
     const review = replacementLab.snapshot().review;
-    // `stageReview` is the arbiter: it returns true only once the change controller has a staged
-    // change of its own, so the portfolio never reports a stage the controller did not make.
     return {
       ok: staged && review?.status === "ready",
       stage_id: review?.stage?.stage_id ?? null,

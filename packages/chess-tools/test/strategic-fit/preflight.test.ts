@@ -36,7 +36,6 @@ function openingTableFor(tree: GameTree): OpeningTable {
       name: index === 0 ? "Queen's Gambit Declined" : "Ruy Lopez",
     });
   });
-  // An empty repertoire still needs a nonempty injected table to isolate its empty-tree result.
   if (table.size === 0)
     table.set("opening-table-present", { eco: "A00", name: "Uncommon Opening" });
   return table;
@@ -103,8 +102,6 @@ test("custom starting FEN is blocked without replaying from the standard positio
   const tree = GameTree.fromPgn(DEEP_SINGLE_ROUTE_PGN);
   tree.game.headers.set("SetUp", "1");
   tree.game.headers.set("FEN", "8/8/8/8/8/8/4K3/7k w - - 0 1");
-  // This SAN is illegal from the standard start. Preflight must not inspect it once the custom
-  // start is detected, because doing so would recreate the legacy silent-standard-replay bug.
   tree.game.moves.children[0]!.data.san = "e5";
 
   const report = preflightStrategicFit(tree, {

@@ -1,10 +1,3 @@
-/**
- * Deterministic Replacement Lab pivot selection and user-line validation.
- *
- * Selection starts from finding-specific causal evidence, then checks that each semantic decision
- * still belongs to the current cohort graph and is owned by the repertoire player. SAN paths are
- * retained only for navigation. This module reads the graph and evidence without mutating either.
- */
 import type { Color } from "../congruence.js";
 import { validateLine } from "../validate.js";
 import { assertDefined } from "../assert.js";
@@ -107,7 +100,6 @@ export type ReplacementUserCandidateLineResult =
   | ReplacementIllegalUserCandidateLineResult
   | ReplacementStaleUserCandidateLineResult;
 
-/** Minimal finding projection accepted by the selector; a full StrategicFinding is assignable. */
 export interface ReplacementPivotFindingEvidence {
   readonly finding_id: StrategicFinding["finding_id"];
   readonly semantic_finding_id: StrategicFinding["semantic_finding_id"];
@@ -122,7 +114,6 @@ export interface ReplacementPivotFindingEvidence {
   readonly provenance: Pick<StrategicFitProvenance, "repertoire_revision" | "sources">;
 }
 
-/** Minimal cohort projection accepted by the selector; a full StrategicComparableCohort is assignable. */
 export type ReplacementPivotCohortEvidence = Pick<
   StrategicComparableCohort,
   "cohort_id" | "route_ids" | "route_weights" | "transposition_position_ids" | "provenance"
@@ -641,7 +632,6 @@ function nonActionableResult(
   };
 }
 
-/** Select or validate one causal repertoire pivot and validate every supplied SAN line per item. */
 export function selectReplacementPivot(
   input: SelectReplacementPivotInput,
 ): ReplacementPivotSelectionResult {
@@ -732,7 +722,6 @@ export function selectReplacementPivot(
   };
 }
 
-/** Compile-time compatibility marker for consumers that accept the Task 8.1 pivot union. */
 export function asReplacementCausalPivotEvidence(
   result: ReplacementPivotSelectionResult,
 ): ReplacementCausalPivotEvidence {

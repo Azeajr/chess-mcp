@@ -1,10 +1,3 @@
-/**
- * Versioned Strategic Fit training-performance evidence.
- *
- * Training attempts are portable document data, not analyzer state. They are keyed by semantic
- * positions and decisions, retain their original provenance when a repertoire changes, and only
- * project mastery for targets that still exist in the current repertoire graph.
- */
 import type { RepertoireGraph } from "./graph.js";
 import { assertDefined } from "../assert.js";
 import type { StrategicFitSourceProvenance } from "./types.js";
@@ -30,13 +23,9 @@ export interface StrategicFitTrainingAttempt {
   readonly target_id: string;
   readonly attempted_at: string;
   readonly recalled: boolean;
-  /** Null means the trainer did not measure response time. */
   readonly response_time_ms: number | null;
-  /** A lapse is explicit trainer/user evidence, not inferred from a missing or slow response. */
   readonly lapse: boolean;
-  /** Optional self-reported confidence in the range 0–1. */
   readonly confidence: number | null;
-  /** Optional scheduler timestamps. They remain UTC instants and do not depend on local time. */
   readonly scheduled_at: string | null;
   readonly next_due_at: string | null;
   readonly provenance: readonly StrategicFitSourceProvenance[];
@@ -107,7 +96,6 @@ export interface StrategicFitTrainingMasteryStatistic {
   readonly first_attempt_at: string | null;
   readonly last_attempt_at: string | null;
   readonly next_due_at: string | null;
-  /** Null means untrained; it never means failed. */
   readonly mastery: number | null;
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
@@ -119,7 +107,6 @@ export interface StrategicFitTrainingMasteryReport {
   readonly decision_mastery: readonly StrategicFitTrainingMasteryStatistic[];
   readonly concept_mastery: readonly StrategicFitTrainingMasteryStatistic[];
   readonly stale_target_ids: readonly string[];
-  /** Only observed, current concepts are supplied to metrics. */
   readonly metric_evidence: StrategicTrainingMetricEvidence;
   readonly provenance: readonly StrategicFitSourceProvenance[];
 }
@@ -151,8 +138,6 @@ function stableHash(value: string): string {
 function timestamp(value: unknown): string | null {
   if (typeof value !== "string" || value.trim().length === 0) return null;
   const normalized = value.trim();
-  // Local/zone-less timestamps are intentionally rejected so persistence and mastery are stable
-  // across browsers, machines, daylight-saving transitions, and imports.
   if (!/T.*(?:Z|[+-]\d{2}:\d{2})$/i.test(normalized)) return null;
   const time = Date.parse(normalized);
   return Number.isFinite(time) ? new Date(time).toISOString() : null;
@@ -612,9 +597,6 @@ function masteryStatistic(
   const count = sortedAttempts.length;
   let mastery: number | null = null;
   if (count > 0) {
-    // A Beta(1,1) recall prior prevents one attempt from looking conclusive. Optional response and
-    // confidence components are normalized away when absent, so missing measurements are not
-    // invented. A declared lapse then applies a bounded retention penalty.
     const posteriorRecall = (successful + 1) / (count + 2);
     let weightedScore = posteriorRecall * 0.75;
     let suppliedWeight = 0.75;

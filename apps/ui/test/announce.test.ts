@@ -28,7 +28,6 @@ test("two identical messages within the rate-limit window produce one announceme
   const second = announce("Prescribed-move audit started.");
   assert.ok(first);
   assert.equal(second, null);
-  // The stored announcement is still the first one — not overwritten by a duplicate.
   assert.equal(politeMessage()?.id, first.id);
 });
 

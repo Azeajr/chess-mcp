@@ -36,10 +36,8 @@ function abortError() {
   return new DOMException("Strategic Fit analysis cancelled", "AbortError");
 }
 
-/** Bounded in-memory cache of complete immutable reports produced by the dedicated Worker. */
 export class StrategicFitReportCache {
   private readonly reports = new Map<string, Promise<StrategicFitReport>>();
-  /** Identity index over resolved reports only; it never outlives its cache entry. */
   private readonly reportIdsByKey = new Map<string, string>();
   private readonly reportsById = new Map<string, StrategicFitReport>();
   private recovery: StrategicFitJobRecovery | null = null;
@@ -54,7 +52,6 @@ export class StrategicFitReportCache {
     }
   }
 
-  /** Recovery provenance for the most recent analysis: what it resumed, or why it did not. */
   lastRecovery(): StrategicFitJobRecovery | null {
     return this.recovery;
   }
@@ -69,11 +66,6 @@ export class StrategicFitReportCache {
     this.reportsById.clear();
   }
 
-  /**
-   * Resolve a cached report by its exact identity. Only reports still held by a live cache entry
-   * are visible, so an evicted, invalidated, or foreign identity is absent and the caller fails
-   * closed rather than answering from an older report.
-   */
   reportById(reportId: string): StrategicFitReport | null {
     return this.reportsById.get(reportId) ?? null;
   }
@@ -82,7 +74,6 @@ export class StrategicFitReportCache {
     const reportId = this.reportIdsByKey.get(key);
     this.reportIdsByKey.delete(key);
     if (reportId === undefined) return;
-    // A different settings key can legitimately produce the same report; keep the survivor.
     for (const retained of this.reportIdsByKey.values()) if (retained === reportId) return;
     this.reportsById.delete(reportId);
   }
@@ -113,8 +104,6 @@ export class StrategicFitReportCache {
       return report;
     }
 
-    // The checkpoint read is part of the pending entry rather than awaited before it, so two callers
-    // asking for the same report still share one analysis instead of racing two.
     const completeOptions = strategicFitCompleteAnalysisOptions(options);
     const pending = (async () => {
       const resume = await this.resumableCheckpoint(pgn, completeOptions);
@@ -143,8 +132,6 @@ export class StrategicFitReportCache {
     try {
       const report = await pending;
       this.remember(key, pending, report);
-      // A settled job is not resumable: the complete report is the answer, and a checkpoint that
-      // outlived it could only restart work the user already has.
       this.checkpoints?.discard("The analysis completed, so its checkpoint is no longer a job.");
       if (execution.signal?.aborted) throw abortError();
       return report;
@@ -153,8 +140,6 @@ export class StrategicFitReportCache {
         this.reports.delete(key);
         this.forget(key);
       }
-      // Cancellation and failure are decisions to stop, not interruptions to recover from; only a
-      // job that never settles — a reload, a killed tab — leaves its checkpoint behind to resume.
       this.checkpoints?.discard(
         execution.signal?.aborted === true
           ? "The analysis was cancelled, so its checkpoint was dropped rather than resumed."
@@ -164,7 +149,6 @@ export class StrategicFitReportCache {
     }
   }
 
-  /** Load a stored checkpoint only when it belongs to exactly this job; storage is untrusted. */
   private async resumableCheckpoint(
     pgn: string,
     completeOptions: AnalyzeStrategicFitOptions,
@@ -180,12 +164,10 @@ export class StrategicFitReportCache {
 
 const defaultReportCache = new StrategicFitReportCache();
 
-/** Narrow settings invalidation boundary; repertoire/profile stores do not own cache internals. */
 export const invalidateCachedStrategicFitReports = () => {
   defaultReportCache.clear();
 };
 
-/** Scoped conversation retrieval: identity lookup only, never a fresh analysis. */
 export const getCachedStrategicFitReportById = (reportId: string) =>
   defaultReportCache.reportById(reportId);
 

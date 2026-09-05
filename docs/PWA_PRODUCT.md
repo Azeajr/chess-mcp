@@ -1,182 +1,63 @@
 # PWA product
 
-The PWA supports two complementary entry points: natural conversation and direct analysis. Both use
-canonical application commands and result models for user-triggered reports and exports.
-
 ## Conversation
 
-Users can ask about the current position, game, or repertoire without choosing a mode. Every
-tool-capable round exposes the complete stable browser command schema, allowing a conversation to
-change subject without a routing gate. Position, game, repertoire, and annotation presets are
-optional guidance only and never hide commands.
+Chat works from a natural first message. Presets supply guidance but do not change available
+commands. Each tool-capable round receives the complete canonical browser schema plus compact current
+document context. Commands retrieve larger evidence only when needed.
 
-The prompt includes normalized FEN, color, selected SAN path, document kind and revision, and
-compact statistics. Scoped tools retrieve a bounded selected subtree or full PGN artifact on
-demand. Tool-round exhaustion produces an explicit incomplete summary.
+The assistant can analyze positions, games, and repertoires; navigate to cited positions; generate
+artifacts; and propose edits. Tool calls render as application data with progress, cancellation,
+retry, and structured errors. A stale report or document identity fails instead of returning older
+evidence.
 
-Streaming and supported tool work share cancellation. The UI shows queued/running/completed,
-cancelled, and failed states, including progress counts for long scans, plus Stop and Retry.
+OpenRouter model and token settings stay in the browser. Local Stockfish analysis and direct tools
+work without chat. Explorer-backed commands require a Lichess token in Settings.
 
-## Results, actions, and artifacts
+## Actions and artifacts
 
-Typed tool results render navigation targets for FENs, SAN paths, and game plies. Raw JSON remains a
-debug disclosure, not the primary presentation.
+Assistant-proposed mutations are revision-bound previews. The user accepts or rejects them in the
+UI. Direct previews use the same staging path. PGN, CSV, and JSON results become browser artifacts
+with explicit save actions.
 
-Repertoire add, prune, and reorder operations produce staged actions. Each preview records the
-source revision, path, before/after summary, and line where applicable. Accept uses the same command
-as direct editing; Reject discards it; a stale revision cannot apply.
-
-Strategic Fit V2 replacement previews stage complete atomic change sets against the exact document,
-revision, tree, metadata, result, archive, version, identity, and provenance chain. Preview and reject
-are non-mutating. Accept persists the working PGN, canonical metadata references, exact archive PGNs
-outside metadata, and bounded undo state atomically before publishing tree plus metadata as exactly
-one revision. Undo restores repertoire, metadata, resolutions, archive state, and navigation in one
-new revision. Pending replacement changes are discarded on reload and are never auto-accepted.
-
-Direct repertoire suggestions, including gap fills, open a visible staged-line card with Accept line
-and Cancel controls. Accept grafts the line into the working tree; the normal Save action persists it.
-
-Profile preferences the assistant infers from conversation are staged the same way. The card shows
-the exact before/after value of every changed setting, states that nothing has been saved, and says
-when accepting would also confirm a still-provisional inferred profile. Accept commits through the
-same profile state the settings form uses, so preferences change and the repertoire tree does not;
-Reject discards the proposal. Invalid concept identities and out-of-range values are rejected with a
-structured error rather than adjusted to fit, and a proposal whose document revision, effective
-profile, or analysis settings have moved can no longer be applied.
-
-A plan card the assistant writes for an exception the user keeps is staged the same way. It is built
-in two steps: the assistant first receives that finding's deterministic evidence — the concepts the
-analysis reported, its legal checkpoints and drill positions, and the moves on its validated paths,
-with an explicit count of anything withheld for size — and then writes sections that cite it. The
-card shows the evidence behind every section and states that nothing has been saved. Accept records
-the plan with the existing training item for that finding, so the drill artifact and the durable
-training resolution carry it while the repertoire tree is untouched; Reject discards it. A section
-that cites nothing, an identity or move the evidence does not contain, and any outside master game
-are refused with a structured error, and a card whose document, revision, or underlying evidence has
-moved can no longer be saved.
-
-A redesign goal stated in the user's own terms — at most this much evaluation loss, no more theory,
-keep this much coverage — becomes explicit bounds shown for confirmation before anything is built
-from them. The bounds apply to one redesign and save no preference. Any contradiction, whether
-between the bounds themselves or against the confirmed profile, is presented as a question for the
-user to settle; nothing is relaxed, dropped, or reconciled on their behalf. Once the bounds are
-confirmed, the portfolio contains only candidates Replacement Lab already generated, each shown with
-the measured value behind every bound, which are Pareto-optimal, which are dominated, and what
-excluded the rest. When nothing qualifies, the result names the bound that emptied it and asks which
-bound to move rather than offering a line of its own, and a metric the evidence could not measure
-excludes a candidate instead of counting as satisfied. Choosing an option stages that candidate's
-existing change set for the usual revision-bound confirmation: nothing is selected automatically,
-nothing is applied, and a rejected portfolio leaves nothing behind.
-
-Annotated game PGN, annotated repertoire PGN, and only-move CSV decks are artifacts. Results give
-the model compact metadata and an artifact reference while the UI owns the save affordance.
+Inferred profile preferences show an exact diff and become durable only after acceptance. Retained
+exception plan cards must cite deterministic concepts, checkpoints, or drills and mention only moves
+on validated paths. Constrained portfolio requests show parsed bounds for confirmation, reject
+contradictions, and select only already-generated candidates whose measured evidence satisfies every
+bound.
 
 ## Direct analysis
 
-The Position area presents local engine lines and cloud provenance. Game workflows cover summary,
-detail, batch review, and annotated export. Repertoire controls expose prescribed-move audit,
-only-move drills, structure search, opponent preparation, gaps, coverage, congruence, shortening,
-suggestions, and annotated export. Advanced controls group operations without changing the public
-MCP surface; for example, the browser's shortcut inspector combines quality and coverage while MCP
-keeps the independently composable operations.
+The position panel offers local or cloud evaluation, candidate comparison, opening identification,
+popularity, and tablebases. The game panel offers summary, move review, and annotated export.
 
-Continuous live board analysis is deliberately UI-owned: it uses a dedicated Worker and discards
-late results after navigation. Gap filling and shortening are named multi-step panel workflows that
-compose canonical commands. These are documented exceptions to one-command equivalence, not
-duplicate domain implementations.
+The repertoire panel offers prescribed-move and gap audits, critical moves, drills, structures,
+theory depth, history comparison, opponent preparation, annotations, shortening, transposition
+inspection, complementary lines, and gap or replacement suggestions. Direct controls call the same
+browser-command registry used by chat.
 
-Direct local analysis does not need an OpenRouter key. Network operations still need connectivity
-and, for Lichess opening explorer, a personal token entered in Settings. An explicitly requested
-Strategic Fit popularity enrichment remains a usable base report without that token and labels the
-population source unavailable rather than reporting zero popularity.
-Optional Strategic Fit personal-history enrichment fetches full PGNs from the selected Lichess or
-Chess.com account, uses only games played from the repertoire color, and shrinks sparse personal
-branch counts toward the population or equal baseline. Missing PGNs and unavailable history remain
-explicitly insufficient or unavailable rather than becoming zero frequency. Population, personal,
-and manual estimates can be combined: the current profile's usable coefficients are normalized,
-unavailable sources contribute zero, and equal mode ignores enrichments.
-After first-run setup, the workspace keeps Familiar plans, Balanced, and Versatile as one-click
-presets and exposes Custom through progressive disclosure. Custom settings cover bounded
-feature-family weights, engine-loss tolerance, minimum coverage, memorization tolerance, explicit
-preferred/avoided concepts, population filters, and a Lichess or Chess.com personal-history source.
-Every advanced value explains its current impact; evaluation and coverage constraints are labeled
-as later-alternative constraints rather than pretending to change the engine-free base scan. A
-visible source-status grid distinguishes ready, off, unavailable, and unobserved evidence. Before
-saving, an affected-metrics preview explains which frequency, distance, priority, or training metrics
-will be recalculated. Saving invalidates/reanalyzes immutable reports and never edits the tree.
-Strategic Fit training attempts are stored per document in a separate versioned IndexedDB record and
-can be imported or exported as strict JSON. Registered drills remain explicitly untrained until an
-attempt records recall; missing response time or confidence stays missing, while stale semantic
-targets retain history but do not contribute current mastery evidence. Observed mastery is injected
-into browser reports so familiarity-adjusted coverage, training-adjusted workload, and repertoire
-regret show their source coverage instead of treating absent observations as failure. Creating a
-training item for a retained exception only registers its untrained target; a `Drill N positions`
-button then opens `DrillRunner`, which shows one drill position at a time, times the response from
-when that position was put on screen, accepts one move, and records what was played. Recall is
-first-attempt only: within a run, a position already answered cannot be answered again, so no retry
-can overwrite the result it is scored on. `Drill again` starts a fresh run, whose attempts
-accumulate as further evidence rather than replacing the earlier ones. A run survives the
-reanalysis that recording an attempt triggers, so a position answered mid-run stays answered.
-The Strategic Fit workspace also detects a deliberately small set of explicit PGN comment phrases:
-`must keep`, `tournament weapon`, and `avoid queenless middlegame`/`endgame`. The corresponding
-explicit tags are `[%strategic-fit keep]`, `[%strategic-fit tournament-weapon]`, and
-`[%strategic-fit avoid-queenless-middlegame]`/`avoid-queenless-endgame`. Every candidate quotes the
-unchanged source comment and SAN path for confirmation. Detection alone never changes the PGN or
-profile; dismissals are remembered only for the exact unchanged comment/path, while confirmations
-become versioned structured document metadata that round-trips through the canonical JSON sidecar.
+Live board evaluation and workflows that coordinate several commands remain UI-owned. Engine-backed
+operations default to depth 20; Deep analysis uses depth 30 and shows progress for bulk work.
+
+## Strategic Fit
+
+Strategic Fit reports combine explicit profile preferences, source filters, personal-history
+signals, and training evidence. Findings expose bounded pages, cited evidence, and navigable SAN
+paths. Large visualizations and lists keep complete data available through bounded mounted windows.
+
+Resolution options include retention with training, replacement, archive, and undo. Replacement Lab
+shows retained candidate, score, safety, risk, provenance, and change-set evidence. Selecting a
+candidate opens a staged before/after review. Acceptance applies one atomic document revision; a
+fresh analysis then proves resolved, still open, or superseded status without relying on predicted
+metrics.
+
+Creating training registers untrained targets. `DrillRunner` shows one position, accepts one move,
+records that first result, and carries the session across reanalysis. Later drill sessions add
+evidence rather than overwrite earlier attempts.
 
 ## Persistence
 
-The current document autosaves in IndexedDB. Browser file APIs open and save PGN without routing
-content through the model. Settings keep model, token, and Strategic Fit source-filter configuration
-locally; the canonical document sidecar keeps the profile itself. The production
-build is an installable PWA and packages browser Stockfish assets during build.
-
-MCP and browser expose the same Strategic Fit V2 replacement meaning but different host guarantees.
-Browser results are staged and support document archive storage plus bounded undo. MCP results are
-immutable previews only, explicitly expose unavailable archive/restore/undo support, and return a
-new clone-on-write repertoire handle only after a separate explicit edit. Matching command names do
-not imply shared Worker, engine-pool, credential, path, artifact, persistence, or handle behavior.
-The browser Replacement Lab now opens only
-from a current unresolved actionable finding, retains the exact document/report/finding/cohort
-identity, requires explicit semantic pivot confirmation, and exposes canonical candidate sources,
-engine depth, bounded budgets, progress, cancellation, retry, partial/unavailable source evidence,
-and structured per-item errors. It orchestrates the Phase 8 candidate, engine, expansion, scoring,
-safety, and browser staging boundaries without applying a repertoire edit. Closing or reloading
-discards the transient lab and its pending previews. The completed Task 9.2 presentation consumes
-that retained Phase 8 evidence directly: an accessible comparison table and Pareto chart keep every
-tradeoff, tie, dominated candidate, incomplete subtree, missing axis, structured error, exact
-identity/version, provenance source, transposition, concept, and risk inspectable. Evaluation copy
-uses repertoire POV while White-POV engine transport remains separately labeled. Chart and table
-selection share only the stable candidate identity and never create a recommendation. Shape/status
-text, keyboard controls, a tabular equivalent, reduced-motion behavior, long-line wrapping, and a
-phone list fallback avoid relying on color, pointer input, animation, or desktop width. Selected
-candidates now open a revision-bound staged before/after review that consumes canonical Phase 8
-safety and change-set evidence without recalculating coverage, metrics, safety, or Pareto status in
-the view. It exposes every ordered addition, transposition link, compatible annotation, archive,
-optional prune, affected descendant, tree statistic, coverage/gap result, metric delta, theory and
-training value, unresolved risk, safety check, structured error, identity, version, POV label, and
-provenance source. Add-and-validate remains the default. Optional pruning reruns the canonical Phase
-8 safety/change-set/staging chain, archives first, and remains blocked with exact failed checks when
-coverage or gap safety fails. Preview and reject are non-mutating. Final acceptance requires an
-explicit confirmation bound to the exact current document revision and immutable safety/change-set/
-preview/archive/provenance identities, then delegates to the existing one-revision atomic browser
-mutation registry path. After acceptance, a post-acceptance verification panel tracks the automatic
-affected-cohort rescan and makes no success or resolution claim until a completed report binds to
-the exact accepted document revision. It then proves the outcome from that post-commit report and
-the canonical reconciliation summary: resolved with the resolving revision, still open with the
-current explanation and changed-evidence flag, plus any new findings the change created. Coverage
-and metric claims quote only complete before/after reports (never staged predictions), keep
-unavailable values explicit, and preserve repertoire-POV versus White-POV labeling. A race with
-another edit supersedes the proof instead of claiming success; failed or cancelled rescans stay
-claimless. The panel offers undo through the exact persisted undo record and the same atomic
-controller: a blocked or stale undo surfaces its structured error without mutating, and a
-successful undo is verified only after the next rescan shows the restored report. Closing the lab
-is refused only while an undo is in flight; proof state is session-only, so a reload starts
-claimless while the committed change and its undo record persist.
-
-The public V2 command branch remains a retained-evidence preview bridge: it accepts a complete
-immutable Task 8.7 result and produces Task 8.8 change-set previews. It does not regenerate evidence
-from shallow finding IDs. The browser-only Task 9.1 lifecycle builds that complete retained context
-through the canonical Phase 8 producers and injected browser engine/explorer adapters before calling
-the command for stage-only previews; this does not expand the public schema or claim MCP host parity.
+The working document autosaves in IndexedDB. Browser file handles open and save PGN locally.
+Settings, profile metadata, training performance, accepted archives, and undo records remain local.
+The production build includes its Stockfish assets and service worker for installation and offline
+use.

@@ -475,8 +475,6 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       sort: toolArgs.sort,
     });
     if (projection.projection !== "page") throw new Error("strategic_fit_unexpected_projection");
-    // Task 12.3: the page's own cursor and its successor travel with the page so a large report is
-    // walked by cursor rather than by recomputed offsets.
     return {
       ...projection.report,
       cursor: projection.cursor,
@@ -901,8 +899,6 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
     const documentId = context.currentDocumentId();
     const documentSettings = context.currentStrategicFitAnalysisSettings();
     const documentSettingsIdentity = documentSettings.identity;
-    // Reading effective settings may reconcile stale semantic records. Capture the metadata only
-    // after that reconciliation so the export is bound to the actual analyzed snapshot.
     const metadata = context.currentStrategicFitMetadata();
     const metadataIdentity = JSON.stringify(metadata);
     const report = await context.strategicFitReport(

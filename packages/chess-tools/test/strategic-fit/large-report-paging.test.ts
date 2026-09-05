@@ -24,10 +24,6 @@ const OPTIONS: AnalyzeStrategicFitOptions = {
 
 const LARGE_FINDING_COUNT = 5_000;
 
-/**
- * A deterministic large report: the analyzed findings are repeated with distinct identities and
- * spread priorities, so every canonical sort has a total order and every page boundary is walked.
- */
 function largeReport(): StrategicFitReport {
   const report = completeStrategicFitReport(
     analyzeStrategicFit(
@@ -118,7 +114,6 @@ test("a cursor names one page for as long as the report lives, whatever was page
   });
   assert.equal(third.report.finding_page.offset, STRATEGIC_FIT_MAX_PAGE_SIZE * 2);
 
-  // Page away to the far end of the report, then return by the cursor recorded earlier.
   page(report, "replacement-priority", {
     offset: LARGE_FINDING_COUNT - STRATEGIC_FIT_MAX_PAGE_SIZE,
     limit: STRATEGIC_FIT_MAX_PAGE_SIZE,

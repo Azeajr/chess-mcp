@@ -20,11 +20,6 @@ import {
 } from "../../src/index.ts";
 import { BROAD_ECO_FIXTURE, parseStrategicFitFixture } from "./fixtures.ts";
 
-/**
- * Prompt text is not enforcement, so everything the guidance asserts mechanically is checked here:
- * a cited field must exist in the projection the guidance names, and a recommended retrieval must
- * be accepted by the canonical schema on the host that offers it.
- */
 const OPTIONS: AnalyzeStrategicFitOptions = {
   repertoireColor: BROAD_ECO_FIXTURE.repertoireColor,
   repertoireRevision: "revision:explanations",
@@ -50,7 +45,6 @@ const findingView = projectStrategicFitConversation(report, {
   ...base,
 });
 
-/** A citation resolves only when every segment is an own field of the returned projection. */
 function resolves(root: unknown, path: string): boolean {
   let current = root;
   for (const key of path.split(".")) {
@@ -61,7 +55,6 @@ function resolves(root: unknown, path: string): boolean {
   return true;
 }
 
-/** Findings-view citations may address the page envelope or the rows the page returned. */
 function resolvesInView(view: WorkflowGroundedQuery["view"], path: string): boolean {
   if (view === "summary") return resolves(summaryView, path);
   if (view === "finding") {
@@ -101,7 +94,6 @@ test("every explanation level cites fields the finding retrieval actually return
 });
 
 test("every grounded question cites fields its own retrieval view returns", () => {
-  // Guard the resolver itself: an empty page or a permissive walk would pass everything.
   assert.equal(findingsView.retrieval, "strategic-fit-findings");
   assert.ok(
     findingsView.retrieval === "strategic-fit-findings" && findingsView.findings.length > 0,
@@ -116,7 +108,6 @@ test("every grounded question cites fields its own retrieval view returns", () =
     );
   }
   for (const query of STRATEGIC_FIT_EXPLANATIONS.queries) {
-    // A question the report does not own still names the classification it may quote.
     const view = query.view ?? "findings";
     for (const path of query.cite) {
       assert.equal(resolvesInView(view, path), true, `${query.id} cites missing ${path}`);

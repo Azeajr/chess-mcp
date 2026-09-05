@@ -23,11 +23,6 @@ import {
 } from "../../src/index.ts";
 import { replacementFixture } from "./replacement-change-set.fixtures.ts";
 
-/**
- * Portfolio evidence is the real Task 8.7 safety simulation and the real Task 8.8 previews, so
- * "every option is backed by retained evidence" is asserted against the artifacts the product
- * builds rather than a hand-written stand-in.
- */
 function evidence(): {
   readonly safety: ReplacementSafetySimulationResult;
   readonly previews: readonly ReplacementToolV2Item[];
@@ -72,7 +67,6 @@ function evidence(): {
   return { safety: fixture.safety, previews: result.items };
 }
 
-/** Clone one candidate and its preview under a new identity so multi-candidate cases stay real. */
 function withClone(
   base: {
     readonly safety: ReplacementSafetySimulationResult;
@@ -116,7 +110,6 @@ const set = (constraints: Record<string, unknown>, rationale?: unknown) =>
 
 const profileBase = replacementFixture("profile").request.profile;
 
-/** Declared preferences default to unset so each conflict case states exactly what it declared. */
 const profile = (
   overrides: Partial<StrategicFitProfile["preferences"]> = {},
 ): StrategicFitProfile => ({

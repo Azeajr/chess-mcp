@@ -24,11 +24,6 @@ import {
 
 type StageCall = { readonly candidate_id: string; readonly action: string };
 
-/**
- * The store is exercised over the real Task 8.7 safety evidence and real Task 8.8 previews, with the
- * staging boundary recorded rather than replaced by a second staging path. "Nothing is applied" is
- * therefore asserted against the same evidence the product builds a portfolio from.
- */
 function portfolioFixture(options: { readonly conflicts?: boolean } = {}) {
   const values = replacementFixture("portfolio");
   const request = values.request;

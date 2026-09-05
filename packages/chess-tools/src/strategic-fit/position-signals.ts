@@ -1,11 +1,3 @@
-/**
- * Deterministic king, piece-setup, space, and file observations for Strategic Fit.
- *
- * The extractor walks a complete semantic route rather than classifying isolated FENs. That is
- * necessary for historical evidence: a castled king may later move, a fianchetto bishop may be
- * exchanged, and queens may disappear before a later checkpoint. The output remains descriptive;
- * none of these observations makes an engine-quality or chess-value claim.
- */
 import { parseFen } from "chessops/fen";
 import type { Board } from "chessops/board";
 import type { Color, Role } from "chessops/types";
@@ -260,7 +252,6 @@ function observeCastling(
   }
   const mover = before.get(from);
   const destination = before.get(to);
-  // chessops represents standard castling in UCI_Chess960 form (king to the friendly rook square).
   const rookTarget = destination?.color === mover?.color && destination?.role === "rook";
   if (mover?.role !== "king" || (!rookTarget && Math.abs(squareFile(to) - squareFile(from)) !== 2))
     return;
@@ -309,7 +300,6 @@ function observeExchange(
   const mover = before.get(from);
   if (!mover) throw new Error(`strategic_fit_position_signals_missing_mover: ${uci}`);
   let captured = before.get(to);
-  // A same-color rook on the king's destination is chessops' castling encoding, not a capture.
   if (mover.role === "king" && captured?.color === mover.color && captured.role === "rook") return;
   if (!captured && mover.role === "pawn" && squareFile(from) !== squareFile(to)) {
     captured = before.get(to + (mover.color === "white" ? -8 : 8));
@@ -522,8 +512,6 @@ function observationSignals(
   );
 
   return [
-    // Task 1.7 owns trajectory-level stability. Route history is retained here, but these raw
-    // observations remain unknown until matched checkpoints apply the frozen persistence rules.
     signal(route, positionId, ply, "king.castling-history", castling, 1, "unknown", provenance),
     signal(
       route,
@@ -609,7 +597,6 @@ function observationSignals(
   ];
 }
 
-/** Extract every route position so Task 1.7 can select matched checkpoints without replaying history. */
 export function extractRoutePositionSignals(
   graph: RepertoireGraph,
   routeOrId: RepertoireGraphRoute | string,

@@ -15,7 +15,6 @@ const moveItem = (page: Page, path: readonly number[]) =>
 const branchToggle = (page: Page, path: readonly number[]) =>
   page.locator(`.move-tree .collapse-toggle[data-branch-path="${path.join(",")}"]`);
 
-/** Chessground's own board, which the AC-7 tests drive directly — not the keyboard layer over it. */
 const chessboard = (page: Page) => page.locator(".board-wrap .cg-wrap");
 
 const setCurrentPath = (page: Page, path: number[]) =>
@@ -53,14 +52,6 @@ async function addRepertoireRowFixtures(page: Page, count = 1): Promise<void> {
     }, count);
 }
 
-// ---------------------------------------------------------------------------
-// WP-014 — board keyboard layer helpers.
-// ---------------------------------------------------------------------------
-
-/** Moves real focus onto the board's cursor gridcell by Tabbing from the top of the page, the
- *  same way UX-003's own baseline check reaches it — a direct `.focus()` on a specific composite
- *  entry point (as every other test in this file does for the tree/dividers) would skip past the
- *  very thing AC-1 needs proven: that Tab actually reaches it. */
 async function focusBoardCursor(page: Page): Promise<void> {
   await page.locator(".app").focus();
   for (let i = 0; i < 120; i++) {
@@ -117,17 +108,10 @@ async function addAuditRows(page: Page, count = 1): Promise<void> {
 
 test("UX-003 board squares are keyboard reachable", async ({ page }) => {
   await openApp(page);
-  // The board is a single roving-tabindex composite (WP-014, mirrors WP-011's move tree): the
-  // generic per-element `keyboardReachable` sweep assumes every match is its own independent Tab
-  // stop, which does not hold for a roving composite (only one of its 64 gridcells is ever
-  // `tabindex="0"` at a time) — the same reason WP-011 wrote a dedicated tab-stop test for the
-  // tree instead of reusing that helper. This asserts the same shape UX-004 established there:
-  // one page-level Tab stop in, real per-square keyboard reachability once inside.
   await focusBoardCursor(page);
   const cursorCell = page.locator('.board-keyboard-layer [role="gridcell"][tabindex="0"]');
   await expect(cursorCell).toBeFocused();
   await expect(cursorCell).toHaveAttribute("data-square", "e1");
-  // Exactly one page Tab stop: the next Tab press must leave the grid entirely.
   await page.keyboard.press("Tab");
   expect(
     await page.evaluate(() => document.activeElement?.closest(".board-keyboard-layer") ?? null),
@@ -197,8 +181,6 @@ test("WP-011 AC-3 uses one roving tree tab stop and DV-2 traversal without board
   await page.keyboard.press("Enter");
   await expect.poll(() => currentPath(page)).toEqual(secondVariationLeaf);
   await expect(page.locator(".chat-log")).toContainText("Focused: Nxe5");
-  // Navigating rebuilds every item, so activation must hand focus back to the move it activated
-  // rather than dropping the keyboard user on the body.
   await expect(moveItem(page, secondVariationLeaf)).toBeFocused();
 });
 
@@ -209,8 +191,6 @@ test("WP-011 AC-3 offers a tab stop from the start position, where no move is cu
   await setCurrentPath(page, []);
   expect(await currentPath(page)).toEqual([]);
 
-  // The root is not a rendered item: with the entry point tied to the current move alone, every
-  // item would be tabindex -1 and the tree would have no tab stop at all.
   const tree = page.getByRole("tree", { name: "Repertoire moves" });
   expect(
     await tree
@@ -237,9 +217,6 @@ test("WP-011 AC-4 current state and branch expansion remain truthful", async ({ 
   const current = moveItem(page, branch);
   const toggle = branchToggle(page, branch);
   const group = page.locator(`#move-tree-group-${branch.join("-")}`);
-  // The expanded state belongs to the tree item that owns the group, not to the toggle: arrow
-  // traversal only ever lands on tree items, so state on the toggle is state a screen-reader user
-  // never hears while traversing.
   const owner = moveItem(page, [...branch, 0]);
   await expect(current).toHaveAttribute("aria-current", "true");
   await expect(owner).toHaveAttribute("aria-controls", `move-tree-group-${branch.join("-")}`);
@@ -270,8 +247,6 @@ test("WP-011 AC-4 current state and branch expansion remain truthful", async ({ 
 test("WP-011 AC-3 reports variation depth as the level, not ply depth", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800, pgn: BRANCHING_PGN });
 
-  // Ply depth would make every mainline move its own aria-level, so a screen reader announces a
-  // level change on every arrow press along the mainline — AG-3's speech-flood failure condition.
   for (const path of [[0], [0, 0], [0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0, 0]]) {
     await expect(moveItem(page, path)).toHaveAttribute("aria-level", "1");
   }
@@ -284,8 +259,6 @@ test("WP-011 AC-3 reports variation depth as the level, not ply depth", async ({
     await expect(moveItem(page, path)).toHaveAttribute("aria-level", "2");
   }
 
-  // "1 of 1" on every mainline move is verbosity with no information in it. Position is reported
-  // only where there is a genuine set of alternatives, and counted over that set.
   const mainlineReply = moveItem(page, [0, 0, 0, 0]);
   await expect(mainlineReply).not.toHaveAttribute("aria-posinset");
   await expect(mainlineReply).not.toHaveAttribute("aria-setsize");
@@ -305,9 +278,6 @@ test("WP-011 AC-4 keeps branch collapsing keyboard-operable from inside the tree
 
   const toggle = branchToggle(page, branch);
   const group = page.locator(`#move-tree-group-${branch.join("-")}`);
-  // The toggle is deliberately not a page-level Tab stop, so the tree itself has to carry the
-  // control; without it, collapsing a branch would be reachable only with a pointer. It is also
-  // hidden from the accessibility tree so the tree's group contains only valid tree items.
   await expect(toggle).toHaveAttribute("tabindex", "-1");
   await expect(toggle).toHaveAttribute("aria-hidden", "true");
 
@@ -555,11 +525,6 @@ test("WP-012 preserves phone board clamping and adjacent-panel click-through", a
   }
 });
 
-// ---------------------------------------------------------------------------
-// WP-014 — board keyboard layer (UX-003). DV-1's two-step cursor model: Enter/Space picks up the
-// piece on the cursor square, a second Enter/Space on a legal destination plays it.
-// ---------------------------------------------------------------------------
-
 test("WP-014 AC-1 entering the board announces the position and shows a visible cursor", async ({
   page,
 }) => {
@@ -572,8 +537,6 @@ test("WP-014 AC-1 entering the board announces the position and shows a visible 
   const log = await announcementLog(page);
   expect(log.some((message) => /^Chessboard\. White to move\.$/u.test(message))).toBe(true);
 
-  // A visible cursor: the focused gridcell renders a real outline, not just an accessibility-tree
-  // fact with no on-screen indicator.
   const outline = await page.evaluate(() => {
     const el = document.activeElement as HTMLElement | null;
     if (!el) return null;
@@ -597,7 +560,6 @@ test("WP-014 AC-2 arrow keys move the cursor one square in the on-screen directi
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("ArrowDown");
   expect(await focusedSquare(page)).toBe("e1");
-  // Clamps at the edge rather than wrapping.
   for (let i = 0; i < 8; i++) await page.keyboard.press("ArrowLeft");
   expect(await focusedSquare(page)).toBe("a1");
 });
@@ -607,9 +569,9 @@ test("WP-014 AC-2 arrow keys stay screen-relative on a flipped board", async ({ 
   await focusBoardCursor(page);
   expect(await focusedSquare(page)).toBe("e8");
   await page.keyboard.press("ArrowUp");
-  expect(await focusedSquare(page)).toBe("e7"); // up the flipped screen = toward rank 1
+  expect(await focusedSquare(page)).toBe("e7");
   await page.keyboard.press("ArrowLeft");
-  expect(await focusedSquare(page)).toBe("f7"); // left on the flipped screen = toward the h-file
+  expect(await focusedSquare(page)).toBe("f7");
 });
 
 test("WP-014 AC-3 selecting a piece announces its legal destinations; an illegal target is refused", async ({
@@ -619,8 +581,8 @@ test("WP-014 AC-3 selecting a piece announces its legal destinations; an illegal
   await focusBoardCursor(page);
   await resetAnnouncements(page);
 
-  await page.keyboard.press("ArrowUp"); // e1 -> e2
-  await page.keyboard.press("Enter"); // pick up the e2 pawn
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
   const selectLog = await announcementLog(page);
   expect(selectLog.some((message) => /^2 legal destinations\.$/u.test(message))).toBe(true);
   await expect(page.locator('[data-square="e3"]')).toHaveClass(/legal-dest/u);
@@ -631,35 +593,31 @@ test("WP-014 AC-3 selecting a piece announces its legal destinations; an illegal
   await resetAnnouncements(page);
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowUp");
-  await page.keyboard.press("ArrowUp"); // e2 -> e5, not a legal destination for this pawn
+  await page.keyboard.press("ArrowUp");
   expect(await focusedSquare(page)).toBe("e5");
   await page.keyboard.press("Enter");
   const refusalLog = await announcementLog(page);
   expect(refusalLog.some((message) => /e5 is not a legal destination\./u.test(message))).toBe(true);
   expect(await currentPath(page)).toEqual(pathBefore);
-  await expect(page.locator('[data-square="e2"]')).toHaveClass(/selected/u); // selection kept
+  await expect(page.locator('[data-square="e2"]')).toHaveClass(/selected/u);
 });
 
 test("WP-014 AC-4 a keyboard move produces the same tree mutation, path, and dirty state as a drag", async ({
   page,
 }) => {
-  // openApp's default RICH_PGN already records a first move at the tree root ("1. d4 ..."), so a
-  // fresh path assertion needs an explicitly empty document rather than the default fixture.
   await openApp(page, { pgn: "*" });
   await focusBoardCursor(page);
   expect(await currentPath(page)).toEqual([]);
   expect(await boardDirty(page)).toBe(false);
 
-  await page.keyboard.press("ArrowUp"); // e1 -> e2
-  await page.keyboard.press("Enter"); // select
-  await page.keyboard.press("ArrowUp"); // e2 -> e3
-  await page.keyboard.press("ArrowUp"); // e3 -> e4
-  await page.keyboard.press("Enter"); // confirm
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
 
   await expect.poll(() => currentPath(page)).toEqual([0]);
   expect(await boardDirty(page)).toBe(true);
-  // Undo removes exactly this move, proving it is one ordinary tree node — the same structure a
-  // drag or a click-to-move would have produced through Board.tsx's own movable.events.after.
   await page.evaluate(() => (window as unknown as { __chess: { undo(): void } }).__chess.undo());
   await expect.poll(() => currentPath(page)).toEqual([]);
 });
@@ -667,33 +625,29 @@ test("WP-014 AC-4 a keyboard move produces the same tree mutation, path, and dir
 test("WP-014 AC-5 a keyboard promotion opens the dialog with focus inside and completing it plays the promotion", async ({
   page,
 }) => {
-  // A short, fully legal line leaving a white pawn on h7 able to capture the still-home g8 knight
-  // for a promotion — reached by real replayable SAN moves (the UI's GameTree rejects a FEN-setup
-  // header), then navigated to its end.
   await openApp(page, { pgn: "1. e4 f5 2. exf5 g6 3. fxg6 d5 4. gxh7 Nc6 *" });
   await setCurrentPath(page, [0, 0, 0, 0, 0, 0, 0, 0]);
   await focusBoardCursor(page);
-  expect(await focusedSquare(page)).toBe("c6"); // default cursor: the last move's destination
+  expect(await focusedSquare(page)).toBe("c6");
 
-  // c6 -> h7: five files right, one rank up (order is irrelevant — each axis moves independently).
   for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowUp");
   expect(await focusedSquare(page)).toBe("h7");
-  await page.keyboard.press("Enter"); // pick up the pawn
-  await page.keyboard.press("ArrowLeft"); // h7 -> g7
-  await page.keyboard.press("ArrowUp"); // g7 -> g8
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowUp");
   expect(await focusedSquare(page)).toBe("g8");
 
   const pathBeforeConfirm = await currentPath(page);
-  await page.keyboard.press("Enter"); // confirm — must open the dialog, not auto-queen
+  await page.keyboard.press("Enter");
 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
   const queenButton = page.getByRole("button", { name: "Promote to queen" });
   await expect(queenButton).toBeFocused();
-  expect(await currentPath(page)).toEqual(pathBeforeConfirm); // not played yet
+  expect(await currentPath(page)).toEqual(pathBeforeConfirm);
 
-  await page.keyboard.press("Enter"); // activate the focused (queen) button
+  await page.keyboard.press("Enter");
   await expect(dialog).toBeHidden();
   await expect.poll(() => currentPath(page)).toEqual([...pathBeforeConfirm, 0]);
 });
@@ -703,22 +657,22 @@ test("WP-014 AC-6 Escape clears the selection without changing the position or t
 }) => {
   await openApp(page);
   await focusBoardCursor(page);
-  await page.keyboard.press("ArrowUp"); // e2
-  await page.keyboard.press("Enter"); // select
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
   await expect(page.locator('[data-square="e2"]')).toHaveClass(/selected/u);
   const pathBefore = await currentPath(page);
 
   await page.keyboard.press("Escape");
   await expect(page.locator('[data-square="e2"]')).not.toHaveClass(/selected/u);
   expect(await currentPath(page)).toEqual(pathBefore);
-  expect(await focusedSquare(page)).toBe("e2"); // the cursor itself did not move
+  expect(await focusedSquare(page)).toBe("e2");
 });
 
 test("WP-014 AC-7 click-to-move is unchanged with the keyboard layer unfocused", async ({
   page,
 }) => {
-  await openApp(page, { pgn: "*" }); // clean tree so the played move lands at path [0]
-  const before = await focusedSquare(page); // never Tabbed in — should be null throughout
+  await openApp(page, { pgn: "*" });
+  const before = await focusedSquare(page);
   expect(before).toBeNull();
   await clickMove(chessboard(page), "e2", "e4");
   await expect.poll(() => currentPath(page)).toEqual([0]);
@@ -728,7 +682,7 @@ test("WP-014 AC-7 click-to-move is unchanged with the keyboard layer unfocused",
 test("WP-014 AC-7 pointer drag is unchanged with the keyboard layer unfocused", async ({
   page,
 }) => {
-  await openApp(page, { pgn: "*" }); // clean tree so the played move lands at path [0]
+  await openApp(page, { pgn: "*" });
   await dragMove(chessboard(page), "e2", "e4");
   await expect.poll(() => currentPath(page)).toEqual([0]);
 });
@@ -743,7 +697,7 @@ test("WP-014 AC-7 touch move is unchanged with the keyboard layer unfocused", as
       viewport: { width: 1280, height: 800 },
     });
   const touchPage = await context.newPage();
-  await openApp(touchPage, { pgn: "*" }); // clean tree so the played move lands at path [0]
+  await openApp(touchPage, { pgn: "*" });
   await tapMove(chessboard(touchPage), "e2", "e4");
   await expect.poll(() => currentPath(touchPage)).toEqual([0]);
   await context.close();
@@ -760,17 +714,12 @@ test("WP-014 AC-8 the board cursor does not fire while a dialog is open", async 
     "gridcell",
   );
   const pathBefore = await currentPath(page);
-  // Sent while the dialog owns the screen — must not reach the (inert) board underneath.
   await page.keyboard.press("ArrowUp");
   await page.keyboard.press("ArrowUp");
   expect(await currentPath(page)).toEqual(pathBefore);
 
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeHidden();
-  // Dialog's own close cleanup re-asserts focus on its opener across a couple of extra animation
-  // frames (WebKit resets focus to the body right after unmount otherwise — see Dialog.tsx's
-  // `restoreFocus`), which can otherwise race this test's own Tab-in below and yank focus back to
-  // the Settings button after it already reached a gridcell. Let that settle first.
   await page.evaluate(
     () =>
       new Promise<void>((resolve) => {
@@ -811,40 +760,28 @@ test("WP-014 AC-9 M-2 the pointer-free journey: navigate to move 6, add a variat
     }
   });
 
-  // Navigate to move (ply) 6 — "3...a6" — via the move tree's own (already keyboard-accessible,
-  // AG-3) roving tab stop.
   await page.locator('.move-tree [role="treeitem"][data-move-path="0"]').focus();
   for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
   await expect(
     page.locator('.move-tree [role="treeitem"][data-move-path="0,0,0,0,0,0"]'),
   ).toBeFocused();
-  await page.keyboard.press("Enter"); // navigate the board to this position
+  await page.keyboard.press("Enter");
   await expect.poll(() => currentPath(page)).toEqual([0, 0, 0, 0, 0, 0]);
 
-  // Add a variation: at this position White's recorded reply is 4.Ba4; playing a different legal
-  // move (Bxc6, capturing the knight) here creates a second child instead of extending the line.
-  // Tab order is DOM order and the board comes *before* the move tree on the page, so — unlike
-  // every other test in this file, which Tabs in from a page-top starting point — focusing the
-  // tree first and then trying to Tab "back" to the board cannot work; focus the board's default
-  // cursor square (the last move's destination, a6) directly instead. Tab actually reaching the
-  // board from a cold start is separately and directly proven by the UX-003/AC-1 tests.
   await page.locator('.board-keyboard-layer [role="gridcell"][data-square="a6"]').focus();
   expect(await focusedSquare(page)).toBe("a6");
-  // a6 -> b5: one file right, one rank down (the cursor itself has no legality of its own — only
-  // confirming a destination does).
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowDown");
   expect(await focusedSquare(page)).toBe("b5");
-  await page.keyboard.press("Enter"); // pick up the bishop
-  await page.keyboard.press("ArrowRight"); // b5 -> c5
-  await page.keyboard.press("ArrowUp"); // c5 -> c6
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowUp");
   expect(await focusedSquare(page)).toBe("c6");
-  await page.keyboard.press("Enter"); // confirm Bxc6
+  await page.keyboard.press("Enter");
 
   await expect.poll(() => currentPath(page)).toEqual([0, 0, 0, 0, 0, 0, 1]);
   expect(await boardDirty(page)).toBe(true);
 
-  // Save.
   await page.keyboard.press("Control+s");
   await expect.poll(() => boardDirty(page)).toBe(false);
 

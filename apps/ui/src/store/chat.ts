@@ -13,10 +13,6 @@ import {
 import { registerOperation, settleOperation, updateOperation } from "./operations";
 import { assertTestOnly } from "./test-seam";
 
-/**
- * Human-readable label for a chat tool call. The registry's announcement policy speaks in
- * operations, not raw tool names; this mirrors the display names the UI already uses.
- */
 function toolDisplayName(name: string): string {
   return name.replaceAll("_", " ");
 }
@@ -24,12 +20,7 @@ function toolDisplayName(name: string): string {
 const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Use local tools for chess claims. Be concise. Tool results may be compacted; retrieve current document data with the scoped retrieval tools when needed.`;
 const MAX_ROUNDS = 12;
 const MAX_TOOL_RESULT_CHARS = 6000;
-/**
- * Retained tool runs. Deep enough to cover any realistic scrollback of the run panel
- * (MAX_ROUNDS rounds per turn, several calls per round, across many turns).
- */
 const MAX_TOOL_RUNS = 200;
-/** Read-only view of the run cap so tests pin the behaviour, not a duplicated literal. */
 export const MAX_TOOL_RUNS_FOR_TESTING = MAX_TOOL_RUNS;
 
 interface ToolRunState {
@@ -48,13 +39,6 @@ const [error, setError] = createSignal<string | null>(null);
 const [toolRuns, setToolRuns] = createSignal<ToolRunState[]>([]);
 let controller: AbortController | null = null;
 let lastRequest = "";
-/*
- * Overrides, not copies of the real implementations. `registry.ts` imports `default-context.ts`,
- * which imports this module, which imports `llm/tools.ts`, which imports `registry.ts` — so when
- * the cycle is entered from the registry (as `scripts/tool-contract-inventory.mjs` does), reading
- * `runTool` at module-evaluation time hits its temporal dead zone and throws. Resolving the
- * default inside the call defers that read until every module has finished evaluating.
- */
 let chatTransportOverride: typeof streamChat | null = null;
 let toolExecutorOverride: typeof runTool | null = null;
 const chatTransport: typeof streamChat = (...args) =>
@@ -75,12 +59,10 @@ export function stop() {
 export function retry() {
   if (!busy() && lastRequest) void send(lastRequest);
 }
-/** Test seam for request-level assertions; production always uses the OpenRouter transport. */
 export function setChatTransportForTesting(transport?: typeof streamChat) {
   assertTestOnly();
   chatTransportOverride = transport ?? null;
 }
-/** Test seam for deterministic command fixtures; reset by passing no argument. */
 export function setChatToolExecutorForTesting(executor?: typeof runTool) {
   assertTestOnly();
   toolExecutorOverride = executor ?? null;
@@ -104,17 +86,12 @@ export function focusLine(path: Path) {
   }
 }
 
-/**
- * WP-028 AC-2 test seam: append a user message so a suggestion can reference it by index.
- * DEV-only, like the other harness seams.
- */
 export function appendUserMessageForTesting(text: string): number {
   assertTestOnly();
   setHistory((all) => [...all, { role: "user", content: text }]);
   return history().length - 1;
 }
 
-/** Development harness seam for typed result/action/artifact UI verification. */
 export function appendToolResultForTesting(operation: string, result: unknown) {
   assertTestOnly();
   const id = `test-tool-${history().length}`;
@@ -129,12 +106,6 @@ export function appendToolResultForTesting(operation: string, result: unknown) {
   ]);
 }
 
-/**
- * WP-027 AC-1: the exact context values injected into every turn's system prompt.
- *
- * The context chip renders from this same function rather than recomputing the values, so what the
- * user is told the assistant can see cannot drift from what the assistant is actually sent.
- */
 export interface ChatContextSnapshot {
   readonly fen: string;
   readonly color: string;
@@ -163,7 +134,6 @@ export function chatContextSnapshot(): ChatContextSnapshot {
   };
 }
 
-/** The context block verbatim, as appended to the system prompt. */
 export function chatContextBlock(snapshot: ChatContextSnapshot = chatContextSnapshot()): string {
   return `Current normalized FEN: ${snapshot.fen}\nRepertoire/user color: ${snapshot.color}\nSelected SAN path: ${snapshot.sanPath.length ? snapshot.sanPath.join(" ") : "(root)"}\nDocument: type=${snapshot.documentType}, revision=${snapshot.revision}, file=${snapshot.fileName}\nTree: nodes=${snapshot.nodes}, leaves=${snapshot.leaves}, max_depth=${snapshot.maxDepth}`;
 }
@@ -245,9 +215,6 @@ export function compactToolResult(content: string): string {
       references.push(reference);
       referencesByLocation.set(location, reference);
     };
-    // Strategic Fit reports contain enough provenance to exhaust the general reference bound
-    // before findings are reached. Pin semantic report/finding identities first so follow-up
-    // discussion never loses the canonical handles during history compaction.
     const pinStrategicFitIdentities = (candidate: unknown, location: string) => {
       if (!candidate || typeof candidate !== "object") return;
       if (Array.isArray(candidate)) {
@@ -324,13 +291,6 @@ function updateRun(id: string, patch: Partial<ToolRunState>) {
   setToolRuns((runs) => runs.map((run) => (run.id === id ? { ...run, ...patch } : run)));
 }
 
-/**
- * WP-027 AC-3: per-call abort controllers, one per tool run.
- *
- * The turn's own signal aborts every child (so `Stop this request` still stops everything), but a
- * child aborting does not touch the turn — which is what lets one run be cancelled while earlier
- * completed runs stay `completed` and the turn continues to the next call.
- */
 const runControllers = new Map<string, AbortController>();
 
 export function cancelRun(id: string) {
@@ -344,11 +304,6 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
       ...runs,
       ...calls.map((tc) => ({ id: tc.id, name: tc.function.name, status: "queued" as const })),
     ];
-    // WP-027 AC-2 made runs conversation history rather than per-turn scratch state, which was
-    // right, but left the list unbounded with `clearChat()` as its only reset. Bound it the same
-    // way the neighbouring state is bounded (tool results by MAX_TOOL_RESULT_CHARS, undo history
-    // by MAX_HISTORY_BYTES). Evict oldest-first so the newest runs — the ones the panel shows and
-    // the only ones `updateRun` still targets — always survive.
     return next.length > MAX_TOOL_RUNS ? next.slice(next.length - MAX_TOOL_RUNS) : next;
   });
   for (const tc of calls) {
@@ -356,8 +311,6 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
       updateRun(tc.id, { status: "cancelled" });
       continue;
     }
-    // A per-run controller linked to the turn: aborting the turn aborts this run, but cancelling
-    // this run leaves the turn's controller untouched.
     const runController = new AbortController();
     runControllers.set(tc.id, runController);
     const abortRun = () => {
@@ -367,7 +320,6 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
     const runSignal = runController.signal;
 
     updateRun(tc.id, { status: "running" });
-    // WP-010: each chat tool call is a registry operation. The registry owns the announcements.
     const operationId = registerOperation({
       kind: "chat-tool",
       label: toolDisplayName(tc.function.name),
@@ -433,8 +385,6 @@ export async function send(userText: string) {
   setError(null);
   setHistory((h) => [...h, { role: "user", content: text }]);
   setBusy(true);
-  // WP-027 AC-2: runs are conversation history, not per-turn scratch. They stay keyed by
-  // tool_call_id so a later turn never destroys the record of an earlier turn's work.
   controller = new AbortController();
   const signal = controller.signal;
   let trailingTools = false;

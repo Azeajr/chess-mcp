@@ -1,9 +1,3 @@
-/**
- * WP-005 history stack regressions:
- * - undo/redo survive their own restore (restoreSnapshotForHistory must not clearHistory);
- * - a failed applyEdit returns { ok:false } AND leaves no phantom undo entry;
- * - surviving entries are always committed, never placeholders.
- */
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -23,7 +17,6 @@ const START_PGN = `[Event "test"]
 1. d4 d5 (1... Nf6 2. c4) *
 `;
 
-/** The PGN serializer normalizes headers/spacing, so compare against a fresh parse of the same game. */
 function canonical(pgn: string): string {
   return actions.toPgn().length > 0 ? pgn.trimEnd() : pgn;
 }
@@ -57,7 +50,6 @@ test("a second undo works after the first — restore must not clear the stacks"
   assert.equal(getStacksForTesting().undo.length, 1, "first undo must keep one entry");
   undo();
   assert.equal(getStacksForTesting().undo.length, 0);
-  // Both edits gone: back to the loaded document.
   const restored = actions.toPgn();
   assert.match(restored, /1\. d4 d5 \( 1\.\.\. Nf6 2\. c4 \)/);
   assert.doesNotMatch(restored, /e6|c4 \*/);
@@ -73,7 +65,6 @@ test("a rejected edit reports failure and pushes no history entry", () => {
   assert.equal(result.ok, false);
   if (!result.ok) assert.ok(result.error.length > 0);
   assert.equal(getStacksForTesting().undo.length, stackBefore, "no phantom entry for failures");
-  // A stale-revision rejection is likewise reported, not masked.
   const stale = actions.applyEdit("add", ["d4"], { addMoves: ["e6"] }, -1);
   assert.deepEqual(stale, { ok: false, error: "stale_revision" });
 });
@@ -91,7 +82,6 @@ test("loadPgn remains a document boundary: history clears across loads", () => {
 });
 
 test("surviving entries are committed, never uncommitted placeholders", () => {
-  // Each edit appends a BLACK reply at ["d4"], so alternate sides across independent documents.
   const moves = ["e6", "f5", "g6"];
   actions.loadPgn(START_PGN);
   clearHistory();
@@ -99,7 +89,6 @@ test("surviving entries are committed, never uncommitted placeholders", () => {
   for (const z of moves) {
     const r = actions.applyEdit("add", ["d4"], { addMoves: [z] });
     if (!r.ok) {
-      // Reload so the next iteration starts from a black-to-move node again.
       actions.loadPgn(START_PGN);
       clearHistory();
       continue;
@@ -107,8 +96,7 @@ test("surviving entries are committed, never uncommitted placeholders", () => {
     ok++;
     assert.ok(canUndo());
     undo();
-    redo(); // exercise redo once mid-sequence; stack integrity must hold
-    // Re-add so the stack keeps growing.
+    redo();
     assert.equal(actions.applyEdit("add", ["d4"], { addMoves: [z] }).ok, true);
   }
   assert.ok(ok >= 2, `expected most adds to succeed, got ${ok}`);
@@ -120,15 +108,6 @@ test("surviving entries are committed, never uncommitted placeholders", () => {
   }
 });
 
-/**
- * F4: undo after a redo, and exact state on every leg.
- *
- * redo() pushes an undo entry describing a completed state change, but omitted `committed`, and
- * undo() refuses any entry without it — so the fourth step below silently did nothing. undo()
- * also built its redo entry with the PGN un-swapped while swapping path/revision/color, so redo
- * restored the post-edit tree with the pre-edit cursor. Asserting only that version() moved (as
- * the older tests do) cannot see either defect; these compare exact PGN and path on every leg.
- */
 test("undo works after a redo, and every leg restores its own PGN and path", () => {
   actions.loadPgn(START_PGN);
   clearHistory();
