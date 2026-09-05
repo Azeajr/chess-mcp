@@ -1,6 +1,7 @@
 /* @refresh reload */
 import { render } from "solid-js/web";
 import App from "./App";
+import { executeBrowserCommand } from "./application/browser-commands/client";
 import {
   actions,
   changesSinceExport,
@@ -124,6 +125,16 @@ render(() => <App />, root);
 
 // DEV-only handle for headless verification (loading a PGN / driving the suggestion pipeline
 // without a native file picker or a live LLM key). Not bundled in production builds.
+// Only flagged production tests can call these read-only commands without the chat UI. Keep the
+// bridge at the application entry point and execute through the canonical browser registry.
+if (import.meta.env.VITE_PWA_LIFECYCLE_TEST === "1") {
+  const bridge = (window as unknown as { __pwaLifecycleTest: object }).__pwaLifecycleTest;
+  Object.assign(bridge, {
+    identifyOpening: (pgn: string) => executeBrowserCommand("identify_opening", { pgn }),
+    cloudEvaluation: () => executeBrowserCommand("cloud_eval", {}),
+  });
+}
+
 if (import.meta.env.DEV) {
   (window as unknown as { __chess?: unknown }).__chess = {
     ...actions,
@@ -231,10 +242,9 @@ if (import.meta.env.DEV) {
     strategicFitResolutionProofSnapshot,
     // Clears the live regions between UX-012 scenarios so consecutive identical messages
     // (e.g. started → completed of two separate runs) remain observable as changes.
-    resetAnnouncementsForTesting: () => {
-      void import("./store/announce").then((m) => {
-        m.resetAnnouncementsForTesting();
-      });
+    resetAnnouncementsForTesting: async () => {
+      const m = await import("./store/announce");
+      m.resetAnnouncementsForTesting();
     },
     announcementLogForTesting: async () => {
       const m = await import("./store/announce");

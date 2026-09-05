@@ -1,0 +1,66 @@
+name: UI validation
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: UI — typecheck, unit, PWA build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - run: pnpm --filter @chess-mcp/ui typecheck
+      - run: pnpm --filter @chess-mcp/ui test:chat
+      # WP-019 AC-4 and the real service-worker lifecycle. The dev-seam spec in
+      # test/e2e/pwa-update.spec.ts cannot prove Workbox leaves build B waiting; these two run
+      # against real production output, so they need the build first.
+      - name: Production PWA build assertions
+        run: |
+          pnpm --filter @chess-mcp/ui build
+          node --test apps/ui/test/pwa-build.test.mjs
+      # Runs on the host, not in the e2e container, so it needs its own browser. The container
+      # image that serves `test:e2e:container` is not on this job's PATH.
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+      # Keyed on the resolved Playwright version, not the lockfile: the browser build only changes
+      # when Playwright does, so an unrelated dependency bump must not throw the download away.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright-version.outputs.version }}
+      - name: Production offline behavior and service-worker update lifecycle
+        # Deliberately not `--with-deps`. On run 33631185583 that apt install took 4m10s of a 4m50s
+        # step — 86% of it, and the whole reason this job, not the e2e shards, was the critical
+        # path. The ubuntu runner image already ships the shared libraries Chromium needs (it
+        # preinstalls Chrome and Edge); the bulk of what `--with-deps` adds on top is font packages
+        # for non-Latin screenshot rendering, and this test asserts service-worker lifecycle, not
+        # pixels. If Chromium ever fails to launch here with a missing .so, put `--with-deps` back
+        # on this one line rather than reinstating it everywhere.
+        run: |
+          pnpm exec playwright install chromium
+          node apps/ui/test/pwa-lifecycle.mjs
+          node --test apps/ui/test/pwa-build.test.mjs
+
+      # The lifecycle harness writes its flagged A/B builds to temporary directories. This is
+      # the ordinary production output that passed both artifact and offline checks, not a rebuild.
+      - name: Preserve validated PWA
+        uses: actions/upload-artifact@v6
+        with:
+          name: pwa-${{ github.sha }}
+          path: apps/ui/dist
+          if-no-files-found: error
+          retention-days: 1

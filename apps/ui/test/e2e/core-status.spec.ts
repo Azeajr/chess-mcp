@@ -44,6 +44,28 @@ const announcementScenarios: ReadonlyArray<{
   { scenario: "engine-offline", message: /engine.*offline/i },
 ];
 
+test("announcement reset completes before subsequent events are recorded", async ({ page }) => {
+  await openApp(page);
+  const messages = await page.evaluate(async () => {
+    const store = await import("/src/store/announce.ts");
+    const chess = (
+      window as unknown as {
+        __chess: { resetAnnouncementsForTesting(): Promise<void> };
+      }
+    ).__chess;
+    store.announce("Before reset");
+    await chess.resetAnnouncementsForTesting();
+    const afterReset = store.announcementLogForTesting().map((entry) => entry.message);
+    store.announce("After reset");
+    await Promise.resolve();
+    return {
+      afterReset,
+      afterEvent: store.announcementLogForTesting().map((entry) => entry.message),
+    };
+  });
+  expect(messages).toEqual({ afterReset: [], afterEvent: ["After reset"] });
+});
+
 test("UX-012 every required event produces exactly one live-region announcement", async ({
   page,
 }) => {
@@ -53,10 +75,10 @@ test("UX-012 every required event produces exactly one live-region announcement"
     await page.evaluate(() => {
       const chess = (
         window as unknown as {
-          __chess: { resetAnnouncementsForTesting(): void };
+          __chess: { resetAnnouncementsForTesting(): Promise<void> };
         }
       ).__chess;
-      chess.resetAnnouncementsForTesting();
+      return chess.resetAnnouncementsForTesting();
     });
     await page.evaluate((event) => {
       const chess = (

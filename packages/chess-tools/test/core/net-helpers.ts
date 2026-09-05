@@ -4,7 +4,16 @@
  * would cost a second per call and could not assert the spacing anyway. `Date` is faked alongside
  * `setTimeout` because the limiter compares timestamps, not just timer callbacks.
  */
-import { mock } from "node:test";
+import { afterEach, mock } from "node:test";
+
+// These suites replace fetch more than once in a test. Remember the first original, so teardown
+// cannot restore an earlier stub, and run even when the test throws before explicit cleanup.
+let fetchBeforeTest: typeof fetch | undefined;
+afterEach(() => {
+  if (fetchBeforeTest !== undefined) globalThis.fetch = fetchBeforeTest;
+  fetchBeforeTest = undefined;
+  mock.timers.reset();
+});
 
 /**
  * Advanced an hour per use. The limiter's `lastRequest` is module state that survives between
@@ -47,6 +56,7 @@ export function stubFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response> | Response,
 ): FetchStub {
   const calls: { url: string; init?: RequestInit }[] = [];
+  fetchBeforeTest ??= globalThis.fetch;
   const original = globalThis.fetch;
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input.toString();
