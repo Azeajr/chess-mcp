@@ -81,7 +81,7 @@ const boardDirty = (page: Page): Promise<boolean> =>
 const resetAnnouncements = (page: Page): Promise<void> =>
   page.evaluate(() =>
     (
-      window as unknown as { __chess: { resetAnnouncementsForTesting(): void } }
+      window as unknown as { __chess: { resetAnnouncementsForTesting(): Promise<void> } }
     ).__chess.resetAnnouncementsForTesting(),
   );
 

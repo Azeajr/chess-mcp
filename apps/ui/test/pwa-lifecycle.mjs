@@ -1,4 +1,4 @@
-/* global window */
+/* global window, indexedDB, Worker */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createServer } from "node:http";
@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import { expect } from "playwright/test";
 
 /**
  * WP-019 required automated validation: publish production build A, then production build B at
@@ -32,24 +33,155 @@ const mime = new Map([
 ]);
 
 function build(id) {
-  execFileSync("pnpm", ["--filter", "@chess-mcp/ui", "build"], {
-    cwd: root,
-    stdio: "inherit",
-    env: {
-      ...process.env,
-      VITE_PWA_LIFECYCLE_TEST: "1",
-      VITE_PWA_TEST_BUILD_ID: id,
+  // Flagged A/B builds must never replace the ordinary, validated deployment artifact.
+  const output = path.join(workspace, `build-${id}`);
+  execFileSync(
+    "pnpm",
+    ["--filter", "@chess-mcp/ui", "build", "--outDir", output, "--emptyOutDir"],
+    {
+      cwd: root,
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        VITE_PWA_LIFECYCLE_TEST: "1",
+        VITE_PWA_TEST_BUILD_ID: id,
+      },
     },
-  });
+  );
+  return output;
 }
 
-function publish() {
+function publish(source) {
   const next = `${deployed}-next`;
   rmSync(next, { recursive: true, force: true });
-  cpSync(uiDist, next, { recursive: true });
+  cpSync(source, next, { recursive: true });
   rmSync(deployed, { recursive: true, force: true });
   cpSync(next, deployed, { recursive: true });
   rmSync(next, { recursive: true, force: true });
+}
+
+async function savedDocument(page) {
+  return page.evaluate(
+    () =>
+      new Promise((resolve, reject) => {
+        const request = indexedDB.open("chess-repertoire", 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const read = db.transaction("kv").objectStore("kv").get("workingRepertoire");
+          read.onsuccess = () => {
+            db.close();
+            resolve(read.result);
+          };
+          read.onerror = () => {
+            db.close();
+            reject(read.error);
+          };
+        };
+      }),
+  );
+}
+
+async function playMove(page, from, to) {
+  await page.locator(`.board-keyboard-layer [data-square="${from}"]`).focus();
+  await page.keyboard.press("Enter");
+  await page.locator(`.board-keyboard-layer [data-square="${to}"]`).focus();
+  await page.keyboard.press("Enter");
+}
+
+async function verifyOfflineProduction(browser, origin) {
+  const context = await browser.newContext({ serviceWorkers: "allow" });
+  try {
+    const page = await context.newPage();
+    await page.goto(origin, { waitUntil: "networkidle" });
+    await page.waitForFunction(
+      async () => (await navigator.serviceWorker.getRegistration())?.active?.state === "activated",
+    );
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForFunction(() => navigator.serviceWorker.controller !== null);
+    assert.deepEqual(
+      await page.evaluate(() => ({
+        dev: typeof window.__chess,
+        lifecycle: typeof window.__pwaLifecycleTest,
+      })),
+      { dev: "undefined", lifecycle: "undefined" },
+    );
+
+    await playMove(page, "e2", "e4");
+    await expect.poll(async () => (await savedDocument(page))?.pgn ?? "").toContain("1. e4");
+    const beforeReload = await savedDocument(page);
+
+    await context.setOffline(true);
+    await page.reload({ waitUntil: "load" });
+    await expect(page.locator(".move-tree")).toContainText("e4");
+    assert.equal((await savedDocument(page)).documentId, beforeReload.documentId);
+    assert.equal((await savedDocument(page)).pgn, beforeReload.pgn);
+
+    // Edit through the real board while offline, then prove that the edit survives a reload.
+    await playMove(page, "e7", "e5");
+    await expect.poll(async () => (await savedDocument(page))?.pgn ?? "").toContain("1. e4 e5");
+    const edited = await savedDocument(page);
+    assert.equal(edited.documentId, beforeReload.documentId);
+    assert.ok(edited.revision > beforeReload.revision);
+    await page.reload({ waitUntil: "load" });
+    await expect(page.locator(".move-tree")).toContainText("e5");
+    assert.equal((await savedDocument(page)).pgn, edited.pgn);
+
+    const cached = await page.evaluate(async () => {
+      const statuses = {};
+      for (const asset of [
+        "/manifest.webmanifest",
+        "/openings.tsv",
+        "/engine/stockfish-18-lite-single.wasm",
+      ]) {
+        const response = await fetch(asset);
+        statuses[asset] = {
+          status: response.status,
+          bytes: (await response.arrayBuffer()).byteLength,
+        };
+      }
+      return statuses;
+    });
+    for (const [asset, result] of Object.entries(cached)) {
+      assert.equal(result.status, 200, `${asset} is available offline`);
+      assert.ok(result.bytes > 0, `${asset} contains data`);
+    }
+
+    // A new worker cannot satisfy this with the app's persisted evaluation cache.
+    const bestmove = await page.evaluate(
+      () =>
+        new Promise((resolve, reject) => {
+          const worker = new Worker("/engine/stockfish-18-lite-single.js");
+          const timer = setTimeout(() => {
+            worker.terminate();
+            reject(new Error("Offline engine timed out"));
+          }, 20_000);
+          const finish = (error, line) => {
+            clearTimeout(timer);
+            worker.terminate();
+            if (error) reject(error);
+            else resolve(line);
+          };
+          worker.onerror = (event) => finish(new Error(event.message));
+          worker.onmessage = (event) => {
+            const line = String(event.data);
+            if (line === "uciok") worker.postMessage("isready");
+            if (line === "readyok") {
+              worker.postMessage("position startpos");
+              worker.postMessage("go depth 1");
+            }
+            if (line.startsWith("bestmove ")) finish(null, line);
+          };
+          worker.postMessage("uci");
+        }),
+    );
+    assert.match(bestmove, /^bestmove [a-h][1-8][a-h][1-8]/);
+    console.log(
+      "PWA offline confirmed: ordinary build, reload, document restoration, local edit, cached assets, fresh engine",
+    );
+  } finally {
+    await context.close();
+  }
 }
 
 function staticServer() {
@@ -79,8 +211,7 @@ function staticServer() {
 let browser;
 let server;
 try {
-  build("A");
-  publish();
+  publish(uiDist);
 
   server = staticServer();
   await new Promise((resolve, reject) => {
@@ -92,6 +223,9 @@ try {
   const origin = `http://127.0.0.1:${address.port}`;
 
   browser = await chromium.launch({ headless: true });
+  await verifyOfflineProduction(browser, origin);
+
+  publish(build("A"));
   const context = await browser.newContext({ serviceWorkers: "allow" });
   const page = await context.newPage();
   await page.goto(origin, { waitUntil: "networkidle" });
@@ -105,12 +239,19 @@ try {
   await page.waitForSelector(".app[data-build-id='A']");
 
   // A real running operation must hold the prompt back even after B has installed and is waiting.
+  // No opening lookup ran before disconnecting, so an in-memory table cannot hide missing precache.
+  await context.setOffline(true);
+  const opening = await page.evaluate(() => window.__pwaLifecycleTest.identifyOpening("1. e4 *"));
+  assert.deepEqual(opening, { eco: "B00", name: "King's Pawn Game", ply: 1 });
+  const cloud = await page.evaluate(() => window.__pwaLifecycleTest.cloudEvaluation());
+  assert.equal(cloud.available, false, "online-only evaluation reports unavailability offline");
+  await context.setOffline(false);
+
   await page.evaluate(() => {
     window.__pwaLifecycleTest.startOperation();
   });
 
-  build("B");
-  publish();
+  publish(build("B"));
   await page.evaluate(async () => {
     const registration = await navigator.serviceWorker.ready;
     await registration.update();

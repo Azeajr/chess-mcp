@@ -97,23 +97,13 @@ that retired the `AG-*` accessibility pipeline; prefer no gate over a gate nobod
 
 ## Follow-up quality work
 
-- **`core-keyboard.spec.ts` "WP-014 AC-3" flakes about one run in three, and one flake reds a
-  shard.** Measured 2026-09-02 with `--repeat-each=3` in the container: 1/3 and 2/3 across two
-  variants of an unrelated change, so it is the test, not any feature. It presents as a missing
-  `2 legal destinations.` announcement, but the announcement is never produced — the `Enter` never
-  selects. `announcementHistory` in `store/announce.ts` accumulates and is cleared only by an
-  explicit reset, so polling the log cannot fix it; that was tried and reverted. The cause is
-  upstream, in `focusBoardCursor`, which Tabs up to 120 times until something reports
-  `role="gridcell"` without waiting for the board's roving-tabindex composite to settle, so focus
-  lands on the wrong cell or is dropped. Synchronising on the cursor cell being focused — as
-  `UX-003` at `core-keyboard.spec.ts:163` already does — before driving keys is the likely fix.
-  `retries` is unset in `playwright.config.ts`, so until then a lone red shard on this test is a
-  re-run, not a regression.
-- **`stubFetch` in `test/core/net-helpers.ts` offers `restore()`, but no test calls it.** The
-  helper used to reassign `globalThis.fetch` permanently while `withFakeClock` beside it returned
-  an explicit `restore()`; the method closes that asymmetry, but every `.restore()` in
-  `test/core/` is still `clock.restore()`. Until callers use it, a test added after the last
-  `stubFetch` can still inherit the previous test's canned handler and pass for the wrong reason.
+- **Investigate `core-keyboard.spec.ts` "WP-014 AC-3" if the historical failure recurs.**
+  September 2 runs reported a missing `2 legal destinations.` announcement, but nine fresh
+  container executions in the September 4 audit passed. The broad gridcell focus check is a
+  hypothesis, not a demonstrated cause. The announcement-reset bridge is now awaitable; this
+  does not establish that it fixed the historical failure. Capture focused square, selection,
+  reset completion, and announcement history before changing assertions or dismissing a failure.
+  See [the verified PWA/browser review](PWA_TESTING_REVIEW.md).
 - **A training target is keyed more coarsely than the drills that map to it.** `target_id` hashes
   `(training_id, position_id, decision_id)` in `strategic-fit/training.ts`, while drills dedupe on
   `(position_id, expected_san)` — so two drills sharing a position and decision but differing in
@@ -128,10 +118,9 @@ that retired the `AG-*` accessibility pipeline; prefer no gate over a gate nobod
   nested button as keyboard-reachable, so it works today. Fixing it means restructuring every
   `rep-section` summary, not patching one button; expect it to resurface in review until then.
 - **Announcement assertions in `core-keyboard.spec.ts` read the log once, without retrying.**
-  `announcementLog` is awaited immediately after a keypress while every neighbouring
-  `expect(locator)` polls. History accumulates, so this is only a narrow race — an announcement
-  landing a tick late fails where a polling assertion would pass — and it is currently masked by
-  the larger flake above. Fix it with the same `expect.poll` shape when that is addressed.
+  `announcementLog` is awaited immediately after a keypress while neighbouring locator assertions
+  poll. Selection and history insertion are synchronous, so a delayed-announcement failure has
+  not been established. Revisit polling only if a recurrence supplies evidence for that mechanism.
 - **`positionKey` compares the en-passant field verbatim, so a stale target breaks transposition
   matching.** The key is the first four FEN fields, and the library only records an en-passant
   target when a capture is actually legal — `makeFen` after 1. e4 ends `KQkq -`, not `KQkq e3`.

@@ -14,7 +14,7 @@ type PwaHarness = {
     runningOperations: number;
     reloadRequested: boolean;
   };
-  resetAnnouncementsForTesting(): void;
+  resetAnnouncementsForTesting(): Promise<void>;
   announcementLogForTesting(): Promise<string[]>;
 };
 
@@ -28,9 +28,9 @@ const toast = (page: Page) => page.locator(".ui-toast", { hasText: "A new versio
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
-  await pwa(page, (api) => {
+  await pwa(page, async (api) => {
     api.resetPwaUpdateForTesting();
-    api.resetAnnouncementsForTesting();
+    await api.resetAnnouncementsForTesting();
   });
 });
 

@@ -23,7 +23,7 @@ export default defineConfig({
     crossOriginIsolation,
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["icon.svg"],
+      includeAssets: ["icon.svg", "openings.tsv"],
       // SW only in the production build (dev keeps HMR + the COOP/COEP middleware simple).
       devOptions: { enabled: false },
       manifest: {
