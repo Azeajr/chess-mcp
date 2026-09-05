@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "playwright/test";
+import { expect, test, type Locator, type Page } from "./helpers/fixtures";
 import { openApp } from "./helpers/app";
 import { basicAccessibilityViolations, touchTargetViolations } from "./helpers/accessibility";
 
@@ -243,6 +243,7 @@ test("WP-006 AC-4 and AC-5 analysis text is copyable but the board is not select
 test("WP-006 AC-6 touch-emulated board dragging remains enabled without callouts", async ({
   browserName,
   page,
+  watchContext,
 }) => {
   test.skip(browserName !== "chromium", "Playwright exposes raw touch-drag dispatch in Chromium");
   const context = await page
@@ -253,6 +254,7 @@ test("WP-006 AC-6 touch-emulated board dragging remains enabled without callouts
       hasTouch: true,
       viewport: { width: 390, height: 844 },
     });
+  await watchContext(context);
   const touchPage = await context.newPage();
   const cdp = await context.newCDPSession(touchPage);
   await cdp.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
@@ -298,7 +300,10 @@ test("WP-006 AC-6 touch-emulated board dragging remains enabled without callouts
   await context.close();
 });
 
-test("WP-006 AC-7 every app control meets pointer and touch target floors", async ({ page }) => {
+test("WP-006 AC-7 every app control meets pointer and touch target floors", async ({
+  page,
+  watchContext,
+}) => {
   await openApp(page, { width: 1280, height: 800 });
   expect(await touchTargetViolations(page.locator(".app-main"), 24)).toEqual([]);
 
@@ -310,6 +315,7 @@ test("WP-006 AC-7 every app control meets pointer and touch target floors", asyn
       hasTouch: true,
       viewport: { width: 1280, height: 800 },
     });
+  await watchContext(context);
   const touchPage = await context.newPage();
   await openApp(touchPage, { width: 1280, height: 800 });
   expect(await touchTargetViolations(touchPage.locator(".app-main"), 44)).toEqual([]);

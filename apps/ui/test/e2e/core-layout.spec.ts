@@ -1,4 +1,4 @@
-import { expect, test } from "playwright/test";
+import { expect, test } from "./helpers/fixtures";
 import { LONG_FILENAME, openApp } from "./helpers/app";
 import { overflowViolations, touchTargetViolations } from "./helpers/accessibility";
 import { VIEWPORTS } from "./helpers/viewports";
@@ -30,40 +30,42 @@ const panelDimensions = (page: import("playwright/test").Page) =>
     ),
   );
 
-test("the move list sits with the board, and the side panel is analysis then tools", async ({
-  page,
-}) => {
-  await openApp(page, { width: 1280, height: 800 });
-  const sideOrder = await page.evaluate(() =>
-    [...document.querySelectorAll(".side-panel .analysis, .side-panel .rep-panel")].map(
-      (el) => el.className,
-    ),
-  );
-  expect(sideOrder[0]).toContain("analysis");
-  expect(sideOrder[1]).toBe("rep-panel");
-  await expect(page.locator(".side-panel .move-tree")).toHaveCount(0);
+test(
+  "the move list sits with the board, and the side panel is analysis then tools",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await openApp(page, { width: 1280, height: 800 });
+    const sideOrder = await page.evaluate(() =>
+      [...document.querySelectorAll(".side-panel .analysis, .side-panel .rep-panel")].map(
+        (el) => el.className,
+      ),
+    );
+    expect(sideOrder[0]).toContain("analysis");
+    expect(sideOrder[1]).toBe("rep-panel");
+    await expect(page.locator(".side-panel .move-tree")).toHaveCount(0);
 
-  const placement = await page.evaluate(() => {
-    const tree = document.querySelector(".board-panel .move-tree");
-    const board = document.querySelector(".board-wrap");
-    if (!tree || !board) return null;
-    return {
-      treeBottom: tree.getBoundingClientRect().bottom,
-      treeTop: tree.getBoundingClientRect().top,
-      boardBottom: board.getBoundingClientRect().bottom,
-      viewportHeight: window.innerHeight,
-    };
-  });
-  expect(placement, "the move list renders in the board column").not.toBeNull();
-  expect(placement!.treeTop).toBeGreaterThanOrEqual(placement!.boardBottom);
-  expect(placement!.treeBottom).toBeLessThanOrEqual(placement!.viewportHeight);
+    const placement = await page.evaluate(() => {
+      const tree = document.querySelector(".board-panel .move-tree");
+      const board = document.querySelector(".board-wrap");
+      if (!tree || !board) return null;
+      return {
+        treeBottom: tree.getBoundingClientRect().bottom,
+        treeTop: tree.getBoundingClientRect().top,
+        boardBottom: board.getBoundingClientRect().bottom,
+        viewportHeight: window.innerHeight,
+      };
+    });
+    expect(placement, "the move list renders in the board column").not.toBeNull();
+    expect(placement!.treeTop).toBeGreaterThanOrEqual(placement!.boardBottom);
+    expect(placement!.treeBottom).toBeLessThanOrEqual(placement!.viewportHeight);
 
-  await openApp(page, { width: 390, height: 844 });
-  await expect(page.getByRole("tab", { name: "Analysis" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-});
+    await openApp(page, { width: 390, height: 844 });
+    await expect(page.getByRole("tab", { name: "Analysis" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+  },
+);
 
 test("UX-001 / WP-001 core panels retain usable height on short viewports", async ({ page }) => {
   test.slow();
@@ -247,7 +249,7 @@ test("WP-002 AC-4 keeps the normal-width top bar on one row", async ({ page }) =
   expect(rowCenters).toHaveLength(1);
 });
 
-test("WP-002 AC-5 preserves 44px top-bar touch targets", async ({ page }) => {
+test("WP-002 AC-5 preserves 44px top-bar touch targets", async ({ page, watchContext }) => {
   const touchContext = await page
     .context()
     .browser()!
@@ -256,6 +258,7 @@ test("WP-002 AC-5 preserves 44px top-bar touch targets", async ({ page }) => {
       hasTouch: true,
       viewport: { width: 1280, height: 800 },
     });
+  await watchContext(touchContext);
   const touchPage = await touchContext.newPage();
   await openApp(touchPage, { width: 1280, height: 800 });
   expect(await touchTargetViolations(touchPage.locator(".topbar"), 44)).toEqual([]);
@@ -348,7 +351,7 @@ test("WP-020 AC-5 honours layout widths persisted by the pre-change build", asyn
     .toEqual({ sideRendered: 333, chatRendered: 350, sideStored: "333", chatStored: "350" });
 });
 
-test("UX-014 all core controls meet pointer target minimums", async ({ page }) => {
+test("UX-014 all core controls meet pointer target minimums", async ({ page, watchContext }) => {
   await openApp(page, { width: 1280, height: 800 });
   const app = page.locator(".app");
   expect(await touchTargetViolations(app, 24)).toEqual([]);
@@ -361,6 +364,7 @@ test("UX-014 all core controls meet pointer target minimums", async ({ page }) =
       hasTouch: true,
       viewport: { width: 1280, height: 800 },
     });
+  await watchContext(touchContext);
   const touchPage = await touchContext.newPage();
   await openApp(touchPage, { width: 1280, height: 800 });
   expect(await touchTargetViolations(touchPage.locator(".app"), 44)).toEqual([]);

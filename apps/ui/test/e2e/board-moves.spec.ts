@@ -1,4 +1,4 @@
-import { expect, test } from "playwright/test";
+import { expect, test } from "./helpers/fixtures";
 import { currentPath, currentPgn, goToPath, openApp } from "./helpers/app";
 import { destinationSquares, dragMove, pieceAt, selectSquare } from "./helpers/board";
 
@@ -7,25 +7,27 @@ const board = (page: Parameters<typeof openApp>[0]) => page.locator(".board-wrap
 const PROMOTION_PGN = "1. e4 f5 2. exf5 g6 3. fxg6 d5 4. gxh7 Nc6 *";
 const PROMOTION_PATH = [0, 0, 0, 0, 0, 0, 0, 0];
 
-test("a dragged promotion opens the picker instead of auto-queening, and plays the piece chosen", async ({
-  page,
-}) => {
-  await openApp(page, { pgn: PROMOTION_PGN });
-  await goToPath(page, PROMOTION_PATH);
+test(
+  "a dragged promotion opens the picker instead of auto-queening, and plays the piece chosen",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await openApp(page, { pgn: PROMOTION_PGN });
+    await goToPath(page, PROMOTION_PATH);
 
-  await dragMove(board(page), "h7", "g8");
+    await dragMove(board(page), "h7", "g8");
 
-  const dialog = page.getByRole("dialog", { name: /Promote pawn/u });
-  await expect(dialog).toBeVisible();
-  expect(await currentPath(page)).toEqual(PROMOTION_PATH);
+    const dialog = page.getByRole("dialog", { name: /Promote pawn/u });
+    await expect(dialog).toBeVisible();
+    expect(await currentPath(page)).toEqual(PROMOTION_PATH);
 
-  await page.getByRole("button", { name: "Promote to knight" }).click();
-  await expect(dialog).toBeHidden();
+    await page.getByRole("button", { name: "Promote to knight" }).click();
+    await expect(dialog).toBeHidden();
 
-  await expect.poll(() => currentPath(page)).toEqual([...PROMOTION_PATH, 0]);
-  expect(await currentPgn(page)).toContain("hxg8=N");
-  await expect.poll(() => pieceAt(board(page), "g8")).toBe("white knight");
-});
+    await expect.poll(() => currentPath(page)).toEqual([...PROMOTION_PATH, 0]);
+    expect(await currentPgn(page)).toContain("hxg8=N");
+    await expect.poll(() => pieceAt(board(page), "g8")).toBe("white knight");
+  },
+);
 
 test("a drag to a square the piece cannot reach plays nothing", async ({ page }) => {
   await openApp(page, { pgn: "*" });

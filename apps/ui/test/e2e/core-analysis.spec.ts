@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 import { openApp } from "./helpers/app";
 
 type EngineFixtureMode = "lines" | "empty" | "offline";
@@ -90,34 +90,40 @@ async function openEngineSettings(page: Page) {
   return settings;
 }
 
-test("WP-016 AC-1 AC-2 AC-4 AC-6 AC-7 exposes honest engine states and controls", async ({
-  page,
-}) => {
-  await installEngineFixture(page, "lines");
-  await openApp(page, { width: 1280, height: 800 });
+test(
+  "WP-016 AC-1 AC-2 AC-4 AC-6 AC-7 exposes honest engine states and controls",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await installEngineFixture(page, "lines");
+    await openApp(page, { width: 1280, height: 800 });
 
-  const panel = page.locator(".analysis");
-  await expect(panel.getByText("Engine evaluation is off.", { exact: true })).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Evaluation is off. Turn on engine evaluation." }),
-  ).toBeVisible();
-  await expect(panel.locator(".analysis-depth-chip")).toHaveText("Depth 20");
-  await expect(page.locator(".topbar").getByLabel("Analysis depth")).toHaveCount(0);
-  await expect(page.locator(".topbar").getByRole("button", { name: /eval/i })).toHaveCount(0);
+    const panel = page.locator(".analysis");
+    await expect(panel.getByText("Engine evaluation is off.", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Evaluation is off. Turn on engine evaluation." }),
+    ).toBeVisible();
+    await expect(panel.locator(".analysis-depth-chip")).toHaveText("Depth 20");
+    await expect(page.locator(".topbar").getByLabel("Analysis depth")).toHaveCount(0);
+    await expect(page.locator(".topbar").getByRole("button", { name: /eval/i })).toHaveCount(0);
 
-  await panel.getByRole("button", { name: "Turn on evaluation" }).click();
-  await expect(panel.getByText("Starting engine analysis…", { exact: true })).toBeVisible();
-  await expect(panel.getByText("Engine evaluation is off.", { exact: true })).toHaveCount(0);
-  await expect(panel.locator(".line")).toHaveCount(1, { timeout: 10_000 });
-  await expect(
-    page.getByRole("img", { name: "Evaluation: +0.34, white slightly better" }),
-  ).toBeVisible();
-  expect(await fixtureDepths(page)).toContain(20);
-});
+    await panel.getByRole("button", { name: "Turn on evaluation" }).click();
+    await expect(panel.getByText("Starting engine analysis…", { exact: true })).toBeVisible();
+    await expect(panel.getByText("Engine evaluation is off.", { exact: true })).toHaveCount(0);
+    await expect(panel.locator(".line")).toHaveCount(1, { timeout: 10_000 });
+    await expect(
+      page.getByRole("img", { name: "Evaluation: +0.34, white slightly better" }),
+    ).toBeVisible();
+    expect(await fixtureDepths(page)).toContain(20);
+  },
+);
 
 test("WP-016 AC-3 shows the offline recovery action and retries through the live worker", async ({
   page,
+  allowPageFaults,
 }) => {
+  // The fixture stops the worker on purpose, and `stockfish.ts` reports that
+  // as an `[engine]` warning rather than throwing.
+  allowPageFaults(/^\[engine\] worker error: Synthetic engine offline/);
   await installEngineFixture(page, "offline");
   await openApp(page);
 

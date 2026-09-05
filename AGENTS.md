@@ -36,6 +36,22 @@ For focused host iteration, `pnpm test:e2e -- <path-or-grep>` runs one worker wi
 Resource limits are configurable through `E2E_CPU_QUOTA`, `E2E_MEMORY_HIGH`, `E2E_MEMORY_MAX`,
 `E2E_NICE`, and `E2E_RUNTIME_MAX`.
 
+`pnpm test:e2e -- --grep @smoke` runs the seven critical-path tests tagged `@smoke`: board moves,
+document guards, layout, engine states, announcements, keyboard-reachable rows, and one Strategic
+Fit lifecycle flow.
+
+Specs import `test` and `expect` from `test/e2e/helpers/fixtures.ts` rather than `playwright/test`.
+That base fails an otherwise-passing test that produced an uncaught page error or a `console.error`,
+and treats `[engine]` warnings as failures because `apps/ui/src/engine/stockfish.ts` reports worker
+faults that way instead of throwing. It also answers every request outside the dev server with a
+JSON `null`, which `packages/chess-tools/src/apiclient.ts` turns into "no data", so no test reaches
+lichess.org, api.chess.com, or openrouter.ai; a test needing a real response registers its own
+`page.route`, which takes precedence. Cloud evaluation is switched off through `localStorage` before
+the app boots, because it otherwise calls lichess on a timer after every position change and that
+request can outlive the test that started it. A test that causes a fault deliberately declares it with
+`allowPageFaults(/pattern/)` so the same fault still fails elsewhere, and any context built with
+`browser.newContext()` goes through `await watchContext(context)`.
+
 ## Sources of truth
 
 - `packages/chess-tools/src/tool-contract.ts` owns tool identity, metadata, validation, host

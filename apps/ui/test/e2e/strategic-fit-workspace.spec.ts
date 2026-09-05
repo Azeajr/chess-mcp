@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 
 type Region = "overview" | "findings" | "evidence" | "resolution";
 type RegionState = { status: "empty" | "loading" | "error"; message?: string };

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
@@ -367,7 +367,10 @@ test("small, shallow, incomplete, and insufficient evidence remains a meaningful
 
 test("transpositions, terminal routes, and offline opening evidence remain visibly qualified", async ({
   page,
+  allowPageFaults,
 }) => {
+  // Aborting the opening data is the point of the test.
+  allowPageFaults(/^Failed to load resource: net::ERR_FAILED .*\/openings\.tsv/);
   await page.route("**/openings.tsv", (route) => route.abort());
   await bootstrap(page);
   await loadProfile(page, TRANSPOSITIONS, "transpositions.pgn");

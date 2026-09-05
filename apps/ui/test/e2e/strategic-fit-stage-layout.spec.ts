@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 import { installFindingWorkerFixture } from "./helpers/strategic-fit-worker-fixture";
 
 type ChessHarness = {

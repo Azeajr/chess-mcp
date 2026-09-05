@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from "playwright/test";
+import { expect, test, type Locator, type Page } from "./helpers/fixtures";
 
 type ProfileMode = "familiar-plans" | "balanced" | "versatile" | "custom";
 type StrategicFitProfile = {

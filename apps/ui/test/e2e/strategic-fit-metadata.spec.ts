@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 import { GameTree, buildRepertoireGraph } from "@chess-mcp/chess-tools";
 
 type MetadataResolution = {

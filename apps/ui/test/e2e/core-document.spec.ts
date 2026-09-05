@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 import { currentPgn, openApp } from "./helpers/app";
 import { basicAccessibilityViolations } from "./helpers/accessibility";
 
@@ -21,44 +21,48 @@ async function makeDocumentDirty(page: Page) {
   );
 }
 
-test("WP-003 AC-1 AC-5 AC-8 guards a clean New without changing the document", async ({ page }) => {
-  await openApp(page);
-  const before = await currentPgn(page);
-  const newButton = page.getByRole("button", { name: "New" });
-  await newButton.focus();
-  await newButton.click();
+test(
+  "WP-003 AC-1 AC-5 AC-8 guards a clean New without changing the document",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await openApp(page);
+    const before = await currentPgn(page);
+    const newButton = page.getByRole("button", { name: "New" });
+    await newButton.focus();
+    await newButton.click();
 
-  const dialog = documentCloseDialog(page);
-  await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("rich-repertoire.pgn");
-  await expect(dialog.getByText("There are no unexported changes.")).toBeVisible();
-  await expect(page.locator(".app-main")).toHaveJSProperty("inert", true);
-  expect(await basicAccessibilityViolations(dialog)).toEqual([]);
-  expect(await currentPgn(page)).toBe(before);
+    const dialog = documentCloseDialog(page);
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText("rich-repertoire.pgn");
+    await expect(dialog.getByText("There are no unexported changes.")).toBeVisible();
+    await expect(page.locator(".app-main")).toHaveJSProperty("inert", true);
+    expect(await basicAccessibilityViolations(dialog)).toEqual([]);
+    expect(await currentPgn(page)).toBe(before);
 
-  const pathBefore = await page.evaluate(() =>
-    (window as unknown as { __chess: { currentPath(): number[] } }).__chess.currentPath(),
-  );
-  await page.keyboard.press("ArrowRight");
-  expect(
-    await page.evaluate(() =>
+    const pathBefore = await page.evaluate(() =>
       (window as unknown as { __chess: { currentPath(): number[] } }).__chess.currentPath(),
-    ),
-  ).toEqual(pathBefore);
+    );
+    await page.keyboard.press("ArrowRight");
+    expect(
+      await page.evaluate(() =>
+        (window as unknown as { __chess: { currentPath(): number[] } }).__chess.currentPath(),
+      ),
+    ).toEqual(pathBefore);
 
-  const cancel = dialog.getByRole("button", { name: "Cancel" });
-  const continueButton = dialog.getByRole("button", { name: "Continue" });
-  await expect(cancel).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(continueButton).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(cancel).toBeFocused();
-  await page.keyboard.press("Escape");
+    const cancel = dialog.getByRole("button", { name: "Cancel" });
+    const continueButton = dialog.getByRole("button", { name: "Continue" });
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(continueButton).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(cancel).toBeFocused();
+    await page.keyboard.press("Escape");
 
-  await expect(dialog).toHaveCount(0);
-  await expect(newButton).toBeFocused();
-  expect(await currentPgn(page)).toBe(before);
-});
+    await expect(dialog).toHaveCount(0);
+    await expect(newButton).toBeFocused();
+    expect(await currentPgn(page)).toBe(before);
+  },
+);
 
 test("WP-003 AC-2 AC-3 saves unexported work before starting a new document", async ({ page }) => {
   await openApp(page);

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "playwright/test";
+import { expect, test, type Page } from "./helpers/fixtures";
 import { currentPath, openApp } from "./helpers/app";
 import { clickMove, dragMove, tapMove } from "./helpers/board";
 import {
@@ -118,25 +118,27 @@ test("UX-003 board squares are keyboard reachable", async ({ page }) => {
   ).toBeNull();
 });
 
-test("WP-011 AC-1 AC-2 result rows are Tab-reachable and activate like clicks", async ({
-  page,
-}) => {
-  await openApp(page, { width: 1280, height: 800, pgn: BRANCHING_PGN });
-  await addAuditRows(page, 8);
-  const app = page.locator(".app");
-  const row = page.locator(".rep-panel .rep-row").first();
+test(
+  "WP-011 AC-1 AC-2 result rows are Tab-reachable and activate like clicks",
+  { tag: "@smoke" },
+  async ({ page }) => {
+    await openApp(page, { width: 1280, height: 800, pgn: BRANCHING_PGN });
+    await addAuditRows(page, 8);
+    const app = page.locator(".app");
+    const row = page.locator(".rep-panel .rep-row").first();
 
-  await expect(row).toHaveJSProperty("tagName", "BUTTON");
-  expect(await keyboardReachable(app, ".rep-row")).toEqual([]);
+    await expect(row).toHaveJSProperty("tagName", "BUTTON");
+    expect(await keyboardReachable(app, ".rep-row")).toEqual([]);
 
-  await row.focus();
-  await page.keyboard.press("Enter");
-  await expect.poll(() => currentPath(page)).toEqual([0, 0, 0]);
-  await setCurrentPath(page, []);
-  await row.focus();
-  await page.keyboard.press("Space");
-  await expect.poll(() => currentPath(page)).toEqual([0, 0, 0]);
-});
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await expect.poll(() => currentPath(page)).toEqual([0, 0, 0]);
+    await setCurrentPath(page, []);
+    await row.focus();
+    await page.keyboard.press("Space");
+    await expect.poll(() => currentPath(page)).toEqual([0, 0, 0]);
+  },
+);
 
 test("WP-011 AC-3 uses one roving tree tab stop and DV-2 traversal without board navigation", async ({
   page,
@@ -315,6 +317,7 @@ test("WP-011 preserves the current-line strip and preview glow", async ({ page }
 
 test("WP-011 AC-5 compact and touch target floors hold for rows and the move tree", async ({
   page,
+  watchContext,
 }) => {
   await openApp(page, { width: 1280, height: 800, pgn: BRANCHING_PGN });
   await addAuditRows(page, 8);
@@ -329,6 +332,7 @@ test("WP-011 AC-5 compact and touch target floors hold for rows and the move tre
       hasTouch: true,
       viewport: { width: 1280, height: 800 },
     });
+  await watchContext(context);
   const touchPage = await context.newPage();
   await openApp(touchPage, { width: 1280, height: 800, pgn: BRANCHING_PGN });
   await addAuditRows(touchPage, 8);
@@ -482,7 +486,10 @@ test("WP-012 AC-4 AC-6 pointer capture preserves drag clamping outside the divid
   expect(await page.evaluate(() => localStorage.getItem("chess.layout.side"))).toBe("800");
 });
 
-test("WP-012 AC-5 divider hit areas meet pointer and touch target floors", async ({ page }) => {
+test("WP-012 AC-5 divider hit areas meet pointer and touch target floors", async ({
+  page,
+  watchContext,
+}) => {
   await openApp(page, { width: 1600, height: 900 });
   expect(await touchTargetViolations(page.locator(".workspace"), 24)).toEqual([]);
 
@@ -494,6 +501,7 @@ test("WP-012 AC-5 divider hit areas meet pointer and touch target floors", async
       hasTouch: true,
       viewport: { width: 390, height: 844 },
     });
+  await watchContext(touchContext);
   const touchPage = await touchContext.newPage();
   await openApp(touchPage, { width: 390, height: 844 });
   expect(await touchTargetViolations(touchPage.locator(".workspace"), 44)).toEqual([]);
@@ -687,7 +695,10 @@ test("WP-014 AC-7 pointer drag is unchanged with the keyboard layer unfocused", 
   await expect.poll(() => currentPath(page)).toEqual([0]);
 });
 
-test("WP-014 AC-7 touch move is unchanged with the keyboard layer unfocused", async ({ page }) => {
+test("WP-014 AC-7 touch move is unchanged with the keyboard layer unfocused", async ({
+  page,
+  watchContext,
+}) => {
   const context = await page
     .context()
     .browser()!
@@ -696,6 +707,7 @@ test("WP-014 AC-7 touch move is unchanged with the keyboard layer unfocused", as
       hasTouch: true,
       viewport: { width: 1280, height: 800 },
     });
+  await watchContext(context);
   const touchPage = await context.newPage();
   await openApp(touchPage, { pgn: "*" });
   await tapMove(chessboard(touchPage), "e2", "e4");
