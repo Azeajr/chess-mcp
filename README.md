@@ -20,6 +20,18 @@ LAN. The PWA stores its working game in IndexedDB and opens and saves PGN throug
 Local engine analysis works offline. Chat requires an OpenRouter key; opening-explorer operations
 require a no-scope Lichess token.
 
+## Agent-driven UX review
+
+Coding agents can exercise real user journeys and inspect mobile screenshots with the repo-local
+Playwright CLI in the existing Docker image (default: WebKit, `iPhone 13 Mini`). Use this for
+interactive visual iteration; durable findings become ordinary Playwright tests and
+`pnpm test:e2e:container` remains authoritative. See the [UX-review guide](docs/UX_REVIEW.md).
+
+```sh
+pnpm ux:review -- preflight
+pnpm ux:review -- start --workflow strategic-fit
+```
+
 ## Capabilities
 
 - Position analysis: legal moves, Stockfish and cloud evaluation, candidate comparison, ECO,

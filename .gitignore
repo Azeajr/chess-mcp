@@ -23,3 +23,6 @@ apps/ui/public/openings.tsv
 
 # per-developer Claude Code permission allowlist — machine-local, never shared
 .claude/settings.local.json
+
+# Interactive UX review sessions and evidence (not regression baselines)
+/.ux-review/

@@ -12,6 +12,10 @@ const playwrightArgs = args.filter((arg) => arg !== "--update-snapshots");
 const require = createRequire(path.join(root, "package.json"));
 const playwrightVersion = require("playwright/package.json").version;
 const image = `mcr.microsoft.com/playwright:v${playwrightVersion}-noble`;
+const dockerNetwork = process.env.E2E_DOCKER_NETWORK;
+if (dockerNetwork && !["host", "bridge"].includes(dockerNetwork)) {
+  throw new Error("E2E_DOCKER_NETWORK must be host or bridge.");
+}
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), "chess-mcp-playwright-"));
 const workspace = path.join(temporaryRoot, "work");
 const containerName = `chess-mcp-playwright-${process.pid}`;
@@ -173,6 +177,7 @@ try {
       "--rm",
       "--init",
       "--ipc=host",
+      ...(dockerNetwork ? ["--network", dockerNetwork] : []),
       "--name",
       containerName,
       "--user",

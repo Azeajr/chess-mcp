@@ -46,6 +46,8 @@ jobs:
         run: pnpm test:chess-tools
       - name: Design token, responsive tier, and primitive contracts
         run: node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
+      - name: UX review controller contracts
+        run: node --test scripts/ux-review.test.mjs
       - name: Deterministic smoke suites (engine-free, no network)
         run: |
           node scripts/smoke-gametree.mjs

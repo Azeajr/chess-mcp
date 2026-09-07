@@ -7,17 +7,22 @@ export default defineConfig({
   snapshotPathTemplate: "{testDir}/{testFilePath}-snapshots/{arg}-{platform}{ext}",
   use: { baseURL: "http://127.0.0.1:4173" },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    { name: "chromium", grepInvert: /@mobile-webkit/, use: { ...devices["Desktop Chrome"] } },
     {
       name: "firefox",
-      grepInvert: /@visual|@engine-bound/,
+      grepInvert: /@visual|@engine-bound|@mobile-webkit/,
       use: { ...devices["Desktop Firefox"] },
     },
     {
       name: "webkit",
       testIgnore: /strategic-fit-findings\.spec\.ts/,
-      grepInvert: /@visual|@engine-bound/,
+      grepInvert: /@visual|@engine-bound|@mobile-webkit/,
       use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "mobile-webkit",
+      grep: /@mobile-webkit/,
+      use: { ...devices["iPhone 13 Mini"] },
     },
   ],
   webServer: {

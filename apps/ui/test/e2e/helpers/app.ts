@@ -1,4 +1,5 @@
 import { expect, type Page } from "playwright/test";
+import { readFileSync } from "node:fs";
 
 type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
@@ -10,20 +11,10 @@ type ChessHarness = {
 
 export const LONG_FILENAME = `${"long-repertoire-file-name-".repeat(5)}.pgn`;
 
-export const RICH_PGN = [
-  "1. d4 Nf6 2. Nf3 e6 3. Bf4 c5 4. e3 Nc6 5. c3 d5 6. Nbd2 Bd6 7. Bg3 *",
-  "1. d4 Nf6 2. Nf3 d6 3. Bf4 Nbd7 4. e3 e6 5. h3 Be7 6. Bd3 O-O 7. O-O *",
-  "1. d4 d5 2. Nf3 e6 3. Bf4 c5 4. e3 Nc6 5. c3 Nf6 6. Nbd2 Bd6 7. Bg3 *",
-  "1. d4 Nf6 2. c4 e6 3. Nf3 b6 4. g3 Bb7 5. Bg2 Be7 6. O-O O-O 7. Nc3 *",
-  "1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Nf3 Be7 5. Bf4 O-O 6. e3 c5 7. Bd3 *",
-  "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. Qc2 O-O 5. a3 Bxc3+ 6. Qxc3 d5 7. Nf3 *",
-  "1. d4 d5 2. c4 c6 3. Nc3 Nf6 4. e3 e6 5. Nf3 Bd6 6. Bd3 O-O 7. O-O *",
-  "1. d4 Nf6 2. c4 g6 3. Nc3 d5 4. cxd5 Nxd5 5. e4 Nxc3 6. bxc3 Bg7 7. Nf3 *",
-  "1. d4 d5 2. c4 dxc4 3. Nf3 Nf6 4. e3 e6 5. Bxc4 c5 6. O-O Nc6 7. Qe2 *",
-  "1. d4 Nf6 2. c4 e6 3. Nf3 d5 4. Nc3 Be7 5. Bf4 O-O 6. e3 c5 7. dxc5 *",
-  "1. d4 d5 2. Nf3 Nf6 3. c4 e6 4. Nc3 Be7 5. Bf4 O-O 6. e3 b6 7. Bd3 *",
-  "1. d4 Nf6 2. Nf3 g6 3. c4 Bg7 4. Nc3 O-O 5. e4 d6 6. Be2 e5 7. O-O *",
-].join("\n\n");
+export const RICH_PGN = readFileSync(
+  new URL("../../fixtures/ux-review/rich-repertoire.pgn", import.meta.url),
+  "utf8",
+).trim();
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
   page.evaluate(

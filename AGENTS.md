@@ -20,6 +20,11 @@ SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
 pnpm --filter @chess-mcp/ui build
 pnpm test:e2e:container
+pnpm ux:review -- preflight
+pnpm ux:review -- start --workflow review
+pnpm ux:review -- check
+pnpm ux:review -- reset
+pnpm ux:review -- stop
 ```
 
 `SMOKE_NETWORK=0` skips live provider assertions; `EVAL_CACHE_DIR=0` disables persistent evaluation
@@ -30,6 +35,10 @@ WebKit libraries, OS-specific rendering, or the default resource cap. Use the co
 confirm host failures and `pnpm test:e2e:update-snapshots` to update images. Snapshot copying occurs
 only after a completely successful run; numeric geometry baselines must be updated from container
 failure output.
+
+On Linux hosts unable to create Docker bridge interfaces, use
+`E2E_DOCKER_NETWORK=host pnpm test:e2e:container`. Stop host Vite/review servers first to free
+port 4173. This changes only container networking, not the authoritative image or test matrix.
 
 For focused host iteration, `pnpm test:e2e -- <path-or-grep>` runs one worker with a 15-minute cap.
 `pnpm --filter @chess-mcp/ui test:e2e:host` runs the broader Chromium and Firefox non-visual subset.
@@ -51,6 +60,13 @@ the app boots, because it otherwise calls lichess on a timer after every positio
 request can outlive the test that started it. A test that causes a fault deliberately declares it with
 `allowPageFaults(/pattern/)` so the same fault still fails elsewhere, and any context built with
 `browser.newContext()` goes through `await watchContext(context)`.
+
+## Interactive UX review
+
+Read `docs/UX_REVIEW.md` for real-journey, screenshot, or iterative mobile UI review. The controller
+uses the existing Playwright Docker image; host WebKit dependencies are unnecessary. Inspect actual
+returned PNGs with image capability, use visible controls, check faults, and reset/replay the same
+seed after edits. This exploratory loop does not replace the authoritative container E2E gate.
 
 ## Sources of truth
 

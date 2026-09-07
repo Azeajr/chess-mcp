@@ -20,6 +20,7 @@
     "check:content": "node --import tsx scripts/check-content.mjs",
     "check:legacy-imports": "node scripts/check-legacy-imports.mjs",
     "test:e2e": "node scripts/playwright-low-impact.mjs",
+    "ux:review": "node scripts/ux-review.mjs",
     "test:e2e:container": "node scripts/playwright-container.mjs",
     "test:e2e:update-snapshots": "node scripts/playwright-container.mjs --update-snapshots",
     "verify:openrouter": "node --import tsx scripts/openrouter-tool-surface-eval.mjs",

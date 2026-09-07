@@ -24,6 +24,7 @@ export default defineConfig([
     "**/coverage/**",
     "**/test-results/**",
     "**/playwright-report/**",
+    "**/.ux-review/**",
     "plugin/**",
     "apps/ui/public/engine/**",
     "**/*.generated.*",
