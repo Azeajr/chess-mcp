@@ -176,7 +176,13 @@ observe both running and terminal states so old results cannot satisfy the wait.
 sleeps or generic `networkidle` as proof of completion.
 
 Each forwarded CLI call is killed after 180 seconds, so keep every bounded wait under that and
-repeat it rather than asking for one long one; the browser keeps working across the boundary. In
+repeat it rather than asking for one long one; the browser keeps working across the boundary. That
+kill prints nothing at all, so a call that addresses a control inside a closed `<details>` looks
+identical to a hung application: the action waits for an element that will never become visible
+until something opens the section. Click the `summary` first, or drive the section's own button,
+which opens it. The same silence hides a wait aimed at a state the panel reaches by another route —
+`Extend here` and `Fill this` render candidate rows that must then be clicked to stage, so waiting
+on the staged-line card straight after pressing them times out with no output. In
 this profile `page.mouse.wheel` throws — mobile WebKit has no wheel — so scroll a container by
 focusing or clicking something inside it, and read long content with `textContent`, since a
 zero-height scroller yields an empty `innerText`. `textContent` also returns hidden text, so it says
