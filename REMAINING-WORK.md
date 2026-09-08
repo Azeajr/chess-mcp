@@ -13,14 +13,15 @@ only the forward list. `ROADMAP.md` holds unshipped product and quality work unr
    Strategic Fit have all been driven and replayed.
 2. ~~Cover the export/download failure path.~~ Done: the annotated-repertoire export alongside 1c,
    and every other save control alongside 1e.
-3. Promote the clean-checkout link check into CI. **The only item left.**
+3. ~~Promote the clean-checkout link check into CI.~~ Done: `pnpm check:links` runs in the Node job.
 4. ~~Decide the fate of the retained review worktrees.~~ Done: reports preserved under
    `docs/ux-audit-2026-09-07/`, worktrees pruned.
 
-Five passes found nineteen defects between them. What remains is item 3 and the coverage each
-journey explicitly did not claim — listed under its own heading below, and worth reading before
-deciding whether another pass is warranted. The largest gaps are that every journey ran White on
-one fixture, and that no journey exercised the CT Black input.
+**Every item on this list is now closed.** Five journey passes found nineteen defects between them.
+What remains is only the coverage each journey explicitly did not claim, listed under its own
+heading below and worth reading before deciding whether another pass is warranted. The largest gaps
+are that every journey ran White on one fixture, and that no journey exercised the CT Black input.
+This file stays as the record of what was done and what was left; new work belongs in `ROADMAP.md`.
 
 ## How to pick this up
 
@@ -292,20 +293,23 @@ the suite rather than the reports showed most already covered — `explorer_auth
 `compare_moves` in `apps/ui/test/content.test.ts`. Export and download failure was the one path with
 no coverage.
 
-## 3. Clean-checkout link check in CI
-
-**Status: open. Small, and it prevents a repeat failure.**
+## 3. Clean-checkout link check in CI — done 2026-09-08
 
 PR #58 failed CI twice for the same underlying reason: local checks could not see what a clean
-checkout sees. `pnpm docs:check` validates markdown links against the working tree, so links into
-gitignored, machine-local evidence resolved locally and broke in CI.
+checkout sees. `pnpm docs:check` validated markdown links with `stat`, against the working tree, so
+links into gitignored, machine-local evidence resolved locally and broke in CI.
 
-The immediate breakage is fixed — every markdown link in the repository now resolves from tracked
-files, and gitignored evidence paths are cited as code spans rather than linked. Nothing prevents
-the next document from reintroducing it.
+`pnpm check:links` (`scripts/check-links.mjs`) now resolves every local link in every tracked
+markdown file against `git ls-files` alone — files and their parent directories, with anchors,
+query strings, percent-encoding, angle brackets, reference definitions and root-absolute paths all
+handled — and reports `file:line` for anything that resolves to no tracked path or climbs out of
+the repository. It runs in the Node job right after `docs:check`, and its own contracts run with the
+UX review controller tests. The superseded working-tree loop is gone from `docs-consistency.mjs`,
+so there is one implementation rather than two that can disagree.
 
-Done when: a `check:links` script resolves every local markdown link against `git ls-files` only,
-runs in the Node job, and fails on a link satisfied solely by an untracked or ignored file.
+Verified against the original failure mode: adding a link to `.ux-review/strategic-fit/session.json`
+— present locally, gitignored — makes `pnpm check:links` exit 1 while `pnpm docs:check` still
+passes.
 
 Related and cheap: `pnpm format:check` is a separate gate from `pnpm lint`. Run both before
 committing. The first CI failure on PR #58 was a formatting miss.

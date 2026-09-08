@@ -68,6 +68,7 @@ See [architecture](docs/ARCHITECTURE.md), [PWA behavior](docs/PWA_PRODUCT.md), t
 pnpm --filter @chess-mcp/chess-tools build
 pnpm -r typecheck
 pnpm docs:check
+pnpm check:links
 pnpm check:skills
 pnpm check:legacy-imports
 node scripts/smoke-gametree.mjs

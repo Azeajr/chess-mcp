@@ -32,6 +32,8 @@ jobs:
         run: pnpm --filter @chess-mcp/chess-tools build
       - name: Generated documentation is current
         run: pnpm docs:check
+      - name: Markdown links resolve from a clean checkout
+        run: pnpm check:links
       - name: Browser content registry is complete
         run: pnpm check:content
       - name: Typecheck all packages
@@ -46,8 +48,8 @@ jobs:
         run: pnpm test:chess-tools
       - name: Design token, responsive tier, and primitive contracts
         run: node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
-      - name: UX review controller contracts
-        run: node --test scripts/ux-review.test.mjs
+      - name: UX review controller and link check contracts
+        run: node --test scripts/ux-review.test.mjs scripts/check-links.test.mjs
       - name: Deterministic smoke suites (engine-free, no network)
         run: |
           node scripts/smoke-gametree.mjs

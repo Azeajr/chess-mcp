@@ -10,6 +10,7 @@ SolidJS/Vite PWA. CI uses Node 26.
 pnpm --filter @chess-mcp/chess-tools build
 pnpm -r typecheck
 pnpm docs:check
+pnpm check:links
 pnpm check:skills
 pnpm check:legacy-imports
 node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
