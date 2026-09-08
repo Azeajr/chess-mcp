@@ -725,6 +725,31 @@ img,
     display: none;
   }
 
+  /* The chat panel stacks a header, the log, the context chip and the composer. Only the log
+     flexes, so once the board took its share the log collapsed to 0px and its result cards were
+     clipped out of existence: a finished game review rendered 1055px of cards that were neither
+     readable nor hit-testable. Reserve the log a floor, and cap the board while the chat tab is
+     open so that floor actually fits. */
+  .workspace[data-mtab="chat"] .board-wrap {
+    width: min(
+      var(--board-size, min(70vh, 45dvh + 18vh, calc(100% - var(--board-gutter)))),
+      calc(100% - var(--board-gutter)),
+      26dvh
+    );
+  }
+  .chat-wrap .chat {
+    padding: var(--space-2);
+    gap: var(--space-2);
+  }
+  .chat-wrap .chat-scroll {
+    overflow-y: auto;
+    min-height: 3rem;
+  }
+  .chat-wrap .chat-scroll > .chat-log {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
   .chat-input textarea,
   .field input {
     font-size: 16px;
@@ -2248,6 +2273,16 @@ img,
 .chat-input .stop-btn {
   background: var(--status-danger-surface);
 }
+/* Holds the panel header above the log. On a wide screen the log scrolls inside it and the header
+   stays put, exactly as before; on a phone the whole thing scrolls so the header stops charging the
+   log 53px of permanent height. */
+.chat-scroll {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
 .chat-log {
   flex: 1;
   overflow-y: auto;

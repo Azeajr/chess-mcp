@@ -68,30 +68,38 @@ export default function ChatPanel() {
         own name, wrapped its label onto two lines, and spent permanent chrome on a switch that is
         flipped once and then left alone.
       */}
-      <PanelHeader>
-        <span>Chat</span>
-        <Select
-          class="chat-mode"
-          title="Optional workflow guidance; all tools remain available"
-          value={chatMode()}
-          onChange={(e) => {
-            setChatMode(e.currentTarget.value as ChatMode);
-          }}
-        >
-          <For each={CHAT_MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
-        </Select>
-        <Button variant="ghost" class="scan-btn" onClick={clearChat}>
-          Clear
-        </Button>
-      </PanelHeader>
+      {/*
+        The header and the log share one scroller. On a phone the panel's fixed furniture — header,
+        context chip, composer — came to ~225px of a 629px viewport, which left the log, the only
+        flexible child, with nothing: a finished game review rendered a thousand pixels of cards
+        into a zero-height box. The header is the one piece that can scroll away without moving a
+        control away from where it is used, so it does. WP-027 AC-1 keeps the chip by the input.
+      */}
+      <div class="chat-scroll">
+        <PanelHeader>
+          <span>Chat</span>
+          <Select
+            class="chat-mode"
+            title="Optional workflow guidance; all tools remain available"
+            value={chatMode()}
+            onChange={(e) => {
+              setChatMode(e.currentTarget.value as ChatMode);
+            }}
+          >
+            <For each={CHAT_MODES}>{(m) => <option value={m.id}>{m.label}</option>}</For>
+          </Select>
+          <Button variant="ghost" class="scan-btn" onClick={clearChat}>
+            Clear
+          </Button>
+        </PanelHeader>
 
-      <div class="chat-log">
-        {/*
+        <div class="chat-log">
+          {/*
           WP-021 AC-1: while the assistant is unconfigured this card replaces the terse
           `No API key. Open Settings` line. PD-4 fixed full width over a collapsed rail, so nothing
           here touches layout — the card is a body swap, not a resize.
         */}
-        {/*
+          {/*
           Named questions, not a description of a category. These used to render only once a key
           was configured, which left the unconfigured panel — the one place a reader has no idea
           what an "assistant" in a repertoire app is for — with a paragraph about it instead of
@@ -102,153 +110,158 @@ export default function ChatPanel() {
           detour through Settings. Pressing Send without a key is already handled — the chat store
           answers with "Set your OpenRouter API key in Settings." rather than a failed request.
         */}
-        <Show when={empty()}>
-          <div class="chat-starters" data-chat-starters>
-            <p class="chat-starters-title">Ask about this position</p>
-            <For each={CHAT_STARTERS}>
-              {(starter) => (
-                <button
-                  type="button"
-                  class="chat-starter"
-                  onClick={() => {
-                    setInput(starter);
-                  }}
-                >
-                  {starter}
-                </button>
-              )}
-            </For>
-          </div>
-        </Show>
-        <Show when={!hasApiKey()}>
-          <div class="chat-setup-card" data-chat-setup-card>
-            <h3 class="chat-setup-title">Set up the assistant</h3>
-            <p class="chat-setup-body">
-              The assistant answers questions about the current position, game, and repertoire, and
-              can propose repertoire edits for you to review. It needs an OpenRouter API key to run.
-            </p>
-            <Button
-              variant="primary"
-              class="chat-setup-action"
-              onClick={() => {
-                setSettingsFocusTarget("api-key");
-                setSettingsOpen(true);
-              }}
-            >
-              Set up the assistant
-            </Button>
-          </div>
-        </Show>
-        <For each={history()}>
-          {(m, index) => (
-            <>
-              {/* WP-028 AC-2: a stable id so a suggestion card can scroll to and focus its source. */}
-              <Show when={m.role === "user"}>
-                <div class="msg user" id={`chat-message-${index()}`} tabIndex={-1}>
-                  {m.content}
-                </div>
-              </Show>
-              <Show when={m.role === "focus"}>
-                <div
-                  class="msg focus-injection"
-                  onClick={() => {
-                    if (m.focusPath) actions.goto(m.focusPath);
-                  }}
-                  title="Jump to this line"
-                >
-                  🔍 {m.content}
-                </div>
-              </Show>
-              <Show when={m.role === "assistant" && m.content?.trim()}>
-                <div class="msg assistant">{m.content}</div>
-              </Show>
-              <Show when={m.role === "assistant" && m.tool_calls}>
-                <div class="tool-chips">
-                  <For each={m.tool_calls}>
-                    {(tc) => <span class="chip">⚙ {taskLabel(tc.function.name)}</span>}
-                  </For>
-                </div>
-              </Show>
-              <Show when={m.role === "tool" && m.tool_call_id}>
-                <div class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
-                  <div class="tool-result-label">
-                    {resultLabel(toolNames().get(m.tool_call_id ?? "") ?? "tool")}
-                    {isErrorResult(m.content) ? " ⚠" : ""}
-                  </div>
-                  <ToolResult
-                    operation={toolNames().get(m.tool_call_id ?? "") ?? "tool"}
-                    content={m.content}
-                  />
-                </div>
-              </Show>
-            </>
-          )}
-        </For>
-        <Show when={streamingText()}>
-          <div class="msg assistant streaming">{streamingText()}</div>
-        </Show>
-        <Show when={busy() && !streamingText()}>
-          <div class="msg assistant streaming">…</div>
-        </Show>
-        <For each={toolRuns()}>
-          {(run) => (
-            <div class={`tool-run ${run.status}`}>
-              <Status
-                tone={
-                  run.status === "running"
-                    ? "running"
-                    : run.status === "completed"
-                      ? "success"
-                      : run.status === "failed"
-                        ? "danger"
-                        : "neutral"
-                }
+          <Show when={empty()}>
+            <div class="chat-starters" data-chat-starters>
+              <p class="chat-starters-title">Ask about this position</p>
+              <For each={CHAT_STARTERS}>
+                {(starter) => (
+                  <button
+                    type="button"
+                    class="chat-starter"
+                    onClick={() => {
+                      setInput(starter);
+                    }}
+                  >
+                    {starter}
+                  </button>
+                )}
+              </For>
+            </div>
+          </Show>
+          <Show when={!hasApiKey()}>
+            <div class="chat-setup-card" data-chat-setup-card>
+              <h3 class="chat-setup-title">Set up the assistant</h3>
+              <p class="chat-setup-body">
+                The assistant answers questions about the current position, game, and repertoire,
+                and can propose repertoire edits for you to review. It needs an OpenRouter API key
+                to run.
+              </p>
+              <Button
+                variant="primary"
+                class="chat-setup-action"
+                onClick={() => {
+                  setSettingsFocusTarget("api-key");
+                  setSettingsOpen(true);
+                }}
               >
-                {run.status}
-              </Status>{" "}
-              {taskLabel(run.name)}
-              <Show when={run.total != null}>
-                <span>
-                  {" "}
-                  {run.done ?? 0}/{run.total}
-                </span>
-              </Show>
-              <Show when={run.detail}>
-                <span class="tool-run-detail"> — {run.detail}</span>
-              </Show>
-              <Show when={run.status === "running"}>
-                <Show
-                  when={run.total != null}
-                  fallback={
-                    <Progress class="tool-run-progress" label={`${taskLabel(run.name)} progress`} />
+                Set up the assistant
+              </Button>
+            </div>
+          </Show>
+          <For each={history()}>
+            {(m, index) => (
+              <>
+                {/* WP-028 AC-2: a stable id so a suggestion card can scroll to and focus its source. */}
+                <Show when={m.role === "user"}>
+                  <div class="msg user" id={`chat-message-${index()}`} tabIndex={-1}>
+                    {m.content}
+                  </div>
+                </Show>
+                <Show when={m.role === "focus"}>
+                  <div
+                    class="msg focus-injection"
+                    onClick={() => {
+                      if (m.focusPath) actions.goto(m.focusPath);
+                    }}
+                    title="Jump to this line"
+                  >
+                    🔍 {m.content}
+                  </div>
+                </Show>
+                <Show when={m.role === "assistant" && m.content?.trim()}>
+                  <div class="msg assistant">{m.content}</div>
+                </Show>
+                <Show when={m.role === "assistant" && m.tool_calls}>
+                  <div class="tool-chips">
+                    <For each={m.tool_calls}>
+                      {(tc) => <span class="chip">⚙ {taskLabel(tc.function.name)}</span>}
+                    </For>
+                  </div>
+                </Show>
+                <Show when={m.role === "tool" && m.tool_call_id}>
+                  <div class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
+                    <div class="tool-result-label">
+                      {resultLabel(toolNames().get(m.tool_call_id ?? "") ?? "tool")}
+                      {isErrorResult(m.content) ? " ⚠" : ""}
+                    </div>
+                    <ToolResult
+                      operation={toolNames().get(m.tool_call_id ?? "") ?? "tool"}
+                      content={m.content}
+                    />
+                  </div>
+                </Show>
+              </>
+            )}
+          </For>
+          <Show when={streamingText()}>
+            <div class="msg assistant streaming">{streamingText()}</div>
+          </Show>
+          <Show when={busy() && !streamingText()}>
+            <div class="msg assistant streaming">…</div>
+          </Show>
+          <For each={toolRuns()}>
+            {(run) => (
+              <div class={`tool-run ${run.status}`}>
+                <Status
+                  tone={
+                    run.status === "running"
+                      ? "running"
+                      : run.status === "completed"
+                        ? "success"
+                        : run.status === "failed"
+                          ? "danger"
+                          : "neutral"
                   }
                 >
-                  <Progress
-                    class="tool-run-progress"
-                    max={run.total ?? 1}
-                    value={Math.min(run.done ?? 0, run.total ?? 0)}
-                    label={`${taskLabel(run.name)} progress`}
-                  />
+                  {run.status}
+                </Status>{" "}
+                {taskLabel(run.name)}
+                <Show when={run.total != null}>
+                  <span>
+                    {" "}
+                    {run.done ?? 0}/{run.total}
+                  </span>
                 </Show>
-              </Show>
-              {/* WP-027 AC-3: a running tool can be cancelled on its own, without stopping the turn. */}
-              <Show when={run.status === "running"}>
-                <button
-                  type="button"
-                  class="tool-run-cancel"
-                  data-tool-run-cancel={run.id}
-                  title={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
-                  aria-label={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
-                  onClick={() => {
-                    cancelRun(run.id);
-                  }}
-                >
-                  {CHAT_CONTROLS.cancelRun}
-                </button>
-              </Show>
-            </div>
-          )}
-        </For>
+                <Show when={run.detail}>
+                  <span class="tool-run-detail"> — {run.detail}</span>
+                </Show>
+                <Show when={run.status === "running"}>
+                  <Show
+                    when={run.total != null}
+                    fallback={
+                      <Progress
+                        class="tool-run-progress"
+                        label={`${taskLabel(run.name)} progress`}
+                      />
+                    }
+                  >
+                    <Progress
+                      class="tool-run-progress"
+                      max={run.total ?? 1}
+                      value={Math.min(run.done ?? 0, run.total ?? 0)}
+                      label={`${taskLabel(run.name)} progress`}
+                    />
+                  </Show>
+                </Show>
+                {/* WP-027 AC-3: a running tool can be cancelled on its own, without stopping the turn. */}
+                <Show when={run.status === "running"}>
+                  <button
+                    type="button"
+                    class="tool-run-cancel"
+                    data-tool-run-cancel={run.id}
+                    title={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
+                    aria-label={CHAT_CONTROLS.cancelRunDescription(taskLabel(run.name))}
+                    onClick={() => {
+                      cancelRun(run.id);
+                    }}
+                  >
+                    {CHAT_CONTROLS.cancelRun}
+                  </button>
+                </Show>
+              </div>
+            )}
+          </For>
+        </div>
       </div>
 
       <Show when={error()}>
