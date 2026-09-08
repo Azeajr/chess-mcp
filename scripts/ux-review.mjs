@@ -46,6 +46,12 @@ const docker = (args, options = {}) => run("docker", args, { cwd: root, ...optio
 // session's Vite server is spawned on the host by startServer and is outside this bound.
 const containerMemory = process.env.UX_REVIEW_DOCKER_MEMORY ?? "3g";
 const containerCpus = process.env.UX_REVIEW_DOCKER_CPUS ?? "2";
+// The server runs on the host, outside the container bounds above, so cap its heap instead. This
+// stays an argv entry, so the PID, start time, cwd and serverEntry that ownsProcess matches on are
+// unchanged. It bounds the V8 heap only: esbuild and other child processes are not covered.
+const serverHeapMb = process.env.UX_REVIEW_SERVER_HEAP_MB ?? "1024";
+if (!/^[1-9]\d{1,4}$/.test(serverHeapMb))
+  throw new Error("UX_REVIEW_SERVER_HEAP_MB must be a positive integer number of megabytes.");
 let manifest;
 let manifestPath;
 let lockPath;
@@ -304,7 +310,7 @@ async function preflight(options, { checkPort = true } = {}) {
 
 async function startServer() {
   const log = await open(path.join(manifest.runDir, "vite.log"), "a");
-  const child = spawn(process.execPath, [serverEntry], {
+  const child = spawn(process.execPath, [`--max-old-space-size=${serverHeapMb}`, serverEntry], {
     cwd: root,
     detached: true,
     stdio: ["ignore", log.fd, log.fd],

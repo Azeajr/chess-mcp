@@ -23,8 +23,10 @@ is absent, run the exact `docker pull` command it prints through normal project 
 
 Probe and session containers are bounded by `UX_REVIEW_DOCKER_MEMORY` (3g) and
 `UX_REVIEW_DOCKER_CPUS` (2), so a runaway browser dies instead of the host. The session's Vite
-server runs on the host outside that bound. Run one heavy workload at a time: concurrent sessions
-across worktrees, or a session alongside `pnpm test:e2e:container`, still add up on one machine.
+server runs on the host outside that bound and caps its heap through `UX_REVIEW_SERVER_HEAP_MB`
+(1024), which does not cover its child processes. Run one heavy workload at a time: concurrent
+sessions across worktrees, or a session alongside `pnpm test:e2e:container`, still add up on one
+machine.
 
 ## First review
 

@@ -94,7 +94,7 @@ Evidence supporting server turnover and cross-session interference:
 | UX-7 / none | **Denied as missing functionality:** Save needs confirmation toast. | [files.ts](apps/ui/src/store/files.ts) announces successful saves; download fallback sets a visible notice. A's own screenshot says “Downloaded ct-black-repertoire.pgn. This browser cannot re-link that file for future saves.” | Retain existing notice and status. Only change a specific save path if its confirmation is demonstrably missing; avoid duplicate toasts. |
 | UX-8 / none | **Denied as missing functionality:** add move-tree keyboard navigation and screen-reader labels. | [MoveTree.tsx](apps/ui/src/components/MoveTree.tsx) has roving tabindex, keyboard handler, treeitem labels/current/level/expanded semantics. Historical Moves snapshots expose labelled tree items. | Exercise existing navigation, variation expand/collapse and focus after remount. Fix only a reproduced gap. Existing implementation is not proof of every accessibility scenario. |
 | UX-9 / none | **Denied as missing functionality:** add last-move highlighting / keyboard board support. | [Board.tsx](apps/ui/src/components/Board.tsx) enables last-move highlighting; board cursor and accessible board grid already exist. | Verify a legal move changes position and highlights origin/destination. P2's `06-after-move.yml` still says White to move and displays starting-position candidates; its filename alone does not prove a move was made. Do not certify dragging from that artifact. |
-| UX-10 / low | **Unverified:** annotation controls too small for touch. | A names no violating control or dimension. Historical snapshots show principal toolbar/tabs at 44px and annotation screenshots show substantial button height; CSS has explicit target sizing. | Measure each visible interactive target at mobile zoom/viewport using existing accessibility helpers; record any actual violating selector and bounds before changing CSS. |
+| UX-10 / low | **Denied by measurement (2026-09-08):** annotation controls are not too small for touch. | A names no violating control or dimension. Measured since: with the annotation section expanded on the iPhone 13 Mini profile, `touchTargetViolations` reports **zero** violations below 44px for that section and for the whole `.app-main`. | Settled. `collective-ux-fixes.spec.ts` keeps the sweep as a regression guard; a future shrink reports the offending control's accessible name and hit rectangle. No CSS change was needed. |
 | UX-11 / none | **Denied as absent:** explain Strategic Fit profiles / show chosen profile / add confirmation. | [ProfileSetup.tsx](apps/ui/src/components/strategic-fit/ProfileSetup.tsx) already describes all four modes and recommends Balanced. SF's actual overview says **Balanced · Explicit**, not the report's “Inferred · provisional.” | Preserve explicit acceptance and source labels. Use existing profile text, selected state and focus transition as feedback. Add a toast/badge only if a concrete visibility failure survives review. |
 | UX-12 / low | **Confirmed structure, unverified harm:** Advanced preferences is collapsed. | Setup opens it automatically for Custom; descriptions direct the user there. Collapsing advanced settings is deliberate. | Test finding and editing Custom preferences before promoting/auto-expanding the group for everyone. Acceptance: novice can reach Custom and review its bounded settings without overwhelming the default flow. |
 | UX-13 / low | **Preference:** add a Strategic Fit purpose summary. **Denied:** no explanatory copy exists. | Entry card explains comparing ideas and standing-apart lines; setup explains tradeoffs; SF overview states analysis has not started. A short header reminder could still help after entry. | Reuse existing concise purpose copy if comprehension testing warrants it; avoid a mandatory tour and duplicated paragraphs. |
@@ -242,9 +242,17 @@ kernel log records **zero** out-of-memory events for the run. No container was l
 Single-worker execution is therefore not a meaningful cost at this suite size: 18.0 minutes for the
 whole matrix.
 
-Remaining unbounded: `startServer` in `scripts/ux-review.mjs` spawns each session's Vite server
-**detached on the host**, outside every container bound above. Concurrent worktree sessions
-therefore still accumulate unbounded host-side servers. Bounding it through `systemd-run` would
-change the spawned process identity that the manifest's PID ownership checks depend on, so it was
-not attempted here. Until that is resolved, serialization remains a manual requirement, not an
-enforced one.
+### Host-side review server bounded — September 8, 2026 (UTC)
+
+`startServer` spawns each session's Vite server detached on the host, outside every container bound
+above, so the container limits alone left it unconstrained. It now starts with
+`--max-old-space-size` (`UX_REVIEW_SERVER_HEAP_MB`, default 1024).
+
+`systemd-run` was rejected: it would change the spawned process identity that `ownsProcess` matches
+on. A Node execution argument keeps the PID, start ticks, working directory and `serverEntry` argv
+entry identical, which was confirmed by spawning the real server and asserting `ownsProcess`
+returned true with the flag present.
+
+This bounds the V8 heap only. esbuild and any other child processes are outside it, so a heap cap
+is a mitigation rather than the cgroup-equivalent the containers get. Running one heavy workload at
+a time remains the operative rule.

@@ -1,5 +1,6 @@
 import { expect, test } from "./helpers/fixtures";
 import { openApp, currentPgn } from "./helpers/app";
+import { touchTargetViolations } from "./helpers/accessibility";
 import { GameTree } from "@chess-mcp/chess-tools";
 
 test("starting a collapsed operation exposes its input validation error", async ({ page }) => {
@@ -69,6 +70,25 @@ test("annotation expands its status, cancels, retries and downloads a branching 
   expect(await currentPgn(page)).toBe(before);
   await expect(section).toContainText("1 result");
 });
+
+test(
+  "expanded annotation controls meet the touch target minimum on the review phone",
+  { tag: "@mobile-webkit" },
+  async ({ page }) => {
+    await openApp(page, { pgn: "1. e4 (1. d4 d5) e5 *" });
+    const section = page
+      .locator("details.rep-section")
+      .filter({ has: page.getByText("Annotated repertoire", { exact: true }) });
+    // The operation button inside the summary deliberately does not toggle disclosure, so the
+    // label is what opens it. UX-10 was raised against controls that are hidden until then.
+    await section.getByText("Annotated repertoire", { exact: true }).tap();
+    await expect(section).toHaveAttribute("open", "");
+    // UX-10 asked for measured bounds, not an impression: violations name the control and its
+    // hit rectangle, so a real regression reports which selector shrank and to what.
+    expect(await touchTargetViolations(section, 44)).toEqual([]);
+    expect(await touchTargetViolations(page.locator(".app-main"), 44)).toEqual([]);
+  },
+);
 
 test("application reloads do not create ownerless reactive computations", async ({ page }) => {
   const warnings: string[] = [];
