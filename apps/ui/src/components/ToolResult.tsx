@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
+import { GAPS_SCOPE } from "../content/repertoire";
 import { strategicFitPlanSectionLabel, STRATEGIC_FIT_VOCABULARY } from "../content/strategicFit";
 import type {
   StrategicFinding,
@@ -1244,12 +1245,24 @@ const byOperation: Record<string, (data: Data) => unknown> = {
       </div>
     );
   },
-  find_repertoire_gaps: (data) => (
-    <div class="result-card">
-      <div class="result-title">Repertoire findings</div>
-      <NavigationRows data={data} />
-    </div>
-  ),
+  find_repertoire_gaps: (data) => {
+    const shown = Array.isArray(data.gaps) ? data.gaps.length : 0;
+    const found = typeof data.gaps_found === "number" ? data.gaps_found : shown;
+    const scanned = typeof data.positions_scanned === "number" ? data.positions_scanned : 0;
+    const available =
+      typeof data.positions_available === "number" ? data.positions_available : null;
+    return (
+      <div class="result-card">
+        <div class="result-title">Repertoire findings</div>
+        {/*
+          The scan stops after `max_positions` decision nodes and keeps `limit` gaps. Rows alone
+          said neither, so a scan of 12 of 265 positions read here as the whole repertoire.
+        */}
+        <div class="result-summary">{GAPS_SCOPE.cardSummary(shown, found, scanned, available)}</div>
+        <NavigationRows data={data} />
+      </div>
+    );
+  },
   suggest_gap_fills: (data) => (
     <div class="result-card">
       <div class="result-title">Gap-fill choices</div>

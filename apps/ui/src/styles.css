@@ -346,6 +346,14 @@ img,
   background: transparent;
   color: var(--muted);
 }
+/*
+  "File" is four narrow glyphs, and with the shared 0.7rem padding it measures exactly 44px wide —
+  the touch-target minimum, with nothing to spare. Any font that renders a fraction narrower would
+  put it under. The floor makes the guarantee explicit instead of a coincidence of text metrics.
+*/
+.topbar .document-menu-trigger {
+  min-width: var(--control-height);
+}
 .topbar button:not(.ui-button-primary):hover,
 .topbar .document-menu-trigger:hover,
 .topbar .document-menu-trigger[aria-expanded="true"] {
@@ -1889,12 +1897,22 @@ img,
 .rep-section[open] > summary > span:first-child::before {
   transform: rotate(45deg);
 }
-.rep-section > summary .scan-btn,
-.rep-section > summary .rep-mode {
+.rep-section > summary .scan-btn {
   margin-left: auto;
 }
-.rep-section > summary .rep-mode + .scan-btn {
-  margin-left: 0.4rem;
+
+/* The extension mode select moved out of the summary, so it is laid out with its own label. */
+.rep-mode-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.rep-mode-label {
+  color: var(--muted);
+  font-size: var(--type-xs);
+}
+.rep-mode-row .rep-mode {
+  margin-left: auto;
 }
 
 .rep-panel .scan-btn {
@@ -8902,6 +8920,21 @@ img,
 }
 
 @media print {
+  /*
+   * These three visualizations carry their own opaque backgrounds and encode meaning in colour —
+   * point fill, edge weight, heatmap cell, flow branch. A user agent discards backgrounds when it
+   * prints, so a dark-theme chart printed as-is puts light text and light marks on white paper.
+   * The charts were already opaque on screen; what was missing was telling the printer to keep it.
+   */
+  .strategic-map,
+  .concept-heatmap,
+  .decision-flow,
+  .strategic-map *,
+  .concept-heatmap *,
+  .decision-flow * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
   .strategic-fit-workspace-backdrop {
     position: static;
     background: none;
@@ -9226,8 +9259,7 @@ img,
   .rep-section > summary {
     flex-wrap: wrap;
   }
-  .rep-section > summary .scan-btn,
-  .rep-section > summary .rep-mode {
+  .rep-section > summary .scan-btn {
     margin-left: 0;
   }
 }

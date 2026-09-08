@@ -167,14 +167,19 @@ export default function DocumentMenu() {
         }}
         onKeyDown={onTriggerKeyDown}
       >
-        Repertoire
+        {/*
+          Not "Repertoire": the analysis panel header uses that word too, and on the phone both are
+          on screen at once, naming a document menu and a set of scans. This menu opens, reopens,
+          replaces and recovers the file, so it is the file menu.
+        */}
+        File
       </button>
       <Show when={open()}>
         <div
           ref={listEl}
           class="document-menu-list"
           role="menu"
-          aria-label="Repertoire actions"
+          aria-label="File actions"
           onKeyDown={onMenuKeyDown}
         >
           <For each={groups()}>

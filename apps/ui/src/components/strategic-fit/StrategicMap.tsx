@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createMemo, createSignal } from "solid-js";
+import { STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE } from "../../content/strategicFit";
 import {
   buildStrategicMapProjection,
   type StrategicFinding,
@@ -292,7 +293,8 @@ export default function StrategicMap(props: {
         when={model().projection.state !== "unavailable"}
         fallback={
           <div class="strategic-map-unavailable" data-map-unavailable>
-            <strong>Strategic map unavailable</strong>
+            {/* This section renders no heading, so the empty state names the visualization. */}
+            <strong>{STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE.untitledMap}</strong>
             <p>{model().projection.reason}</p>
             <Show when={model().projection.exclusions.length > 0}>
               <details>

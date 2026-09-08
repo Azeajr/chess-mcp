@@ -1071,17 +1071,6 @@ export default function RepertoirePanel() {
         <details class="rep-section">
           <summary>
             <span>Extend here</span>
-            <Select
-              class="rep-mode"
-              value={mode()}
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-              onChange={(e) => setMode(e.currentTarget.value as "low_memorization" | "sharp")}
-            >
-              <option value="low_memorization">low-mem</option>
-              <option value="sharp">sharp</option>
-            </Select>
             <button
               class="scan-btn"
               aria-label="Suggest an extension"
@@ -1107,6 +1096,27 @@ export default function RepertoirePanel() {
               </button>
             </Show>
           </summary>
+          {/*
+            A `<select>` is interactive content, which `<summary>` may not contain: keeping the
+            dropdown from toggling the disclosure needed an onClick that stopped propagation, and
+            on some platforms opening it toggles the section anyway. The panel already puts input
+            controls in the body — Structure search does — so this goes there, beside the
+            suggestions it shapes, with a label instead of relying on the heading beside it.
+          */}
+          <div class="command-input rep-mode-row">
+            <label class="rep-mode-label" for="extend-mode">
+              Extension style
+            </label>
+            <Select
+              id="extend-mode"
+              class="rep-mode"
+              value={mode()}
+              onChange={(e) => setMode(e.currentTarget.value as "low_memorization" | "sharp")}
+            >
+              <option value="low_memorization">low-mem</option>
+              <option value="sharp">sharp</option>
+            </Select>
+          </div>
           <Show when={!usersTurn()}>
             <div class="empty">Navigate to your move to extend from here.</div>
           </Show>

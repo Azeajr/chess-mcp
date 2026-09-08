@@ -405,10 +405,10 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
 
   await expect(page.getByRole("button", { name: "Save", exact: true })).toBeVisible();
 
-  const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
+  const trigger = page.getByRole("button", { name: "File", exact: true });
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await trigger.click();
-  const menu = page.getByRole("menu", { name: "Repertoire actions" });
+  const menu = page.getByRole("menu", { name: "File actions" });
   await expect(menu).toBeVisible();
   for (const label of ["Open PGN", "New repertoire", "Recover an earlier repertoire"]) {
     await expect(menu.getByRole("menuitem", { name: label })).toBeVisible();
@@ -422,11 +422,11 @@ test("WP-017 AC-3 AC-5 every prior action stays reachable within two interaction
 
 test("WP-017 AC-4 the document menu is keyboard-operable and restores focus", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
-  const trigger = page.getByRole("button", { name: "Repertoire", exact: true });
+  const trigger = page.getByRole("button", { name: "File", exact: true });
 
   await trigger.focus();
   await page.keyboard.press("Enter");
-  const menu = page.getByRole("menu", { name: "Repertoire actions" });
+  const menu = page.getByRole("menu", { name: "File actions" });
   await expect(menu).toBeVisible();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
 

@@ -28,6 +28,19 @@ export const GAPS_SCOPE = {
       : `Checked all ${available} positions.`,
   truncated: (shown: number, found: number) =>
     `Showing the ${shown} most severe of ${found} gaps found.`,
+  /*
+    The chat card's one-line form. Its neighbours (`audit_repertoire_moves`, `find_only_moves`,
+    `find_structures`) all report what they covered on this line; the gaps card reported nothing at
+    all, so the same partial result was honest in the panel and silent in chat.
+  */
+  cardSummary: (shown: number, found: number, scanned: number, available: number | null) => {
+    const gaps =
+      found > shown ? `${shown} of ${found} gaps` : `${found} ${found === 1 ? "gap" : "gaps"}`;
+    if (available === null) return `${gaps} · ${scanned} positions checked`;
+    return available > scanned
+      ? `${gaps} · checked the first ${scanned} of ${available} positions`
+      : `${gaps} · checked all ${available} positions`;
+  },
 } as const;
 
 export const SHORTCUT_INSPECT = {

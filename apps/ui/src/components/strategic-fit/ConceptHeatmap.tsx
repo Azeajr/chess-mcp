@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal } from "solid-js";
+import { STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE } from "../../content/strategicFit";
 import {
   buildConceptHeatmapProjection,
   type ConceptHeatmapCell,
@@ -275,12 +276,8 @@ export default function ConceptHeatmap(props: {
         when={model().projection.state !== "unavailable"}
         fallback={
           <div class="concept-heatmap-unavailable" data-heatmap-unavailable>
-            {/*
-              The section's own <h3> above already says "Concept heatmap"; restating the name here
-              made the empty state two stacked headings — "Concept heatmap" over "Concept heatmap
-              unavailable" — where the second line carried one new word. State the condition.
-            */}
-            <strong>Not available for this report</strong>
+            {/* The <h3> above already says "Concept heatmap"; the rule is in the content module. */}
+            <strong>{STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE.titledSection}</strong>
             <p>{model().projection.reason}</p>
             <Show when={model().projection.exclusions.length > 0}>
               <details>

@@ -14,6 +14,7 @@ import {
   titleCase,
 } from "../src/content/format.ts";
 import { GAPS_SCOPE } from "../src/content/repertoire.ts";
+import { STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE } from "../src/content/strategicFit.ts";
 import { TOOL_LABELS, taskLabel } from "../src/content/tools.ts";
 import { assertContentCoverage } from "../../../scripts/check-content.mjs";
 
@@ -63,6 +64,36 @@ test("gap scan scope copy never lets a partial scan read as a whole one", () => 
   assert.equal(GAPS_SCOPE.checked(8, 8), "Checked all 8 positions.");
   assert.equal(GAPS_SCOPE.truncated(12, 30), "Showing the 12 most severe of 30 gaps found.");
   assert.equal(GAPS_SCOPE.note(12), "Up to 12 positions · local engine");
+
+  // The chat card's one-liner, which reported nothing at all before.
+  assert.equal(
+    GAPS_SCOPE.cardSummary(1, 1, 12, 265),
+    "1 gap · checked the first 12 of 265 positions",
+  );
+  assert.equal(
+    GAPS_SCOPE.cardSummary(12, 30, 12, 96),
+    "12 of 30 gaps · checked the first 12 of 96 positions",
+  );
+  assert.equal(GAPS_SCOPE.cardSummary(0, 0, 8, 8), "0 gaps · checked all 8 positions");
+  // A payload from before the counts existed must not invent a denominator.
+  assert.equal(GAPS_SCOPE.cardSummary(2, 2, 12, null), "2 gaps · 12 positions checked");
+});
+
+test("an unavailable visualization names itself only where no section heading does", () => {
+  // The concept heatmap and the decision flow each render their own <h3>, so repeating the name
+  // below it stacked two headings differing by one word. The strategic map renders no heading, so
+  // its empty state is the only thing identifying which visualization is missing.
+  const { titledSection, untitledMap } = STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE;
+  assert.equal(titledSection, "Not available for this report");
+  assert.equal(untitledMap, "Strategic map unavailable");
+  for (const name of ["heatmap", "flow", "map"]) {
+    assert.equal(
+      titledSection.toLowerCase().includes(name),
+      false,
+      `a titled section must not name itself again, found "${name}"`,
+    );
+  }
+  assert.match(untitledMap, /strategic map/i);
 });
 
 test("content gate rejects a browser contract without a user-facing label", () => {
