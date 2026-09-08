@@ -14,17 +14,23 @@ Paths under `.worktrees/` and `.ux-review/` are cited rather than linked through
 Both are gitignored and machine-local, so they never resolve from a clean checkout and a link to
 them fails the documentation consistency check. They are retained evidence, not repository content.
 
-All seven registered secondary worktrees and the main checkout were inventoried. All have the same HEAD and no tracked source changes at audit time. The main checkout had no original `ux-*.md`. Worktree reports and PGNs are untracked; `.ux-review` evidence is ignored by Git.
+All seven registered secondary worktrees and the main checkout were inventoried. All have the same HEAD and no tracked source changes at audit time. The main checkout had no original `ux-*.md`. `.ux-review` evidence is ignored by Git.
 
-| ID  | Worktree and source                                                     | Evidence available and actual coverage                                                                                                                               |
-| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R   | t_53320821 review (`.worktrees/t_53320821/ux-review-review.md`)         | One run, baseline image, tab snapshots, 26 faults. No game summary or turning-point review demonstrated.                                                             |
-| RP  | t_5f8d81d4 repertoire (`.worktrees/t_5f8d81d4/ux-review-repertoire.md`) | Report only. Its cited `.ux-review` directory and four screenshots are absent from this worktree; its zero-fault assertion cannot be independently checked.          |
-| A   | t_600f1d16 annotation (`.worktrees/t_600f1d16/ux-review-annotation.md`) | Two sessions/runs, images, logs, downloaded annotated PGNs. Earlier failed session omitted from report.                                                              |
-| P1  | t_b85da789 position (`.worktrees/t_b85da789/ux-review-position.md`)     | Five retained runs, all zero recorded faults. Four earlier runs have review/strategic-fit/position/annotation labels; final position run covers initialization only. |
-| SF  | t_d6efc732 Strategic Fit (`.worktrees/t_d6efc732/ux-review-report.md`)  | Profile setup and return, zero faults. Uses **white `rich-repertoire.pgn`**, not the CT Black input. No structural analysis was run in the retained overview.        |
-| P2  | t_d9a909fb position (`.worktrees/t_d9a909fb/ux-review-position.md`)     | Two runs: earlier 50 faults, later zero. Later images prove engine candidates; claimed successful board move is not established by its “after move” snapshot.        |
-| I   | t_d61aace4 inventory (`.worktrees/t_d61aace4/workflow-inventory.md`)    | No `ux-*.md`; read its inventory instead. Describes contract families, not completed UX journeys.                                                                    |
+The worktrees themselves have since been pruned. None held a commit that was not already in `main`,
+so the only thing at risk was the untracked reports, and those were copied into
+[`docs/ux-audit-2026-09-07/`](docs/ux-audit-2026-09-07/) first. The source column below names the
+preserved copy; the retained run evidence beside each original report was not preserved, so the
+sizes, screenshots and `faults.json` files those reports cite are gone.
+
+| ID  | Worktree and preserved source                                                      | Evidence available and actual coverage                                                                                                                               |
+| --- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R   | t_53320821 review (`docs/ux-audit-2026-09-07/t_53320821-review.md`)                | One run, baseline image, tab snapshots, 26 faults. No game summary or turning-point review demonstrated.                                                             |
+| RP  | t_5f8d81d4 repertoire (`docs/ux-audit-2026-09-07/t_5f8d81d4-repertoire.md`)        | Report only. Its cited `.ux-review` directory and four screenshots are absent from this worktree; its zero-fault assertion cannot be independently checked.          |
+| A   | t_600f1d16 annotation (`docs/ux-audit-2026-09-07/t_600f1d16-annotation.md`)        | Two sessions/runs, images, logs, downloaded annotated PGNs. Earlier failed session omitted from report.                                                              |
+| P1  | t_b85da789 position (`docs/ux-audit-2026-09-07/t_b85da789-position.md`)            | Five retained runs, all zero recorded faults. Four earlier runs have review/strategic-fit/position/annotation labels; final position run covers initialization only. |
+| SF  | t_d6efc732 Strategic Fit (`docs/ux-audit-2026-09-07/t_d6efc732-strategic-fit.md`)  | Profile setup and return, zero faults. Uses **white `rich-repertoire.pgn`**, not the CT Black input. No structural analysis was run in the retained overview.        |
+| P2  | t_d9a909fb position (`docs/ux-audit-2026-09-07/t_d9a909fb-position.md`)            | Two runs: earlier 50 faults, later zero. Later images prove engine candidates; claimed successful board move is not established by its “after move” snapshot.        |
+| I   | t_d61aace4 inventory (`docs/ux-audit-2026-09-07/t_d61aace4-workflow-inventory.md`) | No `ux-*.md`; read its inventory instead. Describes contract families, not completed UX journeys.                                                                    |
 
 The CT PGN copies and corresponding manifest PGN contents match SHA-256 `34c3fca0c5de892efdb2a044d35db46177f9fe2856f95c0ea3b16dcc8bebbe5c` (13,575 bytes). Different seed digests across worktrees are not proof of differing PGN input: seed configuration also includes worktree-specific paths. The SF run is a genuinely different fixture and side.
 
