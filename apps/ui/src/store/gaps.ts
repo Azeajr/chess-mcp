@@ -29,11 +29,27 @@ const MAX_POSITIONS = 12;
 const MIN_SEVERITY: Severity = "medium";
 const LIMIT = 12;
 
+/* The panel states this bound up front, the way the audit and only-move scans state their own. */
+export const GAP_SCAN_MAX_POSITIONS = MAX_POSITIONS;
+
+/*
+  What the finished scan actually covered. `MAX_POSITIONS` truncates the decision nodes and `LIMIT`
+  truncates the gaps, so "No gaps found" is only ever a statement about the checked slice — on a
+  real repertoire that slice is a small fraction of the tree. Keep the counts so the panel can say
+  so instead of showing an unqualified tick.
+*/
+export interface ScanScope {
+  scanned: number;
+  available: number;
+  found: number;
+}
+
 const [gaps, setGaps] = createSignal<Gap[]>([]);
 const [covered, setCovered] = createSignal<CoveredGap[]>([]);
 const [scanError, setScanError] = createSignal<string | null>(null);
 const [scanCompleted, setScanCompleted] = createSignal(false);
-export { gaps, covered, scanError, scanCompleted };
+const [scanScope, setScanScope] = createSignal<ScanScope | null>(null);
+export { gaps, covered, scanError, scanCompleted, scanScope };
 
 export function setScanErrorForTesting(message: string) {
   assertTestOnly();
@@ -43,6 +59,12 @@ export function setScanErrorForTesting(message: string) {
 export function setCoveredGapsForTesting(next: CoveredGap[]) {
   assertTestOnly();
   setCovered(next);
+  setScanCompleted(true);
+}
+
+export function setScanScopeForTesting(next: ScanScope) {
+  assertTestOnly();
+  setScanScope(next);
   setScanCompleted(true);
 }
 
@@ -148,6 +170,7 @@ export async function scanGaps() {
   setScanError(null);
   setGaps([]);
   setCovered([]);
+  setScanScope(null);
   setFills({});
   fillGen++;
   const id = registerOperation({
@@ -179,6 +202,9 @@ export async function scanGaps() {
       },
     )) as {
       error?: string;
+      positions_scanned?: number;
+      positions_available?: number;
+      gaps_found?: number;
       gaps?: {
         path: Path;
         san_path: string[];
@@ -195,6 +221,11 @@ export async function scanGaps() {
       return;
     }
     setScanCompleted(true);
+    setScanScope({
+      scanned: res.positions_scanned ?? 0,
+      available: res.positions_available ?? 0,
+      found: res.gaps_found ?? res.gaps?.length ?? 0,
+    });
     setGaps(
       (res.gaps ?? []).map((gap) => ({
         path: gap.path,

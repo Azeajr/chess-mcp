@@ -13,6 +13,23 @@ export const GAPS_STATES = {
   },
 } as const;
 
+/*
+  The scan stops after `MAX_POSITIONS` decision nodes and keeps only `LIMIT` gaps, and a real
+  repertoire has far more decision nodes than that: a 62-leaf tree has 265, of which the scan
+  checks 12. "No gaps found" under a tick therefore reads as a verdict on the repertoire when it is
+  a verdict on 4% of it, so every terminal state says which part was checked. The sibling scans in
+  this panel already carry a `scope-note`; this is the same idiom, with the real counts.
+*/
+export const GAPS_SCOPE = {
+  note: (limit: number) => `Up to ${limit} positions · local engine`,
+  checked: (scanned: number, available: number) =>
+    available > scanned
+      ? `Checked the first ${scanned} of ${available} positions; the rest were not scanned.`
+      : `Checked all ${available} positions.`,
+  truncated: (shown: number, found: number) =>
+    `Showing the ${shown} most severe of ${found} gaps found.`,
+} as const;
+
 export const SHORTCUT_INSPECT = {
   verdict: (recommend: string, savedPlies: number) =>
     recommend === "transpose"

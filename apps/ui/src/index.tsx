@@ -31,7 +31,11 @@ import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
 import { appendToolResultForTesting, appendUserMessageForTesting } from "./store/chat";
 import { setInspectResultForTesting, setPruneSuggestionsForTesting } from "./store/repertoire";
-import { setScanErrorForTesting, setCoveredGapsForTesting } from "./store/gaps";
+import {
+  setScanErrorForTesting,
+  setCoveredGapsForTesting,
+  setScanScopeForTesting,
+} from "./store/gaps";
 import {
   pwaUpdateSnapshotForTesting,
   resetPwaUpdateForTesting,
@@ -171,6 +175,7 @@ if (import.meta.env.DEV) {
     setPruneSuggestionsForTesting,
     setScanErrorForTesting,
     setCoveredGapsForTesting,
+    setScanScopeForTesting,
     simulatePwaUpdate,
     pwaUpdateSnapshotForTesting,
     resetPwaUpdateForTesting,

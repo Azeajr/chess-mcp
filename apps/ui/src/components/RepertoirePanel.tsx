@@ -6,6 +6,8 @@ import {
   progress,
   scanError,
   scanCompleted,
+  scanScope,
+  GAP_SCAN_MAX_POSITIONS,
   scanGaps,
   cancelScan,
   fills,
@@ -66,7 +68,7 @@ import InteractiveRow from "./primitives/InteractiveRow";
 import { centipawnDelta, centipawnText, evaluationText, numbered } from "../content/format";
 import { errorContent } from "../content/errors";
 import { STRATEGIC_FIT_ENTRY } from "../content/strategicFit";
-import { GAPS_STATES, SHORTCUT_INSPECT, marginReading } from "../content/repertoire";
+import { GAPS_STATES, GAPS_SCOPE, SHORTCUT_INSPECT, marginReading } from "../content/repertoire";
 
 const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === color();
 
@@ -541,7 +543,12 @@ export default function RepertoirePanel() {
                 }}
               >
                 <span class="san">{(match.path as string[]).join(" ")}</span>
-                <span class="fit">{String(match.structure)}</span>
+                {/*
+                  `StructureMatch` names this field `structure_class`; reading `structure` made
+                  every row print the string "undefined" next to a correct line, with no console
+                  error to give it away.
+                */}
+                <span class="fit">{String(match.structure_class)}</span>
               </InteractiveRow>
             )}
           </For>
@@ -653,6 +660,12 @@ export default function RepertoirePanel() {
               </button>
             </Show>
           </summary>
+          {/*
+            The audit and only-move scans above already say how far they reach. This one reached
+            12 positions of a 265-position repertoire and said nothing, so a clean result read as
+            a verdict on the whole tree.
+          */}
+          <div class="scope-note">{GAPS_SCOPE.note(GAP_SCAN_MAX_POSITIONS)}</div>
           <Show when={progress()}>
             {(p) => (
               <div class="scan-progress">
@@ -707,8 +720,31 @@ export default function RepertoirePanel() {
                 <div class="scan-state-detail">
                   {scanCompleted() ? GAPS_STATES.clean.body : GAPS_STATES.idle.body}
                 </div>
+                {/* A tick with no denominator is the whole problem: say which part was checked. */}
+                <Show when={scanCompleted() ? scanScope() : null}>
+                  {(scope) => (
+                    <div class="scan-state-detail" data-gaps-scope>
+                      {GAPS_SCOPE.checked(scope().scanned, scope().available)}
+                    </div>
+                  )}
+                </Show>
               </div>
             </div>
+          </Show>
+          {/*
+            A list of gaps is as partial as an empty one, and it can also be truncated by `LIMIT`.
+            Say both above the rows, so "four gaps" is never read as "the four gaps".
+          */}
+          <Show when={scanCompleted() && gaps().length > 0 ? scanScope() : null}>
+            {(scope) => (
+              <div class="scan-state-detail" data-gaps-scope>
+                {GAPS_SCOPE.checked(scope().scanned, scope().available)}
+                <Show when={scope().found > gaps().length}>
+                  {" "}
+                  {GAPS_SCOPE.truncated(gaps().length, scope().found)}
+                </Show>
+              </div>
+            )}
           </Show>
           <For each={gaps()}>
             {(g) => {

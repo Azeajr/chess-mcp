@@ -198,7 +198,15 @@ export type GapsResult =
   | {
       color: Color;
       positions_scanned: number;
+      /*
+        `positions_scanned` is the count after `max_positions` truncates, so on its own it cannot
+        say whether the scan covered the repertoire or the first slice of it. A caller that reports
+        a clean scan needs the denominator to be honest about what "clean" covered.
+      */
+      positions_available: number;
       total_gaps: number;
+      /* Gaps at or above `min_severity` before `limit` truncates, unlike `total_gaps`. */
+      gaps_found: number;
       gaps: Gap[];
       covered_by_transposition: CoveredGap[];
     };
@@ -210,7 +218,8 @@ export async function findRepertoireGaps(
   analyse: Analyse,
 ): Promise<GapsResult> {
   const minSev: Severity = opts.minSeverity ?? "medium";
-  const nodes = decisionNodes(tree, color).slice(0, opts.maxPositions ?? 20);
+  const available = decisionNodes(tree, color);
+  const nodes = available.slice(0, opts.maxPositions ?? 20);
   const { keyMap } = buildKeyIndex(tree.game.moves);
   const scheduled = await mapBounded(
     nodes,
@@ -258,10 +267,10 @@ export async function findRepertoireGaps(
   const results = perNode as { gaps: Gap[]; covered: CoveredGap[] }[];
   const found = results.flatMap((r) => r.gaps);
   const covered = results.flatMap((r) => r.covered);
-  const gaps = found
+  const eligible = found
     .filter((g) => SEVERITY_RANK[g.severity] >= SEVERITY_RANK[minSev])
-    .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity])
-    .slice(0, opts.limit ?? 10);
+    .sort((a, b) => SEVERITY_RANK[b.severity] - SEVERITY_RANK[a.severity]);
+  const gaps = eligible.slice(0, opts.limit ?? 10);
   if (opts.popularity && gaps.length) {
     const popularityLookup = opts.popularity;
     const fens = [...new Set(gaps.map((g) => g.fen))];
@@ -290,7 +299,9 @@ export async function findRepertoireGaps(
   return {
     color,
     positions_scanned: nodes.length,
+    positions_available: available.length,
     total_gaps: gaps.length,
+    gaps_found: eligible.length,
     gaps,
     covered_by_transposition: covered,
   };

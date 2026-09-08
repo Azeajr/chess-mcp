@@ -19,13 +19,27 @@ than closing a gap. Each already exists in the code named beside it:
 ## Coverage the completion journeys did not claim
 
 Five journeys — game review, position, annotation, repertoire, Strategic Fit — were each driven
-through `pnpm ux:review` and replayed after their fixes. What they deliberately left untested, worth
-knowing before trusting the workflows broadly:
+through `pnpm ux:review` and replayed after their fixes, all White against one fixture. The
+repertoire journey was then re-driven (2026-09-08) against both real CT repertoires, White and
+Black. What remains untested, worth knowing before trusting the workflows broadly:
 
-- Every journey ran White against one fixture. No journey used a Black repertoire, so there is no
-  CT-specific coverage despite what the original source reports implied.
+- Only the repertoire journey has been driven on a Black repertoire and on a tree larger than the
+  fixture. Game review, position, annotation and Strategic Fit are still White-on-fixture only.
+- Strategic Fit was not opened in either CT session, so its cost on a 62-leaf, 265-decision-node
+  tree is unmeasured, and neither was the annotated export, whose own bound is 60 positions.
+- The gap scan's truncation note is unit-tested but never rendered: neither CT repertoire produced
+  more than the 12 gaps `limit` keeps, and no seam injects gap rows.
+- Only the repertoire panel states the gap scan's scope. The chat-side `find_repertoire_gaps` card
+  in `ToolResult.tsx` still renders bare navigation rows with no summary, where the neighbouring
+  audit and only-move cards both report `positions_scanned`. The fields are now available to it;
+  the chat surface was not driven in this run, so it was left rather than changed unverified.
+- `total_gaps` from `find_repertoire_gaps` is still counted after `limit` truncates, so it is the
+  returned count rather than the found count. Nothing user-facing reads it, but `enginetools.ts`
+  compares `before_total`/`after_total` across two scans in the replacement-safety path and both
+  sides saturate at `limit`. Deliberately left alone rather than changed inside a UX fix.
 - Game review is not reproducible run to run: the same seed produced different worst moves, because
-  browser engine search is time-sensitive. Strategic Fit, being engine-free, is reproducible.
+  browser engine search is time-sensitive. Strategic Fit, being engine-free, is reproducible. The
+  repertoire journey's audit and gap scan did reproduce exactly across reset on both CT sides.
 - No Strategic Fit review was completed, so "Finish the review" and its summary export are unproven
   end to end. Cancel was available in several flows but never pressed to completion.
 - Error paths beyond those with tests: game review losing the engine mid-scan, promotion moves,

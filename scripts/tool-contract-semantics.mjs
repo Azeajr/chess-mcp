@@ -155,6 +155,21 @@ const gapResult = await gapScanOperation(
   ],
 );
 assert.equal(gapResult.positions_scanned, 1);
+assert.equal(gapResult.positions_available, 1);
+// `total_gaps` is counted after `limit` truncates; `gaps_found` is the untruncated total.
+assert.equal(gapResult.gaps_found, gapResult.gaps.length);
+assert.ok(gapResult.gaps_found >= gapResult.total_gaps);
+// `positions_scanned` counts what survived `max_positions`, so on its own it cannot say whether a
+// clean scan covered the repertoire: the UI reported 12 checked decision nodes of 265 as "no gaps
+// found". A truncated scan has to report the denominator it truncated.
+const truncatedGapResult = await gapScanOperation(
+  GameTree.fromPgn("1. e4 e5 2. Nf3 Nc6 *"),
+  "white",
+  { depth: 1, min_severity: "low", max_positions: 1, limit: 5 },
+  async () => [{ uci: "e7e5", cp: 0, mate: null, depth: 1, pv: ["e7e5"] }],
+);
+assert.equal(truncatedGapResult.positions_scanned, 1);
+assert.equal(truncatedGapResult.positions_available, 2);
 assert.equal(
   TOOL_CONTRACTS.every((tool) => tool.input && tool.result),
   true,
