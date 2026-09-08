@@ -19,6 +19,7 @@
     "check:tool-contract": "pnpm --filter @chess-mcp/chess-tools build && node --import tsx scripts/tool-contract-inventory.mjs && node scripts/tool-contract-semantics.mjs",
     "check:content": "node --import tsx scripts/check-content.mjs",
     "check:legacy-imports": "node scripts/check-legacy-imports.mjs",
+    "check:links": "node scripts/check-links.mjs",
     "test:e2e": "node scripts/playwright-low-impact.mjs",
     "ux:review": "node scripts/ux-review.mjs",
     "test:e2e:container": "node scripts/playwright-container.mjs",

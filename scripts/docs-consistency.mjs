@@ -1,5 +1,5 @@
-import { readFile, readdir, stat } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { readFile, readdir } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { contractsForHost, TOOL_CONTRACTS } from "../packages/chess-tools/dist/tool-contract.js";
 
@@ -57,23 +57,8 @@ for (const host of ["mcp", "browser"]) {
     problems.push(`canonical contract: blank ${host} description`);
 }
 
-const linkPattern = /!?\[[^\]]*\]\(([^)]+)\)/g;
-for (const file of files) {
-  const contents = await readFile(resolve(root, file), "utf8");
-  for (const match of contents.matchAll(linkPattern)) {
-    const raw = match[1].trim().replace(/^<|>$/g, "");
-    if (!raw || raw.startsWith("#") || /^[a-z][a-z\d+.-]*:/i.test(raw)) continue;
-    const path = decodeURIComponent(raw.split(/[?#]/, 1)[0]);
-    const target = path.startsWith("/")
-      ? resolve(root, `.${path}`)
-      : resolve(dirname(resolve(root, file)), path);
-    try {
-      await stat(target);
-    } catch {
-      problems.push(`${file}: broken local link ${raw}`);
-    }
-  }
-}
+// Local links are checked by `pnpm check:links`, against `git ls-files` rather than the working
+// tree: this loop used to accept a link that only an untracked or ignored file satisfied.
 
 if (problems.length) {
   console.error([...new Set(problems)].join("\n"));
