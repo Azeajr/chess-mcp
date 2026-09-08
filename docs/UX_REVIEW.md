@@ -175,6 +175,12 @@ use bounded locator/`waitForFunction` waits or an existing read-only harness acc
 observe both running and terminal states so old results cannot satisfy the wait. Do not use fixed
 sleeps or generic `networkidle` as proof of completion.
 
+Each forwarded CLI call is killed after 180 seconds, so keep every bounded wait under that and
+repeat it rather than asking for one long one; the browser keeps working across the boundary. In
+this profile `page.mouse.wheel` throws — mobile WebKit has no wheel — so scroll a container by
+focusing or clicking something inside it, and read long content with `textContent`, since a
+zero-height scroller yields an empty `innerText`.
+
 ## Edit, replay, and promote
 
 At meaningful states, inspect structure and viewport images, including relevant scrolling, focus,

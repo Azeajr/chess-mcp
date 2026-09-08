@@ -39,7 +39,14 @@ import { executeCommand, lastDirectCommandRequest } from "../store/commands";
 import { showTechnicalDetails, setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import Status from "./primitives/Status";
-import { countLabel, diffValue, displayValue, numbered, titleCase } from "../content/format";
+import {
+  centipawnDelta,
+  countLabel,
+  diffValue,
+  displayValue,
+  numbered,
+  titleCase,
+} from "../content/format";
 import { errorContent } from "../content/errors";
 import { navigationLabel } from "../content/tools";
 
@@ -117,9 +124,18 @@ function NavigationRows(props: { data: Data }) {
         const mainline = Array.from({ length: item.ply }, () => 0);
         try {
           currentTree().nodeAt(mainline);
+          // A reviewed move already carries its SAN, classification and centipawn loss. Showing
+          // the bare ply left the reader unable to tell which move a turning point was, or how
+          // bad it was, without the developer-facing raw JSON.
+          const classification =
+            typeof item.classification === "string" ? item.classification : null;
+          const san = typeof item.san === "string" ? item.san : null;
+          const loss = typeof item.cp_loss === "number" ? centipawnDelta(item.cp_loss) : "";
           out.push({
-            label: navigationLabel("ply", rowIndex),
-            value: `Ply ${item.ply}`,
+            label: classification
+              ? `${titleCase(classification)} ${rowIndex}`
+              : navigationLabel("ply", rowIndex),
+            value: san ? `${numbered([san], item.ply - 1)}${loss}` : `Ply ${item.ply}`,
             go: () => {
               actions.goto(mainline);
             },
@@ -1052,16 +1068,21 @@ function PositionResult(props: { data: Data }) {
 
 function ReviewSummary(props: { data: Data }) {
   const side = (name: "white" | "black") => props.data[name] as Data | undefined;
+  // The summary carries mistakes and inaccuracies alongside blunders; reporting only blunders
+  // hid two thirds of the per-side classification the review asks the reader to compare.
+  const classifications = (name: "white" | "black") => {
+    const value = side(name);
+    const count = (key: string) => displayValue(value?.[key] ?? 0);
+    return `${count("blunders")} blunders · ${count("mistakes")} mistakes · ${count("inaccuracies")} inaccuracies`;
+  };
   return (
     <div class="result-card">
       <div class="result-title">Game review · {displayValue(props.data.total_moves)} moves</div>
       <div class="result-summary">
-        White {displayValue(side("white")?.accuracy_pct ?? "—")}% ·{" "}
-        {displayValue(side("white")?.blunders ?? 0)} blunders
+        White {displayValue(side("white")?.accuracy_pct ?? "—")}% · {classifications("white")}
       </div>
       <div class="result-summary">
-        Black {displayValue(side("black")?.accuracy_pct ?? "—")}% ·{" "}
-        {displayValue(side("black")?.blunders ?? 0)} blunders
+        Black {displayValue(side("black")?.accuracy_pct ?? "—")}% · {classifications("black")}
       </div>
       <NavigationRows data={props.data} />
     </div>
@@ -1081,12 +1102,24 @@ function ReportResult(props: { title: string; summary: string; data: Data }) {
 const byOperation: Record<string, (data: Data) => unknown> = {
   get_position: (data) => <PositionResult data={data} />,
   get_game_summary: (data) => <ReviewSummary data={data} />,
-  analyze_game: (data) => (
-    <div class="result-card">
-      <div class="result-title">Move findings · {displayValue(data.total_moves ?? 0)} analysed</div>
-      <NavigationRows data={data} />
-    </div>
-  ),
+  analyze_game: (data) => {
+    // The moves arrive in game order, so the first rows used to be the opening moves — the ones
+    // with nothing to review. Rank the flagged moves first, and fall back to the game order only
+    // when the engine flagged nothing.
+    const moves = Array.isArray(data.moves) ? (data.moves as Data[]) : [];
+    const flagged = moves
+      .filter((move) => typeof move.classification === "string" && move.classification !== "good")
+      .sort((a, b) => Number(b.cp_loss ?? 0) - Number(a.cp_loss ?? 0));
+    return (
+      <div class="result-card">
+        <div class="result-title">
+          Move findings · {displayValue(data.total_moves ?? 0)} analysed
+        </div>
+        <div class="result-summary">{countLabel(flagged.length, "flagged move")}</div>
+        <NavigationRows data={flagged.length ? { moves: flagged } : data} />
+      </div>
+    );
+  },
   find_repertoire_gaps: (data) => (
     <div class="result-card">
       <div class="result-title">Repertoire findings</div>

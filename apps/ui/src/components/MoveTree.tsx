@@ -1,9 +1,10 @@
-import { createMemo, createSignal, For, Show, type JSX } from "solid-js";
+import { createEffect, createMemo, createSignal, For, Show, type JSX } from "solid-js";
 import type { Node as PgnNode, ChildNode, PgnNodeData } from "chessops/pgn";
 import { currentTree, currentPath, actions } from "../store/game";
 import { previewedKeys } from "../store/suggestions";
 import { focusLine } from "../store/chat";
 import { openFile } from "../store/files";
+import { mobileTab } from "../store/ui";
 import MoveButton, { MoveTreeItem } from "./primitives/MoveButton";
 import type { Path } from "@chess-mcp/chess-tools";
 
@@ -48,6 +49,8 @@ export default function MoveTree() {
   const [collapsed, setCollapsed] = createSignal<Set<string>>(new Set());
   const [activePath, setActivePath] = createSignal<Path | null>(null);
   let treeElement: HTMLDivElement | undefined;
+  let currentLineElement: HTMLDivElement | undefined;
+  let treeBodyElement: HTMLDivElement | undefined;
 
   const entryPath = (): Path => {
     const active = activePath();
@@ -324,9 +327,32 @@ export default function MoveTree() {
     return renderLine(tree.game.moves, [], false);
   });
 
+  // Jumping to a move — from a review card, the board, or the keyboard — used to leave both
+  // scrollers where they were, so a long game showed its opening while the board sat on move 39.
+  const revealCurrentMove = (scroller: HTMLElement | undefined) => {
+    const move = scroller?.querySelector<HTMLElement>(".move.current");
+    if (!scroller || !move) return;
+    const view = scroller.getBoundingClientRect();
+    // On a phone the panel is display:none until its tab is selected, so measuring then would
+    // scroll against a zero-sized box. The tab is a dependency below for exactly that reason.
+    if (!view.width || !view.height) return;
+    const target = move.getBoundingClientRect();
+    if (scroller.scrollWidth > scroller.clientWidth)
+      scroller.scrollLeft += target.left - view.left - (view.width - target.width) / 2;
+    if (scroller.scrollHeight > scroller.clientHeight)
+      scroller.scrollTop += target.top - view.top - (view.height - target.height) / 2;
+  };
+
+  createEffect(() => {
+    currentPath();
+    mobileTab();
+    revealCurrentMove(currentLineElement);
+    revealCurrentMove(treeBodyElement);
+  });
+
   return (
     <div class="move-tree">
-      <div class="current-line" title="Current line">
+      <div class="current-line" title="Current line" ref={currentLineElement}>
         <Show when={currentLine().length} fallback={<span class="moveno">Start position</span>}>
           <For each={currentLine()}>
             {(move) => (
@@ -345,7 +371,7 @@ export default function MoveTree() {
           </For>
         </Show>
       </div>
-      <div class="tree-body">
+      <div class="tree-body" ref={treeBodyElement}>
         <Show
           when={render().length}
           fallback={
