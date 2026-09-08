@@ -110,6 +110,60 @@ export default function RepertoirePanel() {
     return `${count} ${count === 1 ? "result" : "results"}${at ? ` · ${relativeTime(at)}` : ""}`;
   };
   const [deckExporting, setDeckExporting] = createSignal(false);
+
+  // An export finishes by handing the file straight to the browser, so a download that never
+  // happens used to look exactly like one that did: saveArtifact reported the failure and nobody
+  // read it. Keep the artifact so the download can be retried without recomputing the export, and
+  // say what went wrong when it fails.
+  const [exportedArtifact, setExportedArtifact] = createSignal<
+    Partial<Record<DirectCommand, string>>
+  >({});
+  const [downloadFailure, setDownloadFailure] = createSignal<
+    Partial<Record<DirectCommand, "missing" | "blocked">>
+  >({});
+
+  const downloadExport = (command: DirectCommand, artifactId: string) => {
+    setExportedArtifact((all) => ({ ...all, [command]: artifactId }));
+    const saved = saveArtifact(artifactId);
+    setDownloadFailure((all) => ({ ...all, [command]: saved.ok ? undefined : saved.reason }));
+  };
+
+  const downloadStatus = (command: DirectCommand) => {
+    const artifactId = () => exportedArtifact()[command];
+    const failure = () => downloadFailure()[command];
+    return (
+      <Show when={artifactId()}>
+        {(id) => (
+          <>
+            <Show when={failure()}>
+              {(reason) => (
+                <ErrorState
+                  title="Export could not be downloaded"
+                  message={
+                    reason() === "missing"
+                      ? "The generated file is no longer available in this tab. Generate it again."
+                      : "The browser blocked the download. Check its download settings, then try again."
+                  }
+                />
+              )}
+            </Show>
+            {/* Doubles as the confirmation that a file was produced: without it nothing on the
+                page says the export exists. */}
+            <button
+              class="scan-btn"
+              onClick={(e) => {
+                e.preventDefault();
+                downloadExport(command, id());
+              }}
+            >
+              Download again
+            </button>
+          </>
+        )}
+      </Show>
+    );
+  };
+
   const commandButton = (
     command: DirectCommand,
     label: string,
@@ -144,7 +198,8 @@ export default function RepertoirePanel() {
             }
             void run.then(() => {
               const artifactId = state(command).result?.artifact_id;
-              if (typeof artifactId === "string") saveArtifact(artifactId);
+              if (typeof artifactId !== "string") return;
+              downloadExport(command, artifactId);
             });
           }}
         >
@@ -186,6 +241,7 @@ export default function RepertoirePanel() {
         )}
       </Show>
       <Show when={state(command).error}>{(message) => <ErrorState message={message()} />}</Show>
+      {downloadStatus(command)}
     </>
   );
 

@@ -4,7 +4,7 @@ type ChessHarness = {
   loadPgn(pgn: string, name?: string): void;
   toPgn(): string;
   runTool(name: string, args: Record<string, unknown>): Promise<unknown>;
-  saveArtifact(id: string): boolean;
+  saveArtifact(id: string): { ok: boolean; name?: string; reason?: string };
 };
 
 const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: T) =>
@@ -49,7 +49,10 @@ test("browser V2 annotation remains a clone-only downloadable artifact", async (
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 
   const downloadPromise = page.waitForEvent("download");
-  expect(await chess(page, (api, id) => api.saveArtifact(id), result.artifact_id!)).toBe(true);
+  expect(await chess(page, (api, id) => api.saveArtifact(id), result.artifact_id!)).toEqual({
+    ok: true,
+    name: "strategic-fit-annotated.pgn",
+  });
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("strategic-fit-annotated.pgn");
   const stream = await download.createReadStream();

@@ -43,14 +43,36 @@ export function createArtifact(format: ArtifactFormat, content: string, name: st
 
 export const artifactById = (id: string) => artifacts().find((artifact) => artifact.id === id);
 
-export function saveArtifact(id: string) {
+export type ArtifactSaveResult =
+  | { ok: true; name: string }
+  | { ok: false; reason: "missing" | "blocked" };
+
+/**
+ * Hands a generated artifact to the browser as a download. Callers must act on the result: a
+ * download that never happens is otherwise indistinguishable from one that did, because the page
+ * shows nothing either way.
+ */
+export function saveArtifact(id: string): ArtifactSaveResult {
   const artifact = artifactById(id);
-  if (!artifact) return false;
-  const url = URL.createObjectURL(new Blob([artifact.content], { type: artifact.mediaType }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = artifact.name;
-  link.click();
-  URL.revokeObjectURL(url);
-  return true;
+  // The store is in-memory, so a reload leaves an old result pointing at an artifact that is gone.
+  if (!artifact) return { ok: false, reason: "missing" };
+  let url: string | null = null;
+  try {
+    url = URL.createObjectURL(new Blob([artifact.content], { type: artifact.mediaType }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = artifact.name;
+    link.click();
+    return { ok: true, name: artifact.name };
+  } catch {
+    return { ok: false, reason: "blocked" };
+  } finally {
+    // Revoking in the same tick can cancel a download the browser has not started reading yet.
+    if (url !== null) {
+      const revoke = url;
+      setTimeout(() => {
+        URL.revokeObjectURL(revoke);
+      }, 0);
+    }
+  }
 }

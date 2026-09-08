@@ -16,7 +16,7 @@ type ChessHarness = {
   stagedEdit(id: string): { status: string } | undefined;
   acceptStagedEdit(id: string): { ok: boolean; error?: string };
   createArtifact(format: "pgn" | "csv", content: string, name: string): { artifact_id: string };
-  saveArtifact(id: string): boolean;
+  saveArtifact(id: string): { ok: boolean; name?: string; reason?: string };
   appendToolResultForTesting(operation: string, result: unknown): void;
   runTool(name: string, args: Record<string, unknown>): Promise<unknown>;
 };
@@ -123,7 +123,7 @@ test("artifact saving is a browser download affordance", async ({ page }) => {
   const downloadPromise = page.waitForEvent("download");
   expect(
     await chess(page, (api, artifactId) => api.saveArtifact(artifactId), artifact.artifact_id),
-  ).toBe(true);
+  ).toEqual({ ok: true, name: "annotated.pgn" });
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("annotated.pgn");
 });

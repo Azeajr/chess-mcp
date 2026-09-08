@@ -9,17 +9,19 @@ only the forward list. `ROADMAP.md` holds unshipped product and quality work unr
 
 ## Priority
 
-1. Complete the five journeys. Game review and position are done; annotation, repertoire and
+1. Complete the five journeys. Game review, position and annotation are done; repertoire and
    Strategic Fit remain.
-2. Cover the export/download failure path.
+2. ~~Cover the export/download failure path.~~ Done alongside 1c, for the annotated-repertoire
+   export. Five Strategic Fit call sites still swallow a refused download; settle them with 1e.
 3. Promote the clean-checkout link check into CI.
 4. ~~Decide the fate of the retained review worktrees.~~ Done: reports preserved under
    `docs/ux-audit-2026-09-07/`, worktrees pruned.
 
-Recommendation: keep going through the journeys. Two passes have now found nine defects between
-them, four of them blocking the journey they were found in, so the remaining three are worth the
-same treatment. Annotation pairs naturally with item 2, since both live in the export and download
-surface. Item 3 can ride along with whatever touches CI next.
+Recommendation: keep going through the journeys. Three passes have now found ten defects between
+them, five of which blocked the journey they were found in, so the remaining two are worth the same
+treatment. Do 1d before 1e: the staging and revision-bound writer it exercises is the riskiest code
+path left, and 1e can then close the Strategic Fit download call sites in the same pass. Item 3 can
+ride along with whatever touches CI next.
 
 ## 1. The five completion journeys
 
@@ -116,12 +118,28 @@ Still open, and deliberately not claimed:
 - One fixture, one position, White prepared. No promotion, no `get_legal_moves`, no cloud-eval or
   tablebase path.
 
-### 1c. Annotation
+### 1c. Annotation — done 2026-09-08
 
-Partially replayed during implementation: progress, cancel, retry and a downloaded artifact were
-observed. Still owed: an explicitly chosen branching export whose downloaded result is parsed, with
-expected branches and annotations verified and original-document continuity confirmed. A downloaded
-file proves delivery, not annotation correctness.
+Ran through the controller against the branching `rich-repertoire.pgn` as White. Two runs recorded
+in the untracked `.ux-review/annotation/` tree; its `review.md` is the record. Zero faults
+throughout. No provider needed: "Generate annotated repertoire" is a direct command in the
+Repertoire panel, not a chat tool call.
+
+The export itself is correct, verified by parsing the downloaded file against the source:
+
+- Branch structure preserved exactly — source 124 nodes / 12 leaves / max depth 13, downloaded
+  124 / 12 / 13.
+- 16 annotation comments and one NAG across 4,761 bytes, including an audit assessment
+  (`4. e3 $6 { audit: inaccuracy — loses 60cp vs Nc3 (+0.43) }`), an only-move note and Strategic
+  Fit evidence comments.
+- Original-document continuity: `toPgn()` 849 bytes before and after, `dirty()` false.
+
+One defect found, which is also item 2 — see below.
+
+Still open, and deliberately not claimed:
+
+- Cancel was observed as an available control but not exercised to completion in these runs.
+- Only the annotated-repertoire export; the metadata JSON and intent PGN exports were not run.
 
 ### 1d. Repertoire
 
@@ -139,16 +157,31 @@ report implied.
 
 ## 2. Export and download failure path
 
-**Status: open. Small.**
+**Status: done 2026-09-08, for the annotated-repertoire export.**
 
-The audit's QA-6 asked for declared error scenarios. Checking the suite rather than the reports
-showed most already covered: `explorer_auth_required` in `apps/ui/test/e2e/chat-result-cards.spec.ts`,
-malformed preflight data in `apps/ui/test/e2e/strategic-fit-preflight.spec.ts`, illegal moves in
-several specs, and `compare_moves` in `apps/ui/test/content.test.ts`. Export and download failure is
-the one path with no coverage.
+Found while running 1c. A failed download was indistinguishable from a successful one:
+`saveArtifact` returned `false` when the artifact was missing and the caller dropped the value; it
+had no `try`/`catch`, so a browser that refuses the download threw past the click handler; and it
+revoked the object URL in the same tick as `link.click()`, which can cancel a download that has not
+started reading the blob. A successful export said nothing either, so all of those looked alike.
 
-Done when: a failing export or download surfaces a visible, specific error and a supported retry or
-recovery route, proven by a test that fails if the error is swallowed.
+`saveArtifact` now reports `{ok:true, name}` or `{ok:false, reason:"missing"|"blocked"}`, catches
+the refusal, and defers the revoke by a tick. The panel keeps the artifact id so the file can be
+downloaded again without recomputing, renders a specific error when a download fails, and shows a
+"Download again" control whenever an export exists — which doubles as the confirmation the flow
+never had. Proven by `apps/ui/test/artifacts.test.ts` at the source and
+`apps/ui/test/e2e/export-download.spec.ts` end to end; both fail if the failure is dropped.
+
+Still open: five other `saveArtifact` call sites — two in `StrategicFitTransfer` and three across
+the Strategic Fit components — still ignore the result and so still swallow a refused download.
+Settle them with 1e.
+
+For the record, the original entry: the audit's QA-6 asked for declared error scenarios. Checking
+the suite rather than the reports showed most already covered — `explorer_auth_required` in
+`apps/ui/test/e2e/chat-result-cards.spec.ts`, malformed preflight data in
+`apps/ui/test/e2e/strategic-fit-preflight.spec.ts`, illegal moves in several specs, and
+`compare_moves` in `apps/ui/test/content.test.ts`. Export and download failure was the one path with
+no coverage.
 
 ## 3. Clean-checkout link check in CI
 
