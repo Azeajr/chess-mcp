@@ -9,19 +9,17 @@ only the forward list. `ROADMAP.md` holds unshipped product and quality work unr
 
 ## Priority
 
-1. Complete the five journeys. Game review, position and annotation are done; repertoire and
-   Strategic Fit remain.
+1. Complete the five journeys. Game review, position, annotation and repertoire are done; Strategic
+   Fit remains.
 2. ~~Cover the export/download failure path.~~ Done alongside 1c, for the annotated-repertoire
    export. Five Strategic Fit call sites still swallow a refused download; settle them with 1e.
 3. Promote the clean-checkout link check into CI.
 4. ~~Decide the fate of the retained review worktrees.~~ Done: reports preserved under
    `docs/ux-audit-2026-09-07/`, worktrees pruned.
 
-Recommendation: keep going through the journeys. Three passes have now found ten defects between
-them, five of which blocked the journey they were found in, so the remaining two are worth the same
-treatment. Do 1d before 1e: the staging and revision-bound writer it exercises is the riskiest code
-path left, and 1e can then close the Strategic Fit download call sites in the same pass. Item 3 can
-ride along with whatever touches CI next.
+Recommendation: finish with 1e, which also closes the five Strategic Fit download call sites named
+in item 2. Four passes have now found sixteen defects between them, so the last journey is worth
+the same treatment. Item 3 can ride along with whatever touches CI next.
 
 ## How to pick this up
 
@@ -180,12 +178,51 @@ Still open, and deliberately not claimed:
 - Cancel was observed as an available control but not exercised to completion in these runs.
 - Only the annotated-repertoire export; the metadata JSON and intent PGN exports were not run.
 
-### 1d. Repertoire
+### 1d. Repertoire — done 2026-09-08
 
-Done when: a structural profile or Strategic Fit run and an audit or gaps task complete; one
-navigable finding is inspected; a change is staged, rejected, and confirmed to have mutated nothing;
-then a separate change is accepted through the existing revision-bound writer. Exercise one
-unavailable-data path. No source report completed this set.
+Ran through the controller against `rich-repertoire.pgn` as White. Two runs recorded in the
+untracked `.ux-review/repertoire/` tree; its `review.md` is the record, including the three failed
+attempts kept rather than retried away. No provider needed: every control in this journey is a
+direct command in the Repertoire panel.
+
+The set completed: Structure search and Prescribed-move audit reached terminal states, the audit's
+one finding navigated the board to its position, a staged line was rejected leaving the PGN
+byte-identical, a second was accepted through the revision-bound writer (849 → 865 bytes, revision
+1 → 2), and Opponent preparation exercised the unavailable-data path.
+
+Six defects found and fixed, with regression cover in
+`apps/ui/test/e2e/repertoire-journey.spec.ts`, `apps/ui/test/history.test.ts` and
+`apps/ui/test/chat.test.ts`:
+
+- Connect, Shorten and Extend here delivered their results into a **closed section**. Their scan
+  buttons live in the `<summary>` and call `preventDefault`, which stops the native toggle, and
+  unlike every `commandButton` tool they never set `open` themselves. Rows, errors and empty states
+  all rendered invisibly, and Extend here shows no result count either, so pressing Suggest looked
+  like it had done nothing.
+- Staging a suggestion put its own controls offscreen: "Staged line / Accept line / Cancel" landed
+  at y = −532 in a 629px viewport, so the tap appeared to do nothing.
+- A failed command answered with its own error code — "Unable to display this content /
+  missing_criteria" — although `ERROR_CONTENT` already maps it and the chat card already hides the
+  code behind technical details (WP-026 AC-1).
+- Two covered-gap rows both read `d5 covered → Nf6` for different transpositions, and two Shorten
+  rows both read `d4 d5 → c4` for different lines; the line was in a `title` no touch device shows.
+- Undo restored the content but not the header: a document byte-identical to the saved one still
+  read "1 unsaved change". `changesSinceExport` counted mutations rather than comparing content.
+  This is the item 1b deferred here. Fixing it failed six `core-document.spec.ts` tests that made
+  the document dirty by adding a move the fixture already had — a merge that leaves the PGN
+  byte-identical — so their helper now adds one it does not have.
+- Opponent preparation reported `0 results` whether the games could not be fetched or the opponent
+  had no games in prep, and an empty username fired a request for `/api/games/user/?max=30` and
+  reported that answer as a result.
+
+Still open, and deliberately not claimed:
+
+- Only White, only this fixture; no Black run.
+- Connect and Shorten results were read but never staged and accepted; the accepted change came
+  from Extend here.
+- Structure search matched nothing on this fixture, so a populated result was never rendered.
+- The collapsed summary still counts `lines` only, so Opponent preparation reads "0 results" beside
+  a body that now says how many games were fetched.
 
 ### 1e. Strategic Fit
 

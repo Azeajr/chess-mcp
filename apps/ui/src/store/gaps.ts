@@ -40,6 +40,12 @@ export function setScanErrorForTesting(message: string) {
   setScanError(message);
 }
 
+export function setCoveredGapsForTesting(next: CoveredGap[]) {
+  assertTestOnly();
+  setCovered(next);
+  setScanCompleted(true);
+}
+
 export const scanning = () =>
   runningOperations().some((operation) => operation.kind === "gaps-scan");
 export const progress = (): { done: number; total: number } | null => {

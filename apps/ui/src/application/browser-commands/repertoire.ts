@@ -972,6 +972,10 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       (args.platform as "lichess" | "chesscom" | undefined) ??
       toolDefault("prep_vs_opponent", "platform", "lichess");
     const username = args.username as string;
+    // An empty box sent a request for `/api/games/user/?max=30` and reported the empty answer as a
+    // result, so preparing against nobody looked like preparing against an opponent with no games.
+    if (typeof username !== "string" || username.trim() === "")
+      return { error: "missing_arg", reason: "Enter the opponent's username, then prepare again." };
     if (platform === "chesscom" && (args.year == null || args.month == null))
       return { error: "missing_arg", reason: "chesscom requires year and month" };
     const games =

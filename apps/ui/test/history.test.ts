@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { actions, currentPath, version } from "../src/store/game.ts";
+import { actions, changesSinceExport, currentPath, dirty, version } from "../src/store/game.ts";
 import {
   undo,
   redo,
@@ -53,6 +53,53 @@ test("a second undo works after the first — restore must not clear the stacks"
   const restored = actions.toPgn();
   assert.match(restored, /1\. d4 d5 \( 1\.\.\. Nf6 2\. c4 \)/);
   assert.doesNotMatch(restored, /e6|c4 \*/);
+});
+
+test("undoing back to the saved content leaves no unsaved change to report", () => {
+  actions.loadPgn(START_PGN);
+  clearHistory();
+  assert.equal(dirty(), false);
+  assert.equal(changesSinceExport(), 0);
+
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["e6"] }).ok, true);
+  assert.equal(dirty(), true);
+  assert.equal(changesSinceExport(), 1);
+
+  // The count used to survive the undo, so a document byte-identical to the saved one still
+  // reported "1 unsaved change".
+  undo();
+  assert.equal(dirty(), false, "content matches what was loaded");
+  assert.equal(changesSinceExport(), 0);
+
+  redo();
+  assert.equal(dirty(), true);
+  assert.equal(changesSinceExport(), 1);
+});
+
+test("undoing one of two changes still reports the other", () => {
+  actions.loadPgn(START_PGN);
+  clearHistory();
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["e6"] }).ok, true);
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["d5", "c4"] }).ok, true);
+  assert.equal(changesSinceExport(), 2);
+
+  undo();
+  assert.equal(dirty(), true);
+  assert.equal(changesSinceExport(), 1);
+});
+
+test("saving establishes the content undo is measured against", () => {
+  actions.loadPgn(START_PGN);
+  clearHistory();
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["e6"] }).ok, true);
+  actions.markSaved();
+  assert.equal(changesSinceExport(), 0);
+
+  assert.equal(actions.applyEdit("add", ["d4"], { addMoves: ["c5"] }).ok, true);
+  assert.equal(changesSinceExport(), 1);
+  undo();
+  assert.equal(dirty(), false, "back to the content that was saved, not the content that loaded");
+  assert.equal(changesSinceExport(), 0);
 });
 
 test("a rejected edit reports failure and pushes no history entry", () => {

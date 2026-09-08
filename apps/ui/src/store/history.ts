@@ -131,7 +131,7 @@ export function undo(): void {
   const revisionAfter = version();
   const colorAfter = color();
 
-  restoreSnapshotForHistory(pgnBefore, pathBefore);
+  restoreSnapshotForHistory(pgnBefore, pathBefore, -1);
 
   setUndoStack((entries) => entries.slice(0, -1));
   setRedoStack((entries) => [
@@ -171,7 +171,7 @@ export function redo(): void {
   const revisionBefore = version();
   const colorBefore = color();
 
-  restoreSnapshotForHistory(pgnAfter, pathAfter);
+  restoreSnapshotForHistory(pgnAfter, pathAfter, 1);
 
   setRedoStack((entries) => entries.slice(0, -1));
   setUndoStack((entries) => [

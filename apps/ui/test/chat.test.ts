@@ -493,6 +493,33 @@ test("direct and chat adapters share one semantic command result with injected p
   });
 });
 
+test("preparing against an empty username is refused before any request", async () => {
+  actions.loadPgn("1. e4 e5 *");
+  let fetched = 0;
+  const dependencies = {
+    ...defaultBrowserCommandDependencies,
+    lichessGames: async () => {
+      fetched += 1;
+      return [];
+    },
+    openings: async () => new Map(),
+  };
+
+  // An empty box used to request `/api/games/user/?max=30` and report the empty answer as a
+  // result, so preparing against nobody looked like an opponent with no games.
+  const blank = await executeDirectBrowserCommand(
+    "prep_vs_opponent",
+    { username: "   " },
+    {},
+    dependencies,
+  );
+  assert.equal((blank as { error?: string }).error, "missing_arg");
+  // An absent username is already refused a layer earlier, by the argument contract.
+  const missing = await executeDirectBrowserCommand("prep_vs_opponent", {}, {}, dependencies);
+  assert.equal((missing as { error?: string }).error, "invalid_arguments");
+  assert.equal(fetched, 0, "no request leaves the browser without a username");
+});
+
 test("browser Strategic Fit adapter matches the bounded MCP-equivalent core fixture", async () => {
   actions.loadPgn(
     "1. d4 Nf6 2. c4 e6 3. Nc3 Bb4 4. e3 Bxc3+ " +
