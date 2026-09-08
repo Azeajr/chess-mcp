@@ -14,11 +14,11 @@ test("a link only an untracked or ignored file satisfies is reported", async () 
   // PR #58's failure: the evidence directory is gitignored, so the link resolved on the machine
   // that wrote it and on no other.
   const problems = await check(
-    { "REMAINING-WORK.md": "See [the run](.ux-review/session/review.md) for the record.\n" },
-    ["REMAINING-WORK.md", "docs/UX_REVIEW.md"],
+    { "NOTES.md": "See [the run](.ux-review/session/review.md) for the record.\n" },
+    ["NOTES.md", "docs/UX_REVIEW.md"],
   );
   assert.equal(problems.length, 1);
-  assert.match(problems[0], /^REMAINING-WORK\.md:1: link resolves to no tracked file/);
+  assert.match(problems[0], /^NOTES\.md:1: link resolves to no tracked file/);
   assert.match(problems[0], /\.ux-review\/session\/review\.md/);
 });
 

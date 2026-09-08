@@ -2,6 +2,36 @@
 
 Only unshipped work belongs here. Git history records completed work.
 
+## Settled — do not reopen
+
+The 2026-09-07 UX audit denied these proposals on evidence, and the five completion journeys that
+followed (2026-09-08) shipped their confirmed findings. Re-implementing one undoes a decision rather
+than closing a gap. Each already exists in the code named beside it:
+
+- Document menu (`DocumentMenu.tsx`), save confirmation (`store/files.ts`), move-tree keyboard
+  navigation (`MoveTree.tsx`), last-move highlighting and the board cursor (`Board.tsx`), profile
+  explanation (`strategic-fit/ProfileSetup.tsx`), modal focus trap and return (`primitives/Dialog.tsx`).
+- Touch target sizes were settled by measurement, not opinion: zero controls fall below 44px on the
+  phone profile, guarded by `apps/ui/test/e2e/collective-ux-fixes.spec.ts`.
+- Tours, global reorganization, profile animations and additional badges were rejected as subjective
+  preferences rather than demonstrated defects.
+
+## Coverage the completion journeys did not claim
+
+Five journeys — game review, position, annotation, repertoire, Strategic Fit — were each driven
+through `pnpm ux:review` and replayed after their fixes. What they deliberately left untested, worth
+knowing before trusting the workflows broadly:
+
+- Every journey ran White against one fixture. No journey used a Black repertoire, so there is no
+  CT-specific coverage despite what the original source reports implied.
+- Game review is not reproducible run to run: the same seed produced different worst moves, because
+  browser engine search is time-sensitive. Strategic Fit, being engine-free, is reproducible.
+- No Strategic Fit review was completed, so "Finish the review" and its summary export are unproven
+  end to end. Cancel was available in several flows but never pressed to completion.
+- Error paths beyond those with tests: game review losing the engine mid-scan, promotion moves,
+  `get_legal_moves`, cloud-eval and tablebase paths, and the Replacement Lab, which no finding in
+  the fixture made available.
+
 ## Quality
 
 - Add lint rules separately after measuring repository signal: import hygiene, security, regular
