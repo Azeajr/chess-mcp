@@ -41,6 +41,7 @@ import { setSettingsOpen } from "../store/ui";
 import Status from "./primitives/Status";
 import {
   centipawnDelta,
+  centipawnText,
   countLabel,
   diffValue,
   displayValue,
@@ -65,7 +66,7 @@ const parse = (content: string | null): Data | null => {
   }
 };
 
-function navigateFen(target: string) {
+function findFenPath(target: string): number[] | null {
   const tree = currentTree();
   const find = (path: number[]): number[] | null => {
     if (tree.fenAt(path) === target) return path;
@@ -75,9 +76,22 @@ function navigateFen(target: string) {
     }
     return null;
   };
-  const found = find([]);
+  return find([]);
+}
+
+function navigateFen(target: string) {
+  const found = findFenPath(target);
   if (found) actions.goto(found);
 }
+
+// Engine scores arrive as centipawns or a mate distance; both are White-POV, which the payloads
+// state explicitly and the cards below repeat rather than leave to the reader.
+const scoreText = (cp: unknown, mate: unknown): string =>
+  typeof mate === "number"
+    ? `M${Math.abs(mate)}`
+    : typeof cp === "number"
+      ? centipawnText(cp)
+      : "—";
 
 function NavigationRows(props: { data: Data }) {
   const rows = createMemo(() => {
@@ -1066,6 +1080,102 @@ function PositionResult(props: { data: Data }) {
   );
 }
 
+// evaluate_position, compare_moves and validate_line had no card at all. The generic fallback
+// renders navigation rows only, so an evaluation arrived as a lone FEN, a comparison as the same
+// lone FEN, and a validated line as an empty box — in every case the answer the tool computed was
+// dropped on the floor and reachable only through the developer-facing raw JSON.
+function EvaluationResult(props: { data: Data }) {
+  const lines = () => (Array.isArray(props.data.lines) ? (props.data.lines as Data[]) : []);
+  return (
+    <div class="result-card">
+      <div class="result-title">Position evaluation</div>
+      <div class="result-summary">
+        {countLabel(lines().length, "line")} · {displayValue(props.data.eval_sign)}
+      </div>
+      <For each={lines()}>
+        {(line, index) => (
+          <div class="result-line">
+            {index() + 1}. {displayValue(line.san)} {scoreText(line.cp, line.mate)} · depth{" "}
+            {displayValue(line.depth)}
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}
+
+function CompareMovesResult(props: { data: Data }) {
+  const candidates = () =>
+    Array.isArray(props.data.candidates) ? (props.data.candidates as Data[]) : [];
+  return (
+    <div class="result-card">
+      <div class="result-title">Move comparison</div>
+      <div class="result-summary">
+        {countLabel(candidates().length, "candidate")} · positive favors White
+      </div>
+      <For each={candidates()}>
+        {(candidate) => (
+          <Show
+            when={typeof candidate.error === "string"}
+            fallback={
+              <div class="result-line">
+                {displayValue(candidate.rank)}. {displayValue(candidate.san)}{" "}
+                {scoreText(candidate.eval_cp, candidate.mate)}
+              </div>
+            }
+          >
+            {/* A rejected candidate carries its error inside the array, where the top-level error
+                check never looked, so an illegal move used to render as an ordinary result. */}
+            <Status tone="danger" role="alert">
+              {displayValue(candidate.san)} — {errorContent(String(candidate.error)).title}
+            </Status>
+          </Show>
+        )}
+      </For>
+    </div>
+  );
+}
+
+function ValidateLineResult(props: { data: Data }) {
+  const moves = () =>
+    Array.isArray(props.data.canonical) ? (props.data.canonical as string[]) : [];
+  const finalFen = () => (typeof props.data.finalFen === "string" ? props.data.finalFen : null);
+  const reachable = createMemo(() => {
+    const fen = finalFen();
+    return fen ? findFenPath(fen) : null;
+  });
+  return (
+    <div class="result-card">
+      <div class="result-title">
+        {props.data.ok === true ? "Line is legal" : "Line is not legal"}
+      </div>
+      <Show when={moves().length}>
+        <div class="result-summary">{moves().join(" ")}</div>
+      </Show>
+      <Show when={finalFen()}>
+        {(fen) => (
+          <>
+            <div class="result-line">{fen()}</div>
+            {/* The continuation usually leaves the document, so only offer the jump when the
+                resulting position actually exists in the current tree. */}
+            <Show when={reachable()}>
+              <button
+                class="result-nav"
+                onClick={() => {
+                  navigateFen(fen());
+                }}
+              >
+                <span>Final position</span>
+                <b>Go to position</b>
+              </button>
+            </Show>
+          </>
+        )}
+      </Show>
+    </div>
+  );
+}
+
 function ReviewSummary(props: { data: Data }) {
   const side = (name: "white" | "black") => props.data[name] as Data | undefined;
   // The summary carries mistakes and inaccuracies alongside blunders; reporting only blunders
@@ -1101,6 +1211,9 @@ function ReportResult(props: { title: string; summary: string; data: Data }) {
 
 const byOperation: Record<string, (data: Data) => unknown> = {
   get_position: (data) => <PositionResult data={data} />,
+  evaluate_position: (data) => <EvaluationResult data={data} />,
+  compare_moves: (data) => <CompareMovesResult data={data} />,
+  validate_line: (data) => <ValidateLineResult data={data} />,
   get_game_summary: (data) => <ReviewSummary data={data} />,
   analyze_game: (data) => {
     // The moves arrive in game order, so the first rows used to be the opening moves — the ones
