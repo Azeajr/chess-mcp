@@ -10,17 +10,21 @@ This document consolidates every report's material claim and recommendation, inc
 
 ## Sources and scope
 
+Paths under `.worktrees/` and `.ux-review/` are cited rather than linked throughout this document.
+Both are gitignored and machine-local, so they never resolve from a clean checkout and a link to
+them fails the documentation consistency check. They are retained evidence, not repository content.
+
 All seven registered secondary worktrees and the main checkout were inventoried. All have the same HEAD and no tracked source changes at audit time. The main checkout had no original `ux-*.md`. Worktree reports and PGNs are untracked; `.ux-review` evidence is ignored by Git.
 
-| ID  | Worktree and source                                                    | Evidence available and actual coverage                                                                                                                               |
-| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| R   | [t_53320821 review](.worktrees/t_53320821/ux-review-review.md)         | One run, baseline image, tab snapshots, 26 faults. No game summary or turning-point review demonstrated.                                                             |
-| RP  | [t_5f8d81d4 repertoire](.worktrees/t_5f8d81d4/ux-review-repertoire.md) | Report only. Its cited `.ux-review` directory and four screenshots are absent from this worktree; its zero-fault assertion cannot be independently checked.          |
-| A   | [t_600f1d16 annotation](.worktrees/t_600f1d16/ux-review-annotation.md) | Two sessions/runs, images, logs, downloaded annotated PGNs. Earlier failed session omitted from report.                                                              |
-| P1  | [t_b85da789 position](.worktrees/t_b85da789/ux-review-position.md)     | Five retained runs, all zero recorded faults. Four earlier runs have review/strategic-fit/position/annotation labels; final position run covers initialization only. |
-| SF  | [t_d6efc732 Strategic Fit](.worktrees/t_d6efc732/ux-review-report.md)  | Profile setup and return, zero faults. Uses **white `rich-repertoire.pgn`**, not the CT Black input. No structural analysis was run in the retained overview.        |
-| P2  | [t_d9a909fb position](.worktrees/t_d9a909fb/ux-review-position.md)     | Two runs: earlier 50 faults, later zero. Later images prove engine candidates; claimed successful board move is not established by its “after move” snapshot.        |
-| I   | [t_d61aace4 inventory](.worktrees/t_d61aace4/workflow-inventory.md)    | No `ux-*.md`; read its inventory instead. Describes contract families, not completed UX journeys.                                                                    |
+| ID  | Worktree and source                                                     | Evidence available and actual coverage                                                                                                                               |
+| --- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R   | t_53320821 review (`.worktrees/t_53320821/ux-review-review.md`)         | One run, baseline image, tab snapshots, 26 faults. No game summary or turning-point review demonstrated.                                                             |
+| RP  | t_5f8d81d4 repertoire (`.worktrees/t_5f8d81d4/ux-review-repertoire.md`) | Report only. Its cited `.ux-review` directory and four screenshots are absent from this worktree; its zero-fault assertion cannot be independently checked.          |
+| A   | t_600f1d16 annotation (`.worktrees/t_600f1d16/ux-review-annotation.md`) | Two sessions/runs, images, logs, downloaded annotated PGNs. Earlier failed session omitted from report.                                                              |
+| P1  | t_b85da789 position (`.worktrees/t_b85da789/ux-review-position.md`)     | Five retained runs, all zero recorded faults. Four earlier runs have review/strategic-fit/position/annotation labels; final position run covers initialization only. |
+| SF  | t_d6efc732 Strategic Fit (`.worktrees/t_d6efc732/ux-review-report.md`)  | Profile setup and return, zero faults. Uses **white `rich-repertoire.pgn`**, not the CT Black input. No structural analysis was run in the retained overview.        |
+| P2  | t_d9a909fb position (`.worktrees/t_d9a909fb/ux-review-position.md`)     | Two runs: earlier 50 faults, later zero. Later images prove engine candidates; claimed successful board move is not established by its “after move” snapshot.        |
+| I   | t_d61aace4 inventory (`.worktrees/t_d61aace4/workflow-inventory.md`)    | No `ux-*.md`; read its inventory instead. Describes contract families, not completed UX journeys.                                                                    |
 
 The CT PGN copies and corresponding manifest PGN contents match SHA-256 `34c3fca0c5de892efdb2a044d35db46177f9fe2856f95c0ea3b16dcc8bebbe5c` (13,575 bytes). Different seed digests across worktrees are not proof of differing PGN input: seed configuration also includes worktree-specific paths. The SF run is a genuinely different fixture and side.
 
@@ -124,12 +128,12 @@ Annotation scope matters: the contract's annotation family creates a saveable an
 
 ## Fresh audit validation
 
-Fresh artifact directory: [.ux-review/ux-consolidation/2026-09-07T22-14-25-970Z-a79116b1](.ux-review/ux-consolidation/2026-09-07T22-14-25-970Z-a79116b1/).
+Fresh artifact directory: `.ux-review/ux-consolidation/2026-09-07T22-14-25-970Z-a79116b1/`.
 
 - Controller unit checks: `rtk proxy node --test scripts/ux-review.test.mjs` — **7 passed**. Includes occupied-port rejection, ownership validation and fault policy. This does not test multi-worktree lifetime isolation.
 - Sandbox preflight failed at its `pnpm --version` timeout. The initial pnpm invocation later reported `ERR_PNPM_PNPM_ENGINE_IDENTITY_UNVERIFIABLE`, with failed npm registry requests while verifying pnpm 11.25.0 signatures. Do not infer corrupt package bytes from a verification attempt that could not reach its registry. The same controller preflight outside the sandbox passed with Node 26.8.1 and the matching Playwright 1.62.1 Docker image. This is an audit-environment limitation, not retrospective proof of what caused the earlier Vite exits. Resolve registry access through the approved execution environment; do not disable signature verification.
 - Fresh CT Black session booted with zero faults. Visible controls were used for document menu, Moves/Analysis navigation, tree keyboard focus, Strategic Fit setup/explicit Balanced selection and focus return, and annotated repertoire generation.
-- Fresh annotation generation reached a downloaded `ct-black-repertoire-annotated.pgn`; [result image](.ux-review/ux-consolidation/2026-09-07T22-14-25-970Z-a79116b1/01-annotation-status.png) visibly shows `1 result` and Generate restored. This denies a generally unresponsive generator. It does not certify all annotation content.
+- Fresh annotation generation reached a downloaded `ct-black-repertoire-annotated.pgn`; result image (`.ux-review/ux-consolidation/2026-09-07T22-14-25-970Z-a79116b1/01-annotation-status.png`) visibly shows `1 result` and Generate restored. This denies a generally unresponsive generator. It does not certify all annotation content.
 - A final read-only observation returned: nonexistent combined annotation button name count `0`; annotation details `open: null`; menu entries Open PGN / New repertoire / Recover an earlier repertoire; ArrowDown focus `1. e4, repertoire tree item, level 2`; live evaluation `+0.36, white slightly better`. This is a sampled engine result, not a benchmark or fixed expected score.
 - Final controller `check` reported **0 faults** after these interactions and asynchronous completion. The owned session was then stopped; retained historical sessions were not deleted or stopped by this audit.
 
@@ -164,7 +168,7 @@ implemented again, and subjective tours/layout redesigns remain outside the conf
 
 The implementation replay used the same CT Black PGN and mobile WebKit descriptor on port 4181.
 The final review run is
-[2026-09-08T03-13-04-206Z-01dc772b](.ux-review/ux-fixes/2026-09-08T03-13-04-206Z-01dc772b/).
+2026-09-08T03-13-04-206Z-01dc772b (`.ux-review/ux-fixes/2026-09-08T03-13-04-206Z-01dc772b/`).
 Its annotation progress was visibly expanded (`37/400` phase progress in the inspected PNG), then
 completed with a downloaded artifact and `1 result`. The denominator combines phase percentages;
 it is not a count of 400 engine-evaluated positions. The Save status dialog was inspected visually.
