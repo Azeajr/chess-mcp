@@ -58,4 +58,4 @@ async (page) => {
     scriptedTools: ["get_game_summary", "analyze_game"],
     performsJourney: false,
   };
-};
+}

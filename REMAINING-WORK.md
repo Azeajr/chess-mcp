@@ -9,16 +9,17 @@ only the forward list. `ROADMAP.md` holds unshipped product and quality work unr
 
 ## Priority
 
-1. Complete the five journeys. Game review is done; position, annotation, repertoire and Strategic
-   Fit remain.
+1. Complete the five journeys. Game review and position are done; annotation, repertoire and
+   Strategic Fit remain.
 2. Cover the export/download failure path.
 3. Promote the clean-checkout link check into CI.
-4. Decide the fate of the retained review worktrees.
+4. ~~Decide the fate of the retained review worktrees.~~ Done: reports preserved under
+   `docs/ux-audit-2026-09-07/`, worktrees pruned.
 
-Recommendation: keep going through the journeys. Game review was the only family with no evidence of
-ever having been exercised, and one pass found four defects, so the remaining four are worth the
-same treatment. The other three items are small and can ride along with whatever touches their area
-next.
+Recommendation: keep going through the journeys. Two passes have now found nine defects between
+them, four of them blocking the journey they were found in, so the remaining three are worth the
+same treatment. Annotation pairs naturally with item 2, since both live in the export and download
+surface. Item 3 can ride along with whatever touches CI next.
 
 ## 1. The five completion journeys
 
@@ -73,13 +74,47 @@ Still open, and deliberately not claimed:
   17…Rxf7 Δ−2.44). Browser engine search is time-sensitive; a review is not reproducible run to run.
 - Only White, only this fixture, and no game-review error path (engine lost mid-scan, cancel, retry).
 
-### 1b. Position
+### 1b. Position — done 2026-09-08
 
-Done when: a known position is chosen visibly, evaluated to a terminal candidate list, a named legal
-candidate is compared, a continuation is validated and its child position shown, and an invalid
-input is deliberately rejected. Record scores with White-POV labels. Verify a real pointer or
-keyboard move and undo rather than inferring one from a filename — the original P2 claim of a
-successful move was not supported by its own snapshot.
+Ran through the controller against `rich-repertoire.pgn` as White, at the position after `6. Bd3`
+chosen by clicking it in the move tree. Three runs recorded in the untracked `.ux-review/position/`
+tree; its `review.md` is the record, including a run abandoned because of a defect in the review
+scaffolding rather than the app. Zero faults throughout.
+
+`apps/ui/test/fixtures/ux-review/position-provider.js` is the `--setup` file: it stubs OpenRouter
+and stands in for the model's tool choice only, reading the verb and the SAN tokens from the
+reviewer's own message.
+
+Five defects found and fixed, with regression cover in `apps/ui/test/e2e/position-cards.spec.ts`:
+
+- `evaluate_position` had no card. The generic fallback rendered a single navigation row — the bare
+  FEN — while the payload carried three ranked lines with SAN, centipawns and depth plus an explicit
+  `eval_pov`/`eval_sign`. The White-POV labelling this journey must record was in the payload and
+  not on screen.
+- `compare_moves` had no card either, so a comparison rendered as the same lone FEN, dropping both
+  ranked candidates and their `eval_cp`/`mover_cp`.
+- `validate_line` rendered a **completely empty card**: `NavigationRows` looks for
+  `path`/`san_path`/`fen`/`ply` and the payload's key is `finalFen`, so nothing matched. The child
+  position the journey requires could be neither seen nor reached.
+- An illegal candidate was rejected by the engine layer (`{"san":"Ra3","error":"illegal_move"}`) but
+  the rejection was invisible: the error sits inside `candidates[]` and `ToolResult` only checks for
+  a top-level `error`, so it rendered like a successful comparison.
+- A move played on the board could not be undone. `actions.play` called `playMove` and
+  `recordDocumentChange` but never `recordMutation`, while every `applyEdit` path did, so Ctrl+Z was
+  a no-op for the one kind of change a person makes by hand and there is no visible Undo control. A
+  mis-dragged piece stayed in the repertoire.
+
+Still open, and deliberately not claimed:
+
+- `Compare Nxe4` is silently answered as `Ne4`. Lenient SAN parsing is defensible; the new card at
+  least prints the canonical SAN so the coercion is visible.
+- After undoing back to the saved content the document still reports "1 unsaved change". It counts
+  changes rather than comparing content. Predates this work and applies to every mutation type —
+  settle it in 1d, where staging and accepting are the subject.
+- Two drags were swallowed shortly after switching to the Analysis tab and the same drag succeeded
+  after a longer settle. Timing; not isolated, not claimed as a defect.
+- One fixture, one position, White prepared. No promotion, no `get_legal_moves`, no cloud-eval or
+  tablebase path.
 
 ### 1c. Annotation
 

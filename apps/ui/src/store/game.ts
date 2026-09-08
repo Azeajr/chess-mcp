@@ -130,10 +130,20 @@ export const actions = {
   },
 
   play(orig: string, dest: string, promotion?: string) {
-    const r = tree().playMove(path(), orig, dest, promotion);
-    setPath(r.path);
-    if (r.appended) recordDocumentChange();
-    else bump();
+    // A move played on the board edits the document exactly as an assistant edit does, but it used
+    // to skip the history entirely: every applyEdit path recorded a mutation and this one did not.
+    // Undo was therefore a no-op for the one kind of change a person makes by hand, and a
+    // mis-dragged piece stayed in the repertoire with no visible way to take it back.
+    const playOnTree = () => {
+      const r = tree().playMove(path(), orig, dest, promotion);
+      setPath(r.path);
+      if (r.appended) recordDocumentChange();
+      else bump();
+      // Walking into a move that already exists is navigation, not a change; reporting it as a
+      // failed mutation makes recordMutation drop the entry instead of stacking an empty undo.
+      return { ok: r.appended };
+    };
+    recordMutation(promotion ? "promotion" : "play", playOnTree);
   },
 
   goto(p: Path) {

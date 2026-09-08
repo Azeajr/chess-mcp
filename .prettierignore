@@ -1,0 +1,3 @@
+# The UX review controller evaluates these files as a single expression (pnpm ux:review --setup).
+# A formatter-added trailing semicolon makes them unparseable, so keep the formatter out.
+apps/ui/test/fixtures/ux-review/*-provider.js
