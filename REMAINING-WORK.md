@@ -23,6 +23,45 @@ treatment. Do 1d before 1e: the staging and revision-bound writer it exercises i
 path left, and 1e can then close the Strategic Fit download call sites in the same pass. Item 3 can
 ride along with whatever touches CI next.
 
+## How to pick this up
+
+Read this file and `docs/UX_REVIEW.md`. Between them they are enough to continue; nothing else from
+the sessions that produced them is needed.
+
+Each journey follows the same shape, and it is worth repeating rather than reinventing:
+
+1. Branch from `main`. Start a session with `pnpm ux:review -- --session <name> --port <free port>
+start --workflow <label>`, seeding `apps/ui/test/fixtures/ux-review/rich-repertoire.pgn` unless
+   the journey needs a game, in which case use `sample-game.pgn`.
+2. Drive only visible controls. Read every result from the rendered cards, then confirm what the
+   card dropped by turning on Settings → "Show technical details" and reading the raw JSON. Three of
+   the four journeys so far found their worst defects exactly there: the payload carried the answer
+   and the card did not show it.
+3. Fix, then `reset` and replay the same seed through the same controls.
+4. Promote each finding to a test, run `pnpm lint`, `pnpm format:check`, `pnpm docs:check`, the UI
+   typecheck and `pnpm --filter @chess-mcp/ui test:chat`, then `pnpm test:e2e:container` as the
+   authoritative gate.
+5. Record the run in the session's `review.md`, including every failed attempt, then summarise here.
+
+Practical notes earned the hard way:
+
+- Anything reached through the assistant needs a provider. `apps/ui/test/fixtures/ux-review/`
+  holds two `--setup` stubs — `game-review-provider.js` and `position-provider.js` — that stand in
+  for the model's tool choice and nothing else. Copy one for a new journey. They are listed in
+  `.prettierignore` because the controller evaluates them as a single expression and a
+  formatter-added trailing semicolon makes them unparseable.
+- A forwarded CLI call is killed after 180 seconds. Keep every bounded wait under that.
+- `pnpm test:e2e:container` buffers all output until it exits, and the harness task notification's
+  exit code has been wrong at least once. Read the run's output and check the "N passed / N failed"
+  line before believing it.
+- Run the unit suite through `pnpm --filter @chess-mcp/ui test:chat`. Calling `node --test` with a
+  glob from the repository root silently picks up the Playwright specs, which cannot run there.
+- Host WebKit is not installed, so `pnpm test:e2e` fails its webkit project locally. That is the
+  environment, not the tests; the container gate is the authority.
+
+Open pull requests at the time of writing: #62 carries 1c and item 2 and is the branch this section
+lives on. #59, #60 and #61 are merged.
+
 ## 1. The five completion journeys
 
 **Status: open. Not claimed, not partially credited.**
