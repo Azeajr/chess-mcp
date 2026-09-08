@@ -179,7 +179,20 @@ Each forwarded CLI call is killed after 180 seconds, so keep every bounded wait 
 repeat it rather than asking for one long one; the browser keeps working across the boundary. In
 this profile `page.mouse.wheel` throws — mobile WebKit has no wheel — so scroll a container by
 focusing or clicking something inside it, and read long content with `textContent`, since a
-zero-height scroller yields an empty `innerText`.
+zero-height scroller yields an empty `innerText`. `textContent` also returns hidden text, so it says
+what a section holds, not what the reader can see; check `open`, visibility or a bounding box before
+calling something visible.
+
+Anything reached through the assistant needs a provider. `apps/ui/test/fixtures/ux-review/` holds
+`--setup` stubs — `game-review-provider.js` and `position-provider.js` — that stand in for the
+model's tool choice and nothing else; both tools then run for real in the browser. Copy one for a
+new journey. They are listed in `.prettierignore` because the controller evaluates each as a single
+expression, and a formatter-added trailing semicolon makes that unparseable.
+
+Editing source mid-session reloads the app through HMR, which clears in-memory state such as a
+completed Strategic Fit report and resets every `<details>` to its markup default. That is the
+development server, not the application; `reset` and replay rather than reasoning from the state an
+edit left behind.
 
 ## Edit, replay, and promote
 
@@ -196,6 +209,13 @@ observable behavior such as reachability, focus return, state continuity, or no 
 projects. Run focused checks, then `pnpm test:e2e:container` as the authoritative final gate.
 Approved snapshots change only through `pnpm test:e2e:update-snapshots`. See the
 [E2E policy](../AGENTS.md) and [verification commands](../README.md#verify).
+
+Three things about that gate, learned by being caught by each. It buffers all output until it exits,
+and a wrapper's reported exit code has been wrong at least once, so read the run's own
+"N passed / N failed" line before believing it passed. Host WebKit is not installed, so plain
+`pnpm test:e2e` fails its webkit project locally — the environment, not the tests; the container is
+the authority. Run the UI unit suite as `pnpm --filter @chess-mcp/ui test:chat`: `node --test` with
+a glob from the repository root silently picks up the Playwright specs, which cannot run there.
 
 ```sh
 pnpm ux:review -- check
