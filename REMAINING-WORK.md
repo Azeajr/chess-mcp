@@ -9,17 +9,18 @@ only the forward list. `ROADMAP.md` holds unshipped product and quality work unr
 
 ## Priority
 
-1. Complete the five journeys. Game review, position, annotation and repertoire are done; Strategic
-   Fit remains.
-2. ~~Cover the export/download failure path.~~ Done alongside 1c, for the annotated-repertoire
-   export. Five Strategic Fit call sites still swallow a refused download; settle them with 1e.
-3. Promote the clean-checkout link check into CI.
+1. ~~Complete the five journeys.~~ Done: game review, position, annotation, repertoire and
+   Strategic Fit have all been driven and replayed.
+2. ~~Cover the export/download failure path.~~ Done: the annotated-repertoire export alongside 1c,
+   and every other save control alongside 1e.
+3. Promote the clean-checkout link check into CI. **The only item left.**
 4. ~~Decide the fate of the retained review worktrees.~~ Done: reports preserved under
    `docs/ux-audit-2026-09-07/`, worktrees pruned.
 
-Recommendation: finish with 1e, which also closes the five Strategic Fit download call sites named
-in item 2. Four passes have now found sixteen defects between them, so the last journey is worth
-the same treatment. Item 3 can ride along with whatever touches CI next.
+Five passes found nineteen defects between them. What remains is item 3 and the coverage each
+journey explicitly did not claim — listed under its own heading below, and worth reading before
+deciding whether another pass is warranted. The largest gaps are that every journey ran White on
+one fixture, and that no journey exercised the CT Black input.
 
 ## How to pick this up
 
@@ -57,18 +58,17 @@ Practical notes earned the hard way:
 - Host WebKit is not installed, so `pnpm test:e2e` fails its webkit project locally. That is the
   environment, not the tests; the container gate is the authority.
 
-Open pull requests at the time of writing: #62 carries 1c and item 2 and is the branch this section
-lives on. #59, #60 and #61 are merged.
+Pull requests: #59, #60, #61, #62 and #63 are merged. The Strategic Fit journey is the branch this
+section now lives on.
 
 ## 1. The five completion journeys
 
-**Status: open. Not claimed, not partially credited.**
+**Status: all five done, 2026-09-08. Each entry states what it does not claim.**
 
-The shipped fixes carry focused regression coverage, and the container gate passes 685 tests. That
-establishes the fixes behave as written. It does not establish that a person can complete each
-workflow through visible controls, which is what the audit asked for and what no source report
-delivered. The implementation replay in the findings document explicitly disclaims being an
-end-to-end review of every family.
+The original entry: the shipped fixes carried focused regression coverage, which establishes that
+the fixes behave as written and not that a person can complete each workflow through visible
+controls. That is what the audit asked for and what no source report delivered. Each journey below
+was therefore driven through the controller and replayed after its fixes.
 
 Run these through the controller described in `docs/UX_REVIEW.md`. A workflow label is an artifact
 name, not an executed journey: record preconditions, the visible steps taken, running **and**
@@ -224,12 +224,42 @@ Still open, and deliberately not claimed:
 - The collapsed summary still counts `lines` only, so Opponent preparation reads "0 results" beside
   a body that now says how many games were fetched.
 
-### 1e. Strategic Fit
+### 1e. Strategic Fit — done 2026-09-08
 
-Done when: a profile is chosen, structural analysis runs, a finding and its evidence are inspected,
-the workspace returns without document loss, and keyboard focus is tested. Repeat with the CT Black
-input if claiming CT-specific coverage — the original run used a white fixture, not the CT input its
-report implied.
+Ran through the controller against `rich-repertoire.pgn` as White. Four runs recorded in the
+untracked `.ux-review/strategic-fit/` tree; its `review.md` is the record, including the HMR reload
+that wiped a report mid-run and a scripted loop that was wrong rather than the app. No provider
+needed.
+
+The set completed: Balanced profile chosen (header moved from `Inferred · provisional` to
+`Explicit`), analysis run to a terminal report of 10 findings, a finding and its matched-position
+evidence inspected, "Return to repertoire" left the PGN at 849 bytes and revision 1 and restored
+focus to the opener, and the workspace reopened, switched stage and closed again from the keyboard.
+
+Three defects found and fixed, with regression cover in
+`apps/ui/test/e2e/strategic-fit-journey.spec.ts` and `apps/ui/test/strategic-fit-reanalysis.test.ts`:
+
+- **The first resolution recorded against a report was silently thrown away.** Saving one schedules
+  a reanalysis of its cohort; that run recomputes the finding's evidence with the decision applied,
+  sees it change, and reopens the decision that asked for the run. `resolutions` stayed empty, the
+  counter stayed at 10, and a second identical save then held. The request now names the finding
+  whose resolution triggered it and reconciliation leaves that one alone.
+- **Recording a resolution said nothing.** The Resolution stage emptied to "No resolution selected"
+  because the message the transition composes lives in the finding's card, which unmounts, and in a
+  review snapshot that the new report id resets. The last action is now held in the store.
+- **Five save controls dropped their result** — item 2's leftovers, plus the drill-deck export and
+  the chat artifact card. All save surfaces now report through one status line and one wording.
+
+Also corrected: the reconcile line counted findings with changed evidence and called them reopened.
+
+Still open, and deliberately not claimed:
+
+- White and this fixture only. The CT Black input was not run, so no CT-specific coverage — the
+  original source report implied CT coverage it did not have, and this run does not add it.
+- The review was never completed (9 findings left unresolved), so "Finish the review" and its
+  summary export were not exercised end to end.
+- Cancel during analysis was available but never pressed to completion.
+- The Replacement Lab was unavailable for every finding in this fixture, so that path is untested.
 
 ## 2. Export and download failure path
 
@@ -248,9 +278,12 @@ downloaded again without recomputing, renders a specific error when a download f
 never had. Proven by `apps/ui/test/artifacts.test.ts` at the source and
 `apps/ui/test/e2e/export-download.spec.ts` end to end; both fail if the failure is dropped.
 
-Still open: five other `saveArtifact` call sites — two in `StrategicFitTransfer` and three across
-the Strategic Fit components — still ignore the result and so still swallow a refused download.
-Settle them with 1e.
+**Closed 2026-09-08 with 1e.** Every remaining call site now reports its result through one shared
+status line (`components/primitives/ArtifactSaveStatus.tsx`) and one wording
+(`artifactSaveMessage`): `StrategicFitTransfer` (×2), `ReviewSummary`, `ProfileSettings`,
+`TrainException` (×2), the drill-deck export in the Repertoire panel, and the chat artifact card —
+eight in total, three more than this entry had counted. `apps/ui/test/e2e/strategic-fit-journey.spec.ts`
+proves a save reports success and a refused download at the transfer controls.
 
 For the record, the original entry: the audit's QA-6 asked for declared error scenarios. Checking
 the suite rather than the reports showed most already covered — `explorer_auth_required` in

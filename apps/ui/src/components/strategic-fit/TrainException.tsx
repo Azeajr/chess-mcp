@@ -1,6 +1,7 @@
 import { Show, createEffect, createMemo, createSignal } from "solid-js";
 import type { StrategicFinding, StrategicFitReport } from "@chess-mcp/chess-tools";
-import { saveArtifact } from "../../store/artifacts";
+import { saveArtifact, type ArtifactSaveResult } from "../../store/artifacts";
+import ArtifactSaveStatus from "../primitives/ArtifactSaveStatus";
 import { displayStrategicFitFindingResolution } from "../../store/strategic-fit-finding-resolutions";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
@@ -60,11 +61,14 @@ export default function TrainException(props: {
     activeReference() === null ? null : strategicFitDrillsFor(subject()),
   );
 
+  const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
   const create = () => setResult(createStrategicFitTrainingItem(input()));
   const savePersisted = () => {
     const exported = exportStrategicFitTrainingItem(input());
     setResult(exported);
-    if (exported.artifact_id !== null) saveArtifact(exported.artifact_id);
+    // Producing the drill JSON and handing it to the browser are separate outcomes, and only the
+    // first one used to be reported.
+    setSaved(exported.artifact_id === null ? null : saveArtifact(exported.artifact_id));
   };
 
   return (
@@ -179,11 +183,17 @@ export default function TrainException(props: {
         </Show>
         <Show when={result()?.artifact_id}>
           {(artifactId) => (
-            <button type="button" onClick={() => saveArtifact(artifactId())}>
+            <button
+              type="button"
+              onClick={() => {
+                setSaved(saveArtifact(artifactId()));
+              }}
+            >
               Save basic drill JSON
             </button>
           )}
         </Show>
+        <ArtifactSaveStatus result={saved()} />
       </section>
     </Show>
   );

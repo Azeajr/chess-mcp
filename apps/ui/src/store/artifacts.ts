@@ -47,6 +47,14 @@ export type ArtifactSaveResult =
   | { ok: true; name: string }
   | { ok: false; reason: "missing" | "blocked" };
 
+/** One wording for every surface that saves an artifact, success and failure alike. */
+export function artifactSaveMessage(result: ArtifactSaveResult): string {
+  if (result.ok) return `Saved ${result.name}.`;
+  return result.reason === "missing"
+    ? "The generated file is no longer available in this tab. Generate it again."
+    : "The browser blocked the download. Check its download settings, then try again.";
+}
+
 /**
  * Hands a generated artifact to the browser as a download. Callers must act on the result: a
  * download that never happens is otherwise indistinguishable from one that did, because the page

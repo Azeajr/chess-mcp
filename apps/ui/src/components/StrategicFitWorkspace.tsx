@@ -31,6 +31,7 @@ import { strategicFitFindingQueue } from "../store/strategic-fit-finding-queue";
 import {
   displayStrategicFitFindingResolution,
   strategicFitFindingResolutionReview,
+  strategicFitLastResolutionAction,
   strategicFitFindingResolutionUnresolvedCount,
   synchronizeStrategicFitFindingResolutionReview,
 } from "../store/strategic-fit-finding-resolutions";
@@ -191,6 +192,10 @@ export default function StrategicFitWorkspace() {
   };
   const resolutionFallbackState = (): StrategicFitWorkspaceRegionState =>
     strategicFitWorkspaceRegions().resolution;
+  // Recording a resolution takes the finding out of review, which unmounts the card that reports
+  // what was recorded: the pane emptied to "No resolution selected" the instant a decision was
+  // saved, and the only trace was the analyzer's reconcile line at the top of the workspace.
+  const lastResolutionAction = () => strategicFitLastResolutionAction();
   const resolveCurrentEvidenceLine = (
     reportId: string,
     findingId: string,
@@ -751,7 +756,20 @@ export default function StrategicFitWorkspace() {
                         <Show
                           when={currentResolution()}
                           fallback={
-                            <RegionState region="resolution" state={resolutionFallbackState()} />
+                            <>
+                              <Show when={lastResolutionAction()}>
+                                {(action) => (
+                                  <p
+                                    class="strategic-fit-resolution-feedback"
+                                    role={action().state === "blocked" ? "alert" : "status"}
+                                    data-resolution-last-action={action().state}
+                                  >
+                                    {action().message}
+                                  </p>
+                                )}
+                              </Show>
+                              <RegionState region="resolution" state={resolutionFallbackState()} />
+                            </>
                           }
                         >
                           {(resolution) => (

@@ -1,4 +1,4 @@
-import { For, Show, createMemo } from "solid-js";
+import { For, Show, createMemo, createSignal } from "solid-js";
 import { strategicFitPlanSectionLabel, STRATEGIC_FIT_VOCABULARY } from "../content/strategicFit";
 import type {
   StrategicFinding,
@@ -34,7 +34,8 @@ import {
   strategicFitPortfolioConstraintSet,
   strategicFitPortfolioSelection,
 } from "../store/strategic-fit-portfolio";
-import { artifactById, saveArtifact } from "../store/artifacts";
+import { artifactById, saveArtifact, type ArtifactSaveResult } from "../store/artifacts";
+import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
 import { executeCommand, lastDirectCommandRequest } from "../store/commands";
 import { showTechnicalDetails, setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
@@ -992,15 +993,25 @@ function StagedEditResult(props: { data: Data }) {
 function ArtifactResult(props: { data: Data }) {
   const id = () => props.data.artifact_id as string;
   const artifact = () => artifactById(id());
+  // Save handed the file to the browser and reported nothing, so a refused download read as a
+  // successful one.
+  const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
   return (
     <div class="result-card artifact-card">
       <div class="result-title">{displayValue(props.data.name ?? "Generated artifact")}</div>
       <div class="result-summary">
         {String(props.data.format).toUpperCase()} · {String(props.data.bytes)} bytes
       </div>
-      <button class="result-accept" disabled={!artifact()} onClick={() => saveArtifact(id())}>
+      <button
+        class="result-accept"
+        disabled={!artifact()}
+        onClick={() => {
+          setSaved(saveArtifact(id()));
+        }}
+      >
         Save
       </button>
+      <ArtifactSaveStatus result={saved()} />
     </div>
   );
 }

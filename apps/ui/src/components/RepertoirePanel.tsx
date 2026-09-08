@@ -50,7 +50,8 @@ import {
   cancelCommand,
   type DirectCommand,
 } from "../store/commands";
-import { saveArtifact } from "../store/artifacts";
+import { artifactSaveMessage, saveArtifact, type ArtifactSaveResult } from "../store/artifacts";
+import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
 import { analysisDepth } from "../store/engine-settings";
 import { showTechnicalDetails } from "../store/settings";
 import StrategicFitTransfer from "./StrategicFitTransfer";
@@ -147,6 +148,7 @@ export default function RepertoirePanel() {
     return typeof reason === "string" ? reason : "";
   };
   const [deckExporting, setDeckExporting] = createSignal(false);
+  const [deckSaved, setDeckSaved] = createSignal<ArtifactSaveResult | null>(null);
 
   // An export finishes by handing the file straight to the browser, so a download that never
   // happens used to look exactly like one that did: saveArtifact reported the failure and nobody
@@ -176,11 +178,7 @@ export default function RepertoirePanel() {
               {(reason) => (
                 <ErrorState
                   title="Export could not be downloaded"
-                  message={
-                    reason() === "missing"
-                      ? "The generated file is no longer available in this tab. Generate it again."
-                      : "The browser blocked the download. Check its download settings, then try again."
-                  }
+                  message={artifactSaveMessage({ ok: false, reason: reason() })}
                 />
               )}
             </Show>
@@ -499,7 +497,9 @@ export default function RepertoirePanel() {
                     const artifactId = (
                       state("find_only_moves").result?.deck as Record<string, unknown> | undefined
                     )?.artifact_id;
-                    if (typeof artifactId === "string") saveArtifact(artifactId);
+                    // The deck export hands the CSV straight to the browser and said nothing
+                    // either way, exactly as the annotated export used to.
+                    if (typeof artifactId === "string") setDeckSaved(saveArtifact(artifactId));
                   })
                   .finally(() => {
                     setDeckExporting(false);
@@ -509,6 +509,7 @@ export default function RepertoirePanel() {
               {deckExporting() ? "Creating drill deck…" : "Create drill deck"}
             </button>
           </Show>
+          <ArtifactSaveStatus result={deckSaved()} />
         </details>
 
         <details class="rep-section">

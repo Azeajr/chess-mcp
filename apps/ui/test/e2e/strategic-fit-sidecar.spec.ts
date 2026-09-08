@@ -150,7 +150,7 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
   });
   await page.getByLabel("I understand this sidecar belongs to a different document ID.").check();
   await page.getByRole("button", { name: "Confirm metadata import" }).click();
-  await expect(page.getByRole("status")).toContainText(
+  await expect(page.locator("[data-sidecar-import-status]")).toContainText(
     "Strategic Fit metadata imported and saved.",
   );
   expect(

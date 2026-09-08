@@ -34,6 +34,13 @@ type StrategicFitReanalysisScope = StrategicFitAffectedCohortScope | StrategicFi
 export interface StrategicFitReanalysisRequest {
   readonly trigger: StrategicFitReanalysisTrigger;
   readonly scope: StrategicFitReanalysisScope;
+  /**
+   * Findings whose own resolution asked for this run. Recording a resolution changes the analyzer
+   * projection for its cohort, which changes that finding's evidence — reopening it on that basis
+   * cancels the decision that caused it, so the first resolution a reader records used to vanish
+   * with no message and only the second attempt held.
+   */
+  readonly originating_semantic_finding_ids?: readonly string[];
 }
 
 export interface StrategicFitReanalysisSummary {
@@ -46,6 +53,8 @@ export interface StrategicFitReanalysisSummary {
   readonly auto_resolved_semantic_finding_ids: readonly string[];
   readonly reappeared_semantic_finding_ids: readonly string[];
   readonly changed_evidence_semantic_finding_ids: readonly string[];
+  /** Findings whose active resolution this run actually reopened — a subset of the changed ones. */
+  readonly reopened_semantic_finding_ids: readonly string[];
   readonly new_semantic_finding_ids: readonly string[];
   readonly preserved_resolution_ids: readonly string[];
 }
@@ -105,11 +114,15 @@ export function affectedCohortReanalysisRequest(
   trigger: Extract<StrategicFitReanalysisTrigger, "resolution-change" | "cohort-override">,
   cohortIds: readonly string[],
   reason: string,
+  originatingSemanticFindingIds: readonly string[] = [],
 ): StrategicFitReanalysisRequest {
   const ids = sortedUnique(cohortIds.filter(Boolean));
+  const originating = sortedUnique(originatingSemanticFindingIds.filter(Boolean));
+  const origin = originating.length === 0 ? {} : { originating_semantic_finding_ids: originating };
   return ids.length === 0
     ? {
         trigger,
+        ...origin,
         scope: {
           kind: "full-scan",
           cohort_ids: [],
@@ -117,7 +130,7 @@ export function affectedCohortReanalysisRequest(
             "Affected cohort identity was unavailable, so reconciliation requires a full scan.",
         },
       }
-    : { trigger, scope: { kind: "affected-cohorts", cohort_ids: ids, reason } };
+    : { trigger, ...origin, scope: { kind: "affected-cohorts", cohort_ids: ids, reason } };
 }
 
 export function planStrategicFitReanalysis(
@@ -299,9 +312,13 @@ export function reconcileStrategicFitReanalysis(
     }
   }
 
+  // A finding whose own resolution asked for this run changed its evidence by being resolved.
+  // Reopening it there would undo the decision that triggered the run; every other changed finding
+  // still reopens, because its evidence moved underneath a decision made against the old evidence.
+  const originating = new Set(request.originating_semantic_finding_ids ?? []);
   const reopenIds = sortedUnique([
     ...reappeared,
-    ...changed.filter((id) => activeResolutions.has(id)),
+    ...changed.filter((id) => activeResolutions.has(id) && !originating.has(id)),
   ]);
   const autoIds = autoResolved.map((finding) => finding.semantic_finding_id).sort(compareStrings);
   const preservedResolutionIds = [...activeResolutions.entries()]
@@ -325,6 +342,7 @@ export function reconcileStrategicFitReanalysis(
       auto_resolved_semantic_finding_ids: autoIds,
       reappeared_semantic_finding_ids: reappeared.sort(compareStrings),
       changed_evidence_semantic_finding_ids: changed.sort(compareStrings),
+      reopened_semantic_finding_ids: reopenIds,
       new_semantic_finding_ids: created.sort(compareStrings),
       preserved_resolution_ids: preservedResolutionIds,
     },
