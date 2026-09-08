@@ -13,6 +13,7 @@ import {
   numbered,
   titleCase,
 } from "../src/content/format.ts";
+import { GAPS_SCOPE } from "../src/content/repertoire.ts";
 import { TOOL_LABELS, taskLabel } from "../src/content/tools.ts";
 import { assertContentCoverage } from "../../../scripts/check-content.mjs";
 
@@ -45,6 +46,23 @@ test("content records preserve current labels and fallback error rendering", () 
   assert.equal(errorContent("engine_unavailable").title, "Local engine unavailable");
   assert.equal(errorContent("command_failed").title, "command failed");
   assert.deepEqual(Object.keys(TOOL_LABELS).sort(), [...BROWSER_COMMAND_NAMES].sort());
+});
+
+test("gap scan scope copy never lets a partial scan read as a whole one", () => {
+  // The scan checks 12 decision nodes; the CT repertoires have 96 and 265 of them, so the counts
+  // the panel prints are the difference between "your repertoire is clean" and "12 nodes are".
+  assert.equal(
+    GAPS_SCOPE.checked(12, 96),
+    "Checked the first 12 of 96 positions; the rest were not scanned.",
+  );
+  assert.equal(
+    GAPS_SCOPE.checked(12, 265),
+    "Checked the first 12 of 265 positions; the rest were not scanned.",
+  );
+  // A tree small enough to finish makes no claim about an unscanned remainder.
+  assert.equal(GAPS_SCOPE.checked(8, 8), "Checked all 8 positions.");
+  assert.equal(GAPS_SCOPE.truncated(12, 30), "Showing the 12 most severe of 30 gaps found.");
+  assert.equal(GAPS_SCOPE.note(12), "Up to 12 positions · local engine");
 });
 
 test("content gate rejects a browser contract without a user-facing label", () => {
