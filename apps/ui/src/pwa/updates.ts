@@ -1,6 +1,6 @@
 /// <reference types="vite-plugin-pwa/client" />
 
-import { createMemo, createSignal } from "solid-js";
+import { createSignal } from "solid-js";
 import { registerSW } from "virtual:pwa-register";
 import { registerOperation, runningOperations, settleOperationQuietly } from "../store/operations";
 import { assertTestOnly } from "../store/test-seam";
@@ -16,9 +16,8 @@ const simulatedPendingOnLoad =
 const [updatePending, setUpdatePending] = createSignal(simulatedPendingOnLoad);
 const [dismissedForPage, setDismissedForPage] = createSignal(false);
 
-export const pwaUpdateVisible = createMemo(
-  () => updatePending() && !dismissedForPage() && runningOperations().length === 0,
-);
+export const pwaUpdateVisible = () =>
+  updatePending() && !dismissedForPage() && runningOperations().length === 0;
 
 export { updatePending as pwaUpdatePending };
 

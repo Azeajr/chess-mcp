@@ -8,6 +8,7 @@ import {
 } from "../store/files";
 import { setRecoverDialogOpen } from "../store/persist";
 import { actions } from "../store/game";
+import { setDocumentStatusOpen } from "../store/ui";
 
 interface MenuEntry {
   readonly id: string;
@@ -43,6 +44,12 @@ export default function DocumentMenu() {
       });
     }
     list.push(
+      {
+        id: "menu-save-status",
+        group: "Storage",
+        label: "Save status",
+        run: () => setDocumentStatusOpen(true),
+      },
       {
         id: "menu-new",
         group: "Start over",

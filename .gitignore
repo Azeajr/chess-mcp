@@ -20,9 +20,17 @@ apps/ui/public/openings.tsv
 
 # agent worktree checkouts
 .claude/worktrees/
+/.worktrees/
 
 # per-developer Claude Code permission allowlist — machine-local, never shared
 .claude/settings.local.json
 
 # Interactive UX review sessions and evidence (not regression baselines)
 /.ux-review/
+
+# Personal repertoire exports used as review input. Committed fixtures are
+# eval-stripped and anonymized under apps/mcp-server/test/fixtures/ instead.
+/*.pgn
+
+# Retained gate/validation logs; kept out of the tree but survive a reboot
+/logs/

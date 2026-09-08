@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 
 export const [settingsOpen, setSettingsOpen] = createSignal(false);
+export const [documentStatusOpen, setDocumentStatusOpen] = createSignal(false);
 
 export type MobileTab = "analysis" | "moves" | "chat";
 export const [mobileTab, setMobileTab] = createSignal<MobileTab>("analysis");

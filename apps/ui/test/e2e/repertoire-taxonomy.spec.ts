@@ -13,7 +13,7 @@ const COMMAND_TOOLS = [
   { command: "prep_vs_opponent", action: "Prepare", expectedArgs: { username: "" } },
   {
     command: "export_annotated_repertoire",
-    action: "Generate",
+    action: "Generate annotated repertoire",
     expectedArgs: { max_positions: 60, depth: 20 },
   },
 ] as const;

@@ -40,6 +40,15 @@ On Linux hosts unable to create Docker bridge interfaces, use
 `E2E_DOCKER_NETWORK=host pnpm test:e2e:container`. Stop host Vite/review servers first to free
 port 4173. This changes only container networking, not the authoritative image or test matrix.
 
+The container gate runs one Playwright worker and is bounded by `E2E_DOCKER_MEMORY` (6g) and
+`E2E_DOCKER_CPUS` (4); passing `--workers`/`-j` overrides the single-worker default. Review-session
+containers are bounded by `UX_REVIEW_DOCKER_MEMORY` (3g) and `UX_REVIEW_DOCKER_CPUS` (2). Each
+container pins `--memory-swap` to its memory bound, because Docker otherwise grants twice it. Playwright
+otherwise takes 50% of the logical cores, which exhausted host memory on 2026-09-07. Each review
+session's Vite server runs on the host, outside those container bounds, so it starts with
+`--max-old-space-size` (`UX_REVIEW_SERVER_HEAP_MB`, default 1024); that caps its V8 heap but not
+child processes such as esbuild. Run one heavy validation workload at a time.
+
 For focused host iteration, `pnpm test:e2e -- <path-or-grep>` runs one worker with a 15-minute cap.
 `pnpm --filter @chess-mcp/ui test:e2e:host` runs the broader Chromium and Firefox non-visual subset.
 Resource limits are configurable through `E2E_CPU_QUOTA`, `E2E_MEMORY_HIGH`, `E2E_MEMORY_MAX`,

@@ -1,5 +1,3 @@
-import { createMemo } from "solid-js";
-
 export const shortcutLabels = [
   { id: "document.save", label: "Save", key: "s", scope: "global" },
   { id: "document.undo", label: "Undo", key: "z", scope: "global" },
@@ -19,9 +17,8 @@ function formatKey(key: string): string {
   return key;
 }
 
-export const shortcutDisplayLabels = createMemo(() =>
+export const shortcutDisplayLabels = () =>
   shortcutLabels.map((label) => ({
     ...label,
     formattedKey: formatKey(label.key),
-  })),
-);
+  }));
