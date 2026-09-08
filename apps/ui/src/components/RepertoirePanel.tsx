@@ -52,6 +52,7 @@ import {
 } from "../store/commands";
 import { saveArtifact } from "../store/artifacts";
 import { analysisDepth } from "../store/engine-settings";
+import { showTechnicalDetails } from "../store/settings";
 import StrategicFitTransfer from "./StrategicFitTransfer";
 import { setStrategicFitWorkspaceOpen } from "../store/ui";
 import Button from "./primitives/Button";
@@ -62,10 +63,20 @@ import Select from "./primitives/Select";
 import Status from "./primitives/Status";
 import InteractiveRow from "./primitives/InteractiveRow";
 import { centipawnDelta, centipawnText, evaluationText, numbered } from "../content/format";
+import { errorContent } from "../content/errors";
 import { STRATEGIC_FIT_ENTRY } from "../content/strategicFit";
 import { GAPS_STATES, SHORTCUT_INSPECT, marginReading } from "../content/repertoire";
 
 const usersTurn = () => (fen().split(" ")[1] === "w" ? "white" : "black") === color();
+
+// Every scan button lives in its section's <summary>, and each one calls preventDefault to stop a
+// press from toggling the disclosure shut. Connect, Shorten and Extend here stopped there, so their
+// results — rows, errors and empty states alike — rendered inside a section that was still closed
+// and the press looked like it had done nothing.
+const openSection = (control: Element) => {
+  const section = control.closest("details");
+  if (section) section.open = true;
+};
 
 export default function RepertoirePanel() {
   const [mode, setMode] = createSignal<"low_memorization" | "sharp">("low_memorization");
@@ -108,6 +119,32 @@ export default function RepertoirePanel() {
     if (count === null) return null;
     const at = entry.completedAt;
     return `${count} ${count === 1 ? "result" : "results"}${at ? ` · ${relativeTime(at)}` : ""}`;
+  };
+  const prepSummary = (): string | null => {
+    const result = state("prep_vs_opponent").result;
+    if (!result || state("prep_vs_opponent").error) return null;
+    const total = typeof result.games_total === "number" ? result.games_total : null;
+    if (total === null) return null;
+    const name = typeof result.username === "string" ? result.username : "that account";
+    if (total === 0) return `No games fetched for ${name}. Check the username, then prepare again.`;
+    const asOpponent =
+      typeof result.games_matched_color === "number" ? result.games_matched_color : 0;
+    const side = result.opponent_color === "white" ? "White" : "Black";
+    const reachedPrep =
+      typeof result.coverage_pct === "number" ? `${result.coverage_pct}% reached your prep` : null;
+    return [
+      `${total} ${total === 1 ? "game" : "games"} fetched · ${asOpponent} as ${side}`,
+      ...(reachedPrep ? [reachedPrep] : []),
+    ].join(" · ");
+  };
+  const commandErrorDetail = (command: DirectCommand, code: string): string => {
+    // A tool's `reason` is written for its caller — find_structures answers "provide at least one
+    // of structure/center/themes/color_complex" and this panel offers one box, for the structure.
+    // Prefer the mapped guidance where there is one and fall back to the reason.
+    const cause = errorContent(code).cause;
+    if (cause) return cause;
+    const reason = state(command).result?.reason;
+    return typeof reason === "string" ? reason : "";
   };
   const [deckExporting, setDeckExporting] = createSignal(false);
 
@@ -180,8 +217,7 @@ export default function RepertoirePanel() {
           }
           onClick={(e) => {
             e.preventDefault();
-            const section = e.currentTarget.closest("details");
-            if (section) section.open = true;
+            openSection(e.currentTarget);
             const run = executeCommand(command, {
               ...args(),
               ...([
@@ -240,7 +276,25 @@ export default function RepertoirePanel() {
           </div>
         )}
       </Show>
-      <Show when={state(command).error}>{(message) => <ErrorState message={message()} />}</Show>
+      {/*
+        The chat card settled this contract in WP-026 AC-1: the reader gets the mapped title and
+        the raw code only with technical details on. This panel handed the code straight through as
+        the body of a generic "Unable to display this content", so pressing Search with an empty
+        input answered "missing_criteria" and said nothing about what to type.
+      */}
+      <Show when={state(command).error}>
+        {(code) => (
+          <>
+            <ErrorState
+              title={errorContent(code()).title}
+              message={commandErrorDetail(command, code())}
+            />
+            <Show when={showTechnicalDetails()}>
+              <div class="result-code">{code()}</div>
+            </Show>
+          </>
+        )}
+      </Show>
       {downloadStatus(command)}
     </>
   );
@@ -274,7 +328,7 @@ export default function RepertoirePanel() {
     actions.goto(g.path);
     stagePreviewLine(g.path, opt.line);
   };
-  const gapLine = (g: Gap) => {
+  const gapLine = (g: Gap | CoveredGap) => {
     try {
       return numbered(currentTree().sanPathAt(g.path));
     } catch {
@@ -324,7 +378,21 @@ export default function RepertoirePanel() {
       </section>
       <Show when={preview()}>
         {(active) => (
-          <div class="rep-preview" role="status" aria-label="Staged repertoire line">
+          <div
+            class="rep-preview"
+            role="status"
+            aria-label="Staged repertoire line"
+            /*
+              Suggestions are staged from rows near the bottom of a long panel while this card sits
+              at the top of it: staging from "Extend here" on the phone put Accept line and Cancel
+              532px above a 629px viewport, so the tap appeared to do nothing at all.
+            */
+            ref={(el) => {
+              queueMicrotask(() => {
+                el.scrollIntoView({ block: "nearest" });
+              });
+            }}
+          >
             <div class="rep-preview-label">Staged line</div>
             <div class="rep-preview-line">{numbered(active().sans, active().fromPath.length)}</div>
             <div class="rep-preview-actions">
@@ -501,6 +569,12 @@ export default function RepertoirePanel() {
             />
           </div>
           {commandStatus("prep_vs_opponent")}
+          {/*
+            The payload carries games_total, games_matched_color and coverage_pct; the section
+            rendered only `lines`, so an opponent whose games could not be fetched and an opponent
+            with no games in these openings both reported "0 results" and an empty body.
+          */}
+          <Show when={prepSummary()}>{(text) => <div class="scope-note">{text()}</div>}</Show>
           <For each={rows("prep_vs_opponent", "lines")}>
             {(line) => (
               <div class="rep-row-static">
@@ -559,6 +633,7 @@ export default function RepertoirePanel() {
                   class="scan-btn"
                   onClick={(e) => {
                     e.preventDefault();
+                    openSection(e.currentTarget);
                     void scanGaps();
                   }}
                 >
@@ -704,7 +779,14 @@ export default function RepertoirePanel() {
                 title={`${c.uncoveredMove} transposes into ${c.joinsPath.join(" ")}`}
               >
                 <span class="sev">✓</span>
-                <span class="san">{c.uncoveredMove}</span>
+                {/*
+                  Two of these rows read "d5 covered → Nf6" on the same scan and described
+                  different lines: the line each one sits on was only in the `title`, which a touch
+                  device never shows. Gap rows above already lead with it.
+                */}
+                <span class="san">
+                  <span class="muted">{gapLine(c)}</span> · {c.uncoveredMove}
+                </span>
                 <span class="fit">covered → {c.joinsPath.at(-1)}</span>
               </InteractiveRow>
             )}
@@ -718,7 +800,14 @@ export default function RepertoirePanel() {
             <Show
               when={bridgeScanning()}
               fallback={
-                <button class="scan-btn" onClick={(e) => (e.preventDefault(), void scanBridges())}>
+                <button
+                  class="scan-btn"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    openSection(e.currentTarget);
+                    void scanBridges();
+                  }}
+                >
                   Scan
                 </button>
               }
@@ -763,6 +852,7 @@ export default function RepertoirePanel() {
                   class="scan-btn"
                   onClick={(e) => {
                     e.preventDefault();
+                    openSection(e.currentTarget);
                     void scanPrune();
                   }}
                 >
@@ -808,8 +898,14 @@ export default function RepertoirePanel() {
                     title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${centipawnDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
                   >
                     <span class="bridge-icon">✂</span>
+                    {/*
+                      Two shortcuts that reroute at the same point on different lines rendered as
+                      the same row — "d4 d5 → c4" twice — with the line each one shortens only in
+                      the `title`. Lead with that line, as the gap rows do.
+                    */}
                     <span class="san">
-                      {p.atPath.join(" ")} → {p.rerouteMove}
+                      <span class="muted">{numbered(p.linePath)}</span> · {p.atPath.join(" ")} →{" "}
+                      {p.rerouteMove}
                     </span>
                     {/*
                       WP-029 AC-5: the glyphs carried their meaning only in a `title`, which is
@@ -953,7 +1049,11 @@ export default function RepertoirePanel() {
               class="scan-btn"
               aria-label="Suggest an extension"
               disabled={!usersTurn()}
-              onClick={(e) => (e.preventDefault(), void scanComplementary(mode()))}
+              onClick={(e) => {
+                e.preventDefault();
+                openSection(e.currentTarget);
+                void scanComplementary(mode());
+              }}
             >
               Suggest
             </button>

@@ -13,10 +13,13 @@ type ChessHarness = {
 const documentCloseDialog = (page: Page) =>
   page.getByRole("dialog", { name: "Replace current repertoire?" });
 
+// The added move has to be one the fixture does not already answer with. `1... Nf6 2. Nf3` is
+// already in it, so adding Nf3 there merges into the existing line and leaves the PGN
+// byte-identical — and a document identical to the saved one has nothing to export.
 async function makeDocumentDirty(page: Page) {
   return page.evaluate(() =>
     (window as unknown as { __chess: ChessHarness }).__chess.applyEdit("add", ["d4", "Nf6"], {
-      addMoves: ["Nf3"],
+      addMoves: ["e3"],
     }),
   );
 }

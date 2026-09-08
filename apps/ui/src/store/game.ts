@@ -26,9 +26,24 @@ const [documentId, setDocumentId] = createSignal<BrowserDocumentId>(createBrowse
 
 const bump = () => setVersion((v) => v + 1);
 
-function recordDocumentChange() {
+// The header counted mutations rather than comparing content, so undoing every change still read
+// "1 unsaved change" over a document byte-identical to the saved one. Hold the content as it was
+// last saved or loaded and reconcile against it; null means that baseline is unknown (a document
+// restored from browser storage while dirty), and the count then stays a count.
+let savedPgn: string | null = null;
+
+function syncExportState(delta: number) {
+  if (savedPgn !== null && tree().toPgn() === savedPgn) {
+    setDirty(false);
+    setChangesSinceExport(0);
+    return;
+  }
   setDirty(true);
-  setChangesSinceExport((count) => count + 1);
+  setChangesSinceExport((count) => Math.max(1, count + delta));
+}
+
+function recordDocumentChange() {
+  syncExportState(1);
   bump();
 }
 
@@ -62,10 +77,11 @@ export const lastMove = () => {
 
 export { color, path, dirty, changesSinceExport, fileName, version, documentId };
 
-export function restoreSnapshotForHistory(pgn: string, nextPath: Path): void {
+export function restoreSnapshotForHistory(pgn: string, nextPath: Path, changeDelta = 0): void {
   batch(() => {
     setTree(GameTree.fromPgn(pgn));
     setPath([...nextPath]);
+    syncExportState(changeDelta);
     bump();
   });
 }
@@ -88,6 +104,7 @@ function replaceDocument(
     setTree(nextTree);
     setPath([]);
     setColor("white");
+    savedPgn = nextTree.toPgn();
     setDirty(false);
     setChangesSinceExport(0);
     setFileName(name ?? null);
@@ -262,12 +279,16 @@ export const actions = {
 
   markSaved() {
     batch(() => {
+      savedPgn = tree().toPgn();
       setDirty(false);
       setChangesSinceExport(0);
     });
   },
 
   markDirty(restoredChanges = 1) {
+    // Restoring a dirty document from browser storage restores its edits, not the file they were
+    // edited from, so there is no baseline to compare against until the next save.
+    savedPgn = null;
     setDirty(true);
     setChangesSinceExport((count) =>
       Math.max(

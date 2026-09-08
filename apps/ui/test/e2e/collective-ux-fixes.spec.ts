@@ -12,7 +12,8 @@ test("starting a collapsed operation exposes its input validation error", async 
   await section.getByRole("button", { name: "Search", exact: true }).click();
   await expect(section).toHaveAttribute("open", "");
   await expect(section.locator("[role=alert]")).toBeVisible();
-  await expect(section.locator("[role=alert]")).toContainText("missing_criteria");
+  // The code itself is technical detail, as it already was on the chat card (WP-026 AC-1).
+  await expect(section.locator("[role=alert]")).toContainText("Search criteria required");
 });
 
 test("Save status is reachable by keyboard and describes browser storage separately from export", async ({

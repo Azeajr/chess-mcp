@@ -20,8 +20,11 @@ export const ERROR_CONTENT = {
     action: "Add Lichess token",
   },
   fetch_failed: { title: "Network request failed" },
-  missing_arg: { title: "missing arg" },
-  missing_criteria: { title: "Search criteria required" },
+  missing_arg: { title: "Required detail missing" },
+  missing_criteria: {
+    title: "Search criteria required",
+    cause: "Type a structure name — Carlsbad, Maroczy, Slav — then search again.",
+  },
   unknown_structure: { title: "unknown structure" },
   path_not_found: { title: "Repertoire path not found" },
   strategic_fit_finding_not_found: {
