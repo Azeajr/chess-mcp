@@ -106,10 +106,14 @@ export default function AnalysisLifecycle() {
                   ? "the full report"
                   : `${summary().scope.cohort_ids.length} affected cohort(s)`}{" "}
                 at revision <code>{summary().resolving_revision}</code>:{" "}
+                {/* Changed evidence and a reopened decision are different counts: a finding whose
+                    evidence moved has no resolution to reopen unless one was recorded, and the
+                    finding whose own resolution triggered the run keeps it. */}
                 {summary().auto_resolved_semantic_finding_ids.length} disappeared finding(s)
-                resolved, {summary().changed_evidence_semantic_finding_ids.length} changed-evidence
-                finding(s) reopened, and {summary().reappeared_semantic_finding_ids.length}{" "}
-                finding(s) reappeared.
+                resolved, {summary().changed_evidence_semantic_finding_ids.length} finding(s) with
+                changed evidence, {summary().reopened_semantic_finding_ids.length} resolution(s)
+                reopened, and {summary().reappeared_semantic_finding_ids.length} finding(s)
+                reappeared.
               </span>
             )}
           </Show>

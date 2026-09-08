@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createSignal } from "solid-js";
-import { saveArtifact } from "../../store/artifacts";
+import { saveArtifact, type ArtifactSaveResult } from "../../store/artifacts";
+import ArtifactSaveStatus from "../primitives/ArtifactSaveStatus";
 import { strategicFitLifecycle } from "../../store/strategic-fit";
 import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import {
@@ -50,10 +51,13 @@ export default function ReviewSummary() {
   const reopen = (summaryId: string, semanticFindingId: string) => {
     setFeedback(reopenCompletedStrategicFitReview(summaryId, semanticFindingId));
   };
+  const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
   const exportSummary = (summaryId: string) => {
     const result = exportStrategicFitReviewSummary(summaryId);
     setFeedback(result);
-    if (result.artifact_id !== null) saveArtifact(result.artifact_id);
+    // The export message says the summary was produced; only the save result says whether the file
+    // reached the reader.
+    setSaved(result.artifact_id === null ? null : saveArtifact(result.artifact_id));
   };
 
   return (
@@ -192,6 +196,7 @@ export default function ReviewSummary() {
           </p>
         )}
       </Show>
+      <ArtifactSaveStatus result={saved()} />
     </section>
   );
 }

@@ -101,7 +101,7 @@ export interface StrategicFitFindingResolutionBoundary {
   reopenResolution(resolutionId: string): StrategicFitSettingsMutationResult;
   prepareReport(reportId: string): boolean;
   retainReport(reportId: string): boolean;
-  reanalyze?(cohortId: string): void;
+  reanalyze?(cohortId: string, semanticFindingId: string): void;
 }
 
 export interface StrategicFitFindingResolutionState {
@@ -425,7 +425,11 @@ export function createStrategicFitFindingResolutionState(
         throw error;
       }
       boundary.retainReport(input.report_id);
-      if (result.state === "updated") boundary.reanalyze?.(checked.finding.evidence.cohort_id);
+      if (result.state === "updated")
+        boundary.reanalyze?.(
+          checked.finding.evidence.cohort_id,
+          checked.finding.semantic_finding_id,
+        );
       const message = `${actionLabel(input.state)}. The repertoire was not changed.`;
       project(input.report_id, checked.finding, input.state, message);
       return {
@@ -479,7 +483,7 @@ export function createStrategicFitFindingResolutionState(
       }
       const message = "Finding reopened. The repertoire was not changed.";
       project(input.report_id, checked.finding, "unresolved", message);
-      boundary.reanalyze?.(checked.finding.evidence.cohort_id);
+      boundary.reanalyze?.(checked.finding.evidence.cohort_id, checked.finding.semantic_finding_id);
       return { state: "reopened", code: null, message, resolution: "unresolved" };
     },
   };
@@ -513,12 +517,13 @@ const browserFindingResolutionState = createStrategicFitFindingResolutionState({
   reopenResolution: reopenStrategicFitResolution,
   prepareReport: prepareCompletedStrategicFitReportForResolution,
   retainReport: retainCompletedStrategicFitReportAfterResolution,
-  reanalyze: (cohortId) => {
+  reanalyze: (cohortId, semanticFindingId) => {
     scheduleStrategicFitReanalysis(
       affectedCohortReanalysisRequest(
         "resolution-change",
         [cohortId],
         "A finding resolution changed the analyzer projection for this cohort.",
+        [semanticFindingId],
       ),
     );
   },
@@ -538,8 +543,25 @@ export const displayStrategicFitFindingResolution = (finding: StrategicFinding) 
 export const strategicFitFindingResolutionUnresolvedCount = (
   report: StrategicFitCompletedResult["result"],
 ) => browserFindingResolutionState.unresolvedCount(report);
+// Recording a resolution takes its finding out of review and produces a new report id, and both
+// unmount and reset the surfaces that carried the transition's own message. Keep the last action
+// here, where neither can clear it, so the workspace can still say what was recorded.
+const [lastResolutionAction, setLastResolutionAction] = createSignal<{
+  readonly state: StrategicFitFindingResolutionTransitionResult["state"];
+  readonly message: string;
+} | null>(null);
+export const strategicFitLastResolutionAction = lastResolutionAction;
+export const clearStrategicFitLastResolutionAction = () => {
+  setLastResolutionAction(null);
+};
+
+const recordLastResolutionAction = (result: StrategicFitFindingResolutionTransitionResult) => {
+  setLastResolutionAction({ state: result.state, message: result.message });
+  return result;
+};
+
 export const transitionStrategicFitFindingResolution = (
   input: StrategicFitFindingResolutionTransitionInput,
-) => browserFindingResolutionState.transition(input);
+) => recordLastResolutionAction(browserFindingResolutionState.transition(input));
 export const reopenStrategicFitFinding = (input: StrategicFitFindingResolutionReopenInput) =>
-  browserFindingResolutionState.reopen(input);
+  recordLastResolutionAction(browserFindingResolutionState.reopen(input));

@@ -179,3 +179,51 @@ test("reconciliation preserves unrelated decisions, resolves disappearance, and 
     ["unresolved", "unresolved"],
   );
 });
+
+test("the resolution that triggered a run keeps its decision; other changed evidence still reopens", () => {
+  const previous = [
+    finding("origin", "cohort:a", "Old evidence", "keep-intentionally"),
+    finding("other", "cohort:a", "Old evidence", "defer"),
+  ];
+  const next = [
+    finding("origin", "cohort:a", "New evidence", "keep-intentionally"),
+    finding("other", "cohort:a", "New evidence", "defer"),
+  ];
+  const metadata: StrategicFitDocumentMetadata = {
+    ...createDefaultStrategicFitDocumentMetadata(),
+    resolutions: [resolution("origin", "keep-intentionally"), resolution("other", "defer")],
+  };
+  // Recording a resolution changes the analyzer projection for its cohort, so the finding just
+  // resolved comes back with different evidence. Reopening it there cancels the decision that asked
+  // for the run: the first resolution a reader recorded used to vanish, and only a second attempt
+  // held.
+  const request = affectedCohortReanalysisRequest(
+    "resolution-change",
+    ["cohort:a"],
+    "A finding resolution changed the analyzer projection for this cohort.",
+    ["origin"],
+  );
+  assert.deepEqual(request.originating_semantic_finding_ids, ["origin"]);
+
+  const reconciled = reconcileStrategicFitReanalysis(
+    "report:before",
+    previous,
+    { report_id: "report:after", repertoire_revision: "browser:2" } as StrategicFitReport,
+    next,
+    metadata,
+    request,
+  );
+
+  assert.deepEqual(reconciled.summary.changed_evidence_semantic_finding_ids, ["origin", "other"]);
+  assert.deepEqual(reconciled.actions.reopen_semantic_finding_ids, ["other"]);
+  assert.deepEqual(reconciled.summary.reopened_semantic_finding_ids, ["other"]);
+  assert.deepEqual(reconciled.summary.preserved_resolution_ids, ["resolution:origin"]);
+  assert.equal(
+    reconciled.findings.find((entry) => entry.semantic_finding_id === "origin")?.resolution_state,
+    "keep-intentionally",
+  );
+  assert.equal(
+    reconciled.findings.find((entry) => entry.semantic_finding_id === "other")?.resolution_state,
+    "unresolved",
+  );
+});

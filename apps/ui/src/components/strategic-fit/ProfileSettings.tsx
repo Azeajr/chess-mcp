@@ -24,7 +24,7 @@ import {
   importStrategicFitTrainingPerformance,
 } from "../../store/strategic-fit-training";
 import { strategicFitLifecycle } from "../../store/strategic-fit";
-import { saveArtifact } from "../../store/artifacts";
+import { artifactSaveMessage, saveArtifact } from "../../store/artifacts";
 import { STRATEGIC_FIT_PROFILE_LABELS } from "./ProfileSetup";
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
 
@@ -92,8 +92,12 @@ export default function ProfileSettings() {
 
   const exportTraining = () => {
     const result = exportStrategicFitTrainingPerformance();
-    if (result.artifact_id !== null) saveArtifact(result.artifact_id);
-    setTrainingTransferMessage(result.message);
+    // The export message reports the record; the save result reports the download, which the page
+    // said nothing about either way.
+    const saved = result.artifact_id === null ? null : saveArtifact(result.artifact_id);
+    setTrainingTransferMessage(
+      saved ? `${result.message} ${artifactSaveMessage(saved)}` : result.message,
+    );
   };
 
   const importTraining = async (file: File | undefined) => {

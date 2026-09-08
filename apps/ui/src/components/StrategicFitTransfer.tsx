@@ -1,5 +1,6 @@
 import { For, Show, createSignal } from "solid-js";
-import { saveArtifact } from "../store/artifacts";
+import { saveArtifact, type ArtifactSaveResult } from "../store/artifacts";
+import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
 import { cancelCommand, commandStates, executeCommand } from "../store/commands";
 import {
   cancelStrategicFitSidecarImport,
@@ -31,6 +32,13 @@ function displayValue(value: unknown): string {
 export default function StrategicFitTransfer() {
   const [mismatchAcknowledged, setMismatchAcknowledged] = createSignal(false);
   const [confirmationMessage, setConfirmationMessage] = createSignal<string | null>(null);
+  // Pressing Save changed nothing on screen, so a browser that refused the download looked exactly
+  // like one that took it.
+  const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
+  const save = (artifactId: unknown) => {
+    if (typeof artifactId !== "string") return;
+    setSaved(saveArtifact(artifactId));
+  };
   const sidecarState = () => commandStates().export_strategic_fit_metadata;
   const intentState = () => commandStates().export_strategic_fit_intent_pgn;
 
@@ -73,8 +81,7 @@ export default function StrategicFitTransfer() {
             <button
               class="fix-btn"
               onClick={() => {
-                const artifactId = id();
-                if (typeof artifactId === "string") saveArtifact(artifactId);
+                save(id());
               }}
             >
               Save metadata JSON
@@ -106,8 +113,7 @@ export default function StrategicFitTransfer() {
             <button
               class="fix-btn"
               onClick={() => {
-                const artifactId = id();
-                if (typeof artifactId === "string") saveArtifact(artifactId);
+                save(id());
               }}
             >
               Save intent PGN
@@ -154,9 +160,11 @@ export default function StrategicFitTransfer() {
           </div>
         )}
       </Show>
+      <ArtifactSaveStatus result={saved()} />
       <Show when={confirmationMessage()}>
         {(message) => (
-          <div class="safe" role="status">
+          // The save status beside it is also a live region, so this one carries its own hook.
+          <div class="safe" role="status" data-sidecar-import-status>
             {message()}
           </div>
         )}
