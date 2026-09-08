@@ -1,7 +1,11 @@
 import { Show, createEffect, createMemo } from "solid-js";
+import { Portal } from "solid-js/web";
 import { changesSinceExport, dirty, fileName, version } from "../store/game";
 import { announce } from "../store/announce";
 import { lastAutosaveAt } from "../store/persist";
+import { documentStatusOpen, setDocumentStatusOpen } from "../store/ui";
+import Dialog from "./primitives/Dialog";
+import Button from "./primitives/Button";
 
 const changeWord = (count: number) => (count === 1 ? "change" : "changes");
 
@@ -64,20 +68,34 @@ export default function DocumentStatus() {
   };
 
   return (
-    <Show when={hasStatus()}>
-      <div class="document-status" data-document-status={state()} title={detail()}>
-        <span class="document-status-dot" aria-hidden="true" />
-        <span class="document-status-text">{text()}</span>
-        {/* Kept as a hidden value so the autosave clock stays machine-readable without spending
+    <>
+      <Show when={hasStatus()}>
+        <div class="document-status" data-document-status={state()} title={detail()}>
+          <span class="document-status-dot" aria-hidden="true" />
+          <span class="document-status-text">{text()}</span>
+          {/* Kept as a hidden value so the autosave clock stays machine-readable without spending
             a strip of the top bar on a timestamp nobody acts on. */}
-        <Show when={autosavedAt()}>
-          {(time) => (
-            <span class="document-status-autosave-value" data-autosave-time hidden>
-              {time()}
-            </span>
-          )}
-        </Show>
-      </div>
-    </Show>
+          <Show when={autosavedAt()}>
+            {(time) => (
+              <span class="document-status-autosave-value" data-autosave-time hidden>
+                {time()}
+              </span>
+            )}
+          </Show>
+        </div>
+      </Show>
+      <Show when={documentStatusOpen()}>
+        <Portal>
+          <Dialog title="Save status" size="compact" onClose={() => setDocumentStatusOpen(false)}>
+            <p>{detail()}</p>
+            <p>
+              Browser storage keeps your working copy on this device. Use Save to export a PGN file
+              you can keep elsewhere.
+            </p>
+            <Button onClick={() => setDocumentStatusOpen(false)}>Close save status</Button>
+          </Dialog>
+        </Portal>
+      </Show>
+    </>
   );
 }

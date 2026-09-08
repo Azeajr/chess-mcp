@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onCleanup } from "solid-js";
+import { createSignal, createEffect, createRoot, onCleanup } from "solid-js";
 import { classifyUciMove, weightFor, type Fit, type Weight } from "@chess-mcp/chess-tools";
 import { ANALYSIS_ARROW_BRUSHES } from "../content/analysis";
 import { fen, currentTree, currentPath, color } from "./game";
@@ -101,75 +101,79 @@ function toArrow(l: EngineLine): Arrow {
   };
 }
 
-createEffect(() => {
-  const f = fen();
-  const tree = currentTree();
-  const path = currentPath();
-  const col = color();
-  const enabled = evalEnabled();
-  const depth = analysisDepth();
-  analysisReload();
+const disposeAnalysis = createRoot((dispose) => {
+  createEffect(() => {
+    const f = fen();
+    const tree = currentTree();
+    const path = currentPath();
+    const col = color();
+    const enabled = evalEnabled();
+    const depth = analysisDepth();
+    analysisReload();
 
-  if (!enabled) {
-    setAnalysing(false);
-    setLines([]);
-    setArrows([]);
-    return;
-  }
+    if (!enabled) {
+      setAnalysing(false);
+      setLines([]);
+      setArrows([]);
+      return;
+    }
 
-  let cancelled = false;
-  const t = setTimeout(() => {
-    setAnalysing(true);
-    const operationId = registerOperation({
-      kind: "live-analysis",
-      label: "Live engine analysis",
-      surface: "analysis",
+    let cancelled = false;
+    const t = setTimeout(() => {
+      setAnalysing(true);
+      const operationId = registerOperation({
+        kind: "live-analysis",
+        label: "Live engine analysis",
+        surface: "analysis",
+      });
+      void analyseLive(f, MULTIPV, depth).then(
+        // eslint-disable-next-line solid/reactivity
+        (res) => {
+          if (cancelled) {
+            settleSilent(operationId, "completed");
+            return;
+          }
+          setAnalysing(false);
+          settleSilent(operationId, res ? "completed" : "failed");
+          if (!res) {
+            const wasOffline = engineOffline();
+            if (!wasOffline) announce("The chess engine went offline.", { assertive: true });
+            setEngineOffline(true);
+            setLines([]);
+            setArrows([]);
+            return;
+          }
+          setEngineOffline(false);
+          const childSans = tree.childSansAt(path);
+          const keys = tree.allPositionKeys();
+          const lines: EngineLine[] = res.map((l) => {
+            const { san, fit } = classifyUciMove(f, l.uci, childSans, keys);
+            return {
+              uci: l.uci,
+              san,
+              fit,
+              weight: weightFor(l.cp, l.mate, col),
+              cp: l.cp,
+              mate: l.mate,
+              depth: l.depth,
+            };
+          });
+          setLines(lines);
+          setArrows(lines.map(toArrow));
+        },
+        () => {
+          settleSilent(operationId, "failed");
+          if (cancelled) return;
+          setAnalysing(false);
+        },
+      );
+    }, 180);
+
+    onCleanup(() => {
+      cancelled = true;
+      clearTimeout(t);
     });
-    void analyseLive(f, MULTIPV, depth).then(
-      // eslint-disable-next-line solid/reactivity
-      (res) => {
-        if (cancelled) {
-          settleSilent(operationId, "completed");
-          return;
-        }
-        setAnalysing(false);
-        settleSilent(operationId, res ? "completed" : "failed");
-        if (!res) {
-          const wasOffline = engineOffline();
-          if (!wasOffline) announce("The chess engine went offline.", { assertive: true });
-          setEngineOffline(true);
-          setLines([]);
-          setArrows([]);
-          return;
-        }
-        setEngineOffline(false);
-        const childSans = tree.childSansAt(path);
-        const keys = tree.allPositionKeys();
-        const lines: EngineLine[] = res.map((l) => {
-          const { san, fit } = classifyUciMove(f, l.uci, childSans, keys);
-          return {
-            uci: l.uci,
-            san,
-            fit,
-            weight: weightFor(l.cp, l.mate, col),
-            cp: l.cp,
-            mate: l.mate,
-            depth: l.depth,
-          };
-        });
-        setLines(lines);
-        setArrows(lines.map(toArrow));
-      },
-      () => {
-        settleSilent(operationId, "failed");
-        if (cancelled) return;
-        setAnalysing(false);
-      },
-    );
-  }, 180);
-
-  onCleanup(() => {
-    cancelled = true;
-    clearTimeout(t);
   });
+  return dispose;
 });
+import.meta.hot?.dispose(disposeAnalysis);

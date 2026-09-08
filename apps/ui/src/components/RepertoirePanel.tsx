@@ -121,8 +121,13 @@ export default function RepertoirePanel() {
       fallback={
         <button
           class="scan-btn"
+          aria-label={
+            command === "export_annotated_repertoire" ? "Generate annotated repertoire" : undefined
+          }
           onClick={(e) => {
             e.preventDefault();
+            const section = e.currentTarget.closest("details");
+            if (section) section.open = true;
             const run = executeCommand(command, {
               ...args(),
               ...([
@@ -149,6 +154,11 @@ export default function RepertoirePanel() {
     >
       <button
         class="scan-btn"
+        aria-label={
+          command === "export_annotated_repertoire"
+            ? "Cancel annotated repertoire generation"
+            : undefined
+        }
         onClick={(e) => {
           e.preventDefault();
           cancelCommand(command);
@@ -457,14 +467,7 @@ export default function RepertoirePanel() {
             <Show when={collapsedSummary("export_annotated_repertoire")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {/*
-              WP-029 AC-4: the label stays "Generate" deliberately. The section heading already
-              says what is generated, and a longer label collides with the accessible-name and
-              text queries other specs use (Playwright matches names by case-insensitive
-              substring) and wraps the summary row past its height gate. The fix AC-4 asks for is
-              behavioural: one button that creates *and* downloads, rather than a second button
-              appearing afterwards.
-            */}
+            {/* Short visible text preserves the row; the accessible name includes the artifact. */}
             {commandButton(
               "export_annotated_repertoire",
               "Generate",
@@ -472,7 +475,10 @@ export default function RepertoirePanel() {
               true,
             )}
           </summary>
-          <div class="scope-note">Audit, only moves, gaps, and congruence · up to 60 positions</div>
+          <div class="scope-note">
+            Create and download a copy with move assessments, gaps, and Strategic Fit notes · up to
+            60 positions.
+          </div>
           {commandStatus("export_annotated_repertoire")}
         </details>
 

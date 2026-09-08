@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "./helpers/fixtures";
 import { openApp } from "./helpers/app";
 
-type EngineFixtureMode = "lines" | "empty" | "offline";
+type EngineFixtureMode = "lines" | "empty" | "offline" | "offline-once";
 
 const ARROW_COLOURS = {
   inBook: "rgb(21, 120, 27)",
@@ -37,9 +37,15 @@ async function installEngineFixture(page: Page, mode: EngineFixtureMode) {
           onerror: null as ((event: ErrorEvent) => void) | null,
           postMessage(message: unknown) {
             const command = String(message);
-            if (fixtureMode === "offline" && command === "uci") {
+            if (
+              (fixtureMode === "offline" ||
+                (fixtureMode === "offline-once" && starts.length === 1)) &&
+              command === "uci"
+            ) {
               queueMicrotask(() =>
-                worker.onerror?.({ message: "Synthetic engine offline" } as ErrorEvent),
+                worker.onerror?.({
+                  message: fixtureMode === "offline-once" ? "" : "Synthetic engine offline",
+                } as ErrorEvent),
               );
               return;
             }
@@ -47,9 +53,13 @@ async function installEngineFixture(page: Page, mode: EngineFixtureMode) {
 
             const depth = Number(command.slice("go depth ".length));
             depths.push(depth);
-            if (fixtureMode === "offline") return;
+            if (
+              fixtureMode === "offline" ||
+              (fixtureMode === "offline-once" && starts.length === 1)
+            )
+              return;
             queueMicrotask(() => {
-              if (fixtureMode === "lines") {
+              if (fixtureMode === "lines" || fixtureMode === "offline-once") {
                 worker.onmessage?.({
                   data: `info depth ${depth} multipv 1 score cp 34 pv e2e4`,
                 } as MessageEvent<string>);
@@ -123,7 +133,7 @@ test("WP-016 AC-3 shows the offline recovery action and retries through the live
 }) => {
   // The fixture stops the worker on purpose, and `stockfish.ts` reports that
   // as an `[engine]` warning rather than throwing.
-  allowPageFaults(/^\[engine\] worker error: Synthetic engine offline/);
+  allowPageFaults(/^\[engine\] worker error while initializing .*: Synthetic engine offline/);
   await installEngineFixture(page, "offline");
   await openApp(page);
 
@@ -141,6 +151,31 @@ test("WP-016 AC-3 shows the offline recovery action and retries through the live
   await expect
     .poll(async () => (await fixtureStarts(page)).length)
     .toBeGreaterThan(startsBeforeReload);
+});
+
+test("missing worker error details identify the asset and Reload engine recovers", async ({
+  page,
+  allowPageFaults,
+}) => {
+  const diagnostic =
+    /^\[engine\] worker error while initializing .*stockfish-18-lite-single.js: Worker could not load or execute/;
+  allowPageFaults(diagnostic);
+  const warnings: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "warning") warnings.push(message.text());
+  });
+  await installEngineFixture(page, "offline-once");
+  await openApp(page);
+  const panel = page.locator(".analysis");
+  await panel.getByRole("button", { name: "Turn on evaluation" }).click();
+  await expect(
+    panel.getByText("Engine offline — arrows unavailable.", { exact: true }),
+  ).toBeVisible();
+  expect(warnings.some((message) => diagnostic.test(message))).toBe(true);
+  await panel.getByRole("button", { name: "Reload engine" }).click();
+  await expect(
+    page.getByRole("img", { name: "Evaluation: +0.34, white slightly better" }),
+  ).toBeVisible();
 });
 
 test("WP-016 AC-5 AC-9 keeps deep-analysis guidance inline and cloud privacy copy intact", async ({

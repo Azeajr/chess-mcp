@@ -94,6 +94,7 @@ function spawnWorker(): WorkerEndpoint | null {
   if (unavailable) return null;
   try {
     const worker = new Worker(ENGINE_URL);
+    let phase = "initializing";
     let handler: ((line: string) => void) | null = null;
     let markDead!: () => void;
     const died = new Promise<void>((r) => (markDead = r));
@@ -113,10 +114,13 @@ function spawnWorker(): WorkerEndpoint | null {
     };
     worker.onmessage = (e: MessageEvent) => {
       const data = e.data as unknown;
+      if (data === "readyok") phase = "analyzing";
       handler?.(typeof data === "string" ? data : String(data));
     };
     worker.onerror = (e) => {
-      console.warn("[engine] worker error:", e.message);
+      console.warn(
+        `[engine] worker error while ${phase} ${ENGINE_URL}: ${e.message || "Worker could not load or execute; check the engine asset and reload to retry."}`,
+      );
       ep.dead = true;
       markDead();
     };

@@ -25,7 +25,9 @@ test(
         "start",
         "--workflow",
         "acceptance",
-        ...(process.env.UX_REVIEW_TEST_URL ? ["--url", process.env.UX_REVIEW_TEST_URL] : []),
+        ...(process.env.UX_REVIEW_TEST_URL
+          ? ["--url", process.env.UX_REVIEW_TEST_URL]
+          : ["--port", "4183"]),
       ]);
       const before = await state();
       assert.equal(before.status, "ready");
@@ -46,17 +48,21 @@ test(
     }`,
       ]);
       await invoke(["check"]);
+      const startup = JSON.parse(await readFile(path.join(before.runDir, "faults.json"), "utf8"));
+      assert.deepEqual(startup.warnings, []);
+      assert.ok(startup.checkedAt);
       await invoke([
         "cli",
         "run-code",
         `async page => {
-      await page.context().addCookies([{ name:'ux-proof', value:'dirty', url:'http://127.0.0.1:4173' }]);
+      await page.context().addCookies([{ name:'ux-proof', value:'dirty', url:page.url() }]);
       await page.evaluate(async () => {
         localStorage.setItem('ux-proof', 'dirty'); sessionStorage.setItem('ux-proof', 'dirty');
         window.__chess.loadPgn('1. e4 e5 *', 'changed.pgn');
         await new Promise((resolve, reject) => { const request = indexedDB.open('ux-proof', 1); request.onupgradeneeded = () => request.result.createObjectStore('proof'); request.onerror = reject; request.onsuccess = () => { request.result.close(); resolve(); }; });
         const cache = await caches.open('ux-proof'); await cache.put('/ux-proof-cache', new Response('dirty'));
         console.error('ux-proof console failure'); console.warn('[engine] ux-proof warning');
+        console.warn('ux-proof ordinary warning');
         queueMicrotask(() => { throw new Error('ux-proof page exception'); });
       });
       await page.route('**/ux-proof-abort', route => route.abort('failed'));
@@ -71,6 +77,7 @@ test(
       ]);
       await assert.rejects(invoke(["check"]), /ux-proof/);
       const report = JSON.parse(await readFile(path.join(before.runDir, "faults.json"), "utf8"));
+      assert.ok(report.warnings.some((warning) => warning.detail === "ux-proof ordinary warning"));
       for (const kind of [
         "console.error",
         "console.warning",
@@ -113,6 +120,49 @@ test(
       console.log(`Review acceptance evidence: ${before.runDir} and ${after.runDir}`);
     } finally {
       await invoke(["stop"]);
+    }
+  },
+);
+
+test(
+  "concurrent ports retain identity and server death cannot silently continue a journey",
+  { timeout: 300_000 },
+  async () => {
+    const a = `${session}-a`,
+      b = `${session}-b`,
+      external = `${session}-external`;
+    const call = (name, args) =>
+      run(process.execPath, ["scripts/ux-review.mjs", "--session", name, ...args], {
+        cwd: root,
+        timeout: 240_000,
+      });
+    const read = async (name) =>
+      JSON.parse(await readFile(path.join(root, ".ux-review", name, "session.json"), "utf8"));
+    try {
+      await call(a, ["start", "--port", "4184"]);
+      await call(b, ["start", "--port", "4185"]);
+      await call(external, ["start", "--url", "http://127.0.0.1:4184"]);
+      const first = await read(a),
+        second = await read(b);
+      assert.notEqual(first.identity.token, second.identity.token);
+      process.kill(-first.server.pid, "SIGTERM");
+      await assert.rejects(call(a, ["check"]), /server|Vite|fetch/i);
+      const failed = await read(a);
+      assert.equal(failed.status, "infrastructure-failed");
+      const report = JSON.parse(await readFile(path.join(failed.runDir, "faults.json"), "utf8"));
+      assert.ok(report.faults.some((fault) => fault.kind === "infrastructure"));
+      await assert.rejects(call(a, ["cli", "snapshot"]), /reseed/);
+      await call(b, ["check"]);
+      await call(a, ["stop"]);
+      await call(b, ["check"]);
+      await call(a, ["start", "--port", "4184"]);
+      await assert.rejects(call(external, ["check"]), /identity|server/i);
+      await call(external, ["stop"]);
+      await call(a, ["check"]);
+    } finally {
+      await call(external, ["stop"]);
+      await call(a, ["stop"]);
+      await call(b, ["stop"]);
     }
   },
 );

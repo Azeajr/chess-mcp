@@ -57,8 +57,8 @@ export default function StrategicFitTransfer() {
         <span>Strategic Fit portability</span>
       </summary>
       <div class="scope-note">
-        JSON is the canonical metadata sidecar. Portable PGN comments are a clone-only sharing
-        format.
+        Back up and restore your Strategic Fit decisions with metadata JSON. Share intent notes as
+        PGN comments in a copy of your repertoire.
       </div>
       <div class="strategic-fit-transfer-actions">
         <button

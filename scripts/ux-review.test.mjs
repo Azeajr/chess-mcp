@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, symlink, rm } from "node:fs/promises";
 import net from "node:net";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -18,6 +19,10 @@ import {
   resultJson,
   slug,
   targetUrl,
+  reviewUrl,
+  acquirePortLease,
+  releasePortLease,
+  serverIdentity,
 } from "./ux-review/core.mjs";
 
 test("CLI transport preserves literal code and uses controller options before cli", () => {
@@ -32,6 +37,39 @@ test("CLI transport preserves literal code and uses controller options before cl
     assert.throws(() => parseArgs(args));
   for (const value of ["../other", "", "-bad", "A", "a/b", "x".repeat(49)])
     assert.throws(() => slug(value));
+});
+
+test("review ports and lifetime leases isolate owners even while their server is down", async () => {
+  assert.equal(reviewUrl({ port: "4182", route: "/?review=1" }), "http://127.0.0.1:4182/?review=1");
+  for (const port of ["0", "80", "65536", "1.2", "abc"]) assert.throws(() => reviewUrl({ port }));
+  assert.throws(() => reviewUrl({ url: "http://localhost:4182", port: "4182" }));
+  const probe = net.createServer();
+  await new Promise((resolve) => probe.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${probe.address().port}`;
+  await new Promise((resolve) => probe.close(resolve));
+  const lease = await acquirePortLease(url, { token: "test-owner", root: "/one" });
+  try {
+    await assert.rejects(acquirePortLease(url, { token: "other", root: "/two" }), /reserved/);
+    await assert.rejects(releasePortLease(lease, "other"), /mismatch/);
+  } finally {
+    await releasePortLease(lease, "test-owner");
+  }
+});
+
+test("server identity rejects another worktree or a restarted server on the same URL", async () => {
+  const server = http.createServer((_req, res) => {
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ root: "/one", token: "server-a" }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${server.address().port}`;
+  try {
+    assert.equal((await serverIdentity(url, "/one", "server-a")).token, "server-a");
+    await assert.rejects(serverIdentity(url, "/two", "server-a"), /identity/);
+    await assert.rejects(serverIdentity(url, "/one", "server-b"), /identity/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 
 test("device validation rejects implicit fallbacks and absent descriptors", () => {

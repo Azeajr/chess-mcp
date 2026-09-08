@@ -25,6 +25,8 @@ export default defineConfig([
     "**/test-results/**",
     "**/playwright-report/**",
     "**/.ux-review/**",
+    ".worktrees/**",
+    ".claude/worktrees/**",
     "plugin/**",
     "apps/ui/public/engine/**",
     "**/*.generated.*",

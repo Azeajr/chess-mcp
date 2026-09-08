@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFile, realpath } from "node:fs/promises";
+import { readFile, realpath, open, unlink } from "node:fs/promises";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 
 export const DEFAULT_URL = "http://127.0.0.1:4173";
@@ -27,6 +28,7 @@ const valueOptions = new Set([
   "setup",
   "workflow",
   "output",
+  "port",
 ]);
 const flagOptions = new Set(["help", "full-page", "hires"]);
 
@@ -114,6 +116,60 @@ export function targetUrl(value = DEFAULT_URL, route = "/") {
   const result = new URL(route, url);
   if (result.origin !== url.origin) throw new Error("--route must stay on the app origin.");
   return result.href;
+}
+
+export function reviewUrl(options) {
+  if (options.url && options.port) throw new Error("Use --port or --url, not both.");
+  const port = options.port ?? "4173";
+  if (!/^\d+$/.test(port) || Number(port) < 1024 || Number(port) > 65535)
+    throw new Error("--port must be an integer from 1024 to 65535.");
+  return targetUrl(options.url ?? `http://127.0.0.1:${port}`, options.route);
+}
+
+// A lease outlives individual commands and is shared by worktrees using this host/user.
+// Even after a server dies, its browser must be closed before the port may be reused.
+export async function acquirePortLease(url, owner) {
+  const filename = path.join(
+    os.tmpdir(),
+    `chess-ux-${process.getuid()}-port-${new URL(url).port}.lock`,
+  );
+  const file = await open(filename, "wx", 0o600).catch(async (error) => {
+    if (error.code !== "EEXIST") throw error;
+    throw new Error(
+      `Review port is reserved: ${filename}. Stop its recorded owner first. ${await readFile(filename, "utf8")}`,
+    );
+  });
+  try {
+    await file.writeFile(JSON.stringify(owner));
+  } finally {
+    await file.close();
+  }
+  return filename;
+}
+
+export async function releasePortLease(filename, token) {
+  const owner = JSON.parse(await readFile(filename, "utf8"));
+  if (owner.token !== token) throw new Error("Port lease ownership mismatch; refusing removal.");
+  await unlink(filename);
+}
+
+export async function serverIdentity(url, expectedRoot, expectedToken) {
+  const response = await fetch(new URL("/__ux-review/identity", url), {
+    signal: AbortSignal.timeout(2_000),
+    cache: "no-store",
+  });
+  const identity = await response.json();
+  if (
+    !response.ok ||
+    identity.root !== expectedRoot ||
+    typeof identity.token !== "string" ||
+    !identity.token ||
+    (expectedToken && identity.token !== expectedToken)
+  )
+    throw new Error(
+      "Review server identity changed or belongs to another worktree. Stop/start to reseed.",
+    );
+  return identity;
 }
 
 export function deviceFor(devices, name, browser) {

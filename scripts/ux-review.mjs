@@ -1,13 +1,25 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { open, mkdir, readFile, writeFile, rename, unlink, realpath } from "node:fs/promises";
+import {
+  open,
+  mkdir,
+  readFile,
+  writeFile,
+  rename,
+  unlink,
+  realpath,
+  appendFile,
+} from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import {
   availablePort,
-  DEFAULT_URL,
+  acquirePortLease,
+  releasePortLease,
+  reviewUrl,
+  serverIdentity,
   deviceFor,
   digest,
   failures,
@@ -21,7 +33,6 @@ import {
   run,
   slug,
 } from "./ux-review/core.mjs";
-import { targetUrl } from "./ux-review/core.mjs";
 import { installPolicy, seedPage } from "./ux-review/browser.mjs";
 
 const root = await realpath(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
@@ -31,6 +42,10 @@ const version = require("playwright/package.json").version;
 const cliEntry = path.join(root, "node_modules/playwright/cli.js");
 const serverEntry = path.join(root, "scripts/ux-review/server.mjs");
 const docker = (args, options = {}) => run("docker", args, { cwd: root, ...options });
+// Separate worktrees can each own a session, so bound every container the browser runs in. The
+// session's Vite server is spawned on the host by startServer and is outside this bound.
+const containerMemory = process.env.UX_REVIEW_DOCKER_MEMORY ?? "3g";
+const containerCpus = process.env.UX_REVIEW_DOCKER_CPUS ?? "2";
 let manifest;
 let manifestPath;
 let lockPath;
@@ -57,7 +72,8 @@ Usage: pnpm ux:review -- [--session NAME] <command> [options]
   cli <args...>   Run arbitrary Playwright CLI commands inside the owned session
 
 Start/preflight: --browser webkit --device "iPhone 13 Mini" --seed rich-repertoire
-  --url URL (known external localhost server; never stopped) --route / --color white|black
+  --port PORT (default 4173; use distinct ports for concurrent sessions)
+  --url URL (identity-verified external localhost server; never stopped) --route / --color white|black
   --pgn REPO_FILE --setup REPO_FILE (trusted async page => {...} returning JSON postconditions)
   --workflow SLUG --output DIRECTORY (default .ux-review; repeat for subsequent commands)
 Every command accepts --help. Put controller options BEFORE cli; remaining arguments go to Playwright.
@@ -80,6 +96,52 @@ Guide: ${path.join(root, "docs/UX_REVIEW.md")}`);
 async function save() {
   await writeFile(`${manifestPath}.tmp`, JSON.stringify(manifest, null, 2) + "\n");
   await rename(`${manifestPath}.tmp`, manifestPath);
+}
+
+async function event(kind, detail = {}) {
+  await appendFile(
+    path.join(path.dirname(manifestPath), "events.jsonl"),
+    JSON.stringify({ at: new Date().toISOString(), kind, runId: manifest.runId, ...detail }) + "\n",
+  );
+}
+
+async function health({ browser = true } = {}) {
+  try {
+    if (!manifest.identity)
+      throw new Error("Legacy session has no server identity. Stop/start to reseed.");
+    if (manifest.status === "infrastructure-failed")
+      throw new Error("Session lost server continuity. Stop/start to reseed.");
+    if (
+      manifest.server &&
+      !ownsProcess(manifest.server, await processIdentity(manifest.server.pid), root, serverEntry)
+    )
+      throw new Error("Owned Vite server is no longer running. Stop/start to reseed.");
+    await serverIdentity(manifest.seed.url, root, manifest.identity.token);
+    if (browser) {
+      const identity = await code(async (page) => ({
+        token: await page
+          .locator('meta[name="chess-ux-server"]')
+          .getAttribute("content", { timeout: 2_000 }),
+        url: page.url(),
+      }));
+      if (
+        identity.token !== manifest.identity.token ||
+        new URL(identity.url).origin !== new URL(manifest.seed.url).origin
+      )
+        throw new Error("Browser is attached to a different server. Stop/start to reseed.");
+    }
+  } catch (error) {
+    manifest.status = "infrastructure-failed";
+    manifest.infrastructureFaults ??= [];
+    manifest.infrastructureFaults.push({
+      at: new Date().toISOString(),
+      kind: "infrastructure",
+      detail: error.message,
+    });
+    await event("health-failed", { message: error.message });
+    await save();
+    throw error;
+  }
 }
 
 async function inspectContainer() {
@@ -153,7 +215,7 @@ async function seedData(options) {
     fileName: path.basename(pgnPath),
     pgnPath,
     setupPath,
-    url: targetUrl(options.url, options.route),
+    url: reviewUrl(options),
     setup,
   };
   return { ...seed, digest: digest(JSON.stringify(seed)) };
@@ -193,6 +255,12 @@ async function preflight(options, { checkPort = true } = {}) {
       "run",
       "--rm",
       "--init",
+      "--memory",
+      containerMemory,
+      "--memory-swap",
+      containerMemory,
+      "--cpus",
+      containerCpus,
       "--name",
       probeName,
       "--network",
@@ -219,8 +287,10 @@ async function preflight(options, { checkPort = true } = {}) {
     if (ids) await docker(["rm", "--force", ids]);
   }
   if (checkPort) {
-    if (options.url) await probeUrl(targetUrl(options.url, options.route));
-    else await availablePort(DEFAULT_URL);
+    if (options.url) {
+      await probeUrl(reviewUrl(options));
+      await serverIdentity(reviewUrl(options), root);
+    } else await availablePort(reviewUrl(options));
   }
   console.log(
     JSON.stringify(
@@ -238,6 +308,12 @@ async function startServer() {
     cwd: root,
     detached: true,
     stdio: ["ignore", log.fd, log.fd],
+    env: {
+      ...process.env,
+      UX_REVIEW_PORT: new URL(manifest.seed.url).port,
+      UX_REVIEW_TOKEN: manifest.token,
+      UX_REVIEW_EVENTS: path.join(path.dirname(manifestPath), "events.jsonl"),
+    },
   });
   await new Promise((resolve, reject) => {
     child.once("spawn", resolve);
@@ -253,6 +329,9 @@ async function startServer() {
     if (!(await processIdentity(child.pid))) break;
     try {
       await probeUrl(manifest.seed.url);
+      manifest.identity = await serverIdentity(manifest.seed.url, root, manifest.token);
+      await event("server-ready", { server: manifest.server, identity: manifest.identity });
+      await save();
       return;
     } catch {
       await delay(200);
@@ -272,7 +351,7 @@ async function newRun() {
   await mkdir(manifest.runDir, { recursive: true });
   await writeFile(
     path.join(manifest.runDir, "review.md"),
-    `# ${manifest.workflow}\n\nSeed: ${manifest.seed.digest}\n\nRecord each state: user goal, role/ref interactions, structural and screenshot paths, actual visual observations, reproducible friction, acceptance condition, and replay result.\n`,
+    `# ${manifest.workflow}\n\nRun: ${manifest.runId}\nSeed: ${manifest.seed.digest}\n\nWorkflow is an artifact label, not an executed journey. See docs/UX_REVIEW.md for completion requirements.\n\n## Goal and terminal acceptance\nNot yet recorded.\n\n## Attempts and evidence\nList ALL attempts (including failures), run IDs, check timestamps, CLI errors, warnings, and missing artifacts. faults.json covers only its recorded time.\n\n## Observations\nRecord visible controls, scoped roles, before/after FEN or path, running AND terminal state, inspected PNGs, and document continuity. Distinguish prepared side from side to move.\n\n## Verdict and remaining coverage\nNot yet reviewed. Zero faults does not establish workflow completion or error-path coverage.\n`,
   );
   await save();
 }
@@ -297,11 +376,42 @@ async function screenshot(label, options = {}) {
 }
 
 async function check({ throwOnFault = true } = {}) {
-  const records = await code((page) => page.context().__chessUxFaults);
+  let collected;
+  try {
+    collected = await code((page) => ({
+      records: page.context().__chessUxFaults,
+      warnings: page.context().__chessUxWarnings ?? [],
+    }));
+  } catch (error) {
+    collected = { records: [], warnings: [] };
+    // Never overwrite retained browser evidence just because its container disappeared.
+    try {
+      collected = JSON.parse(await readFile(path.join(manifest.runDir, "faults.json"), "utf8"));
+    } catch {
+      /* no prior check */
+    }
+    collected.records.push({ kind: "infrastructure", detail: error.message });
+  }
+  const records = [...collected.records, ...(manifest.infrastructureFaults ?? [])];
   const faults = failures(records);
   const report = path.join(manifest.runDir, "faults.json");
-  await writeFile(report, JSON.stringify({ records, faults }, null, 2) + "\n");
-  console.log(`${faults.length} fault(s): ${report}`);
+  await writeFile(
+    report,
+    JSON.stringify(
+      {
+        checkedAt: new Date().toISOString(),
+        runId: manifest.runId,
+        records,
+        faults,
+        warnings: collected.warnings ?? [],
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  console.log(
+    `${faults.length} fault(s), ${collected.warnings?.length ?? 0} warning(s): ${report}`,
+  );
   if (faults.length && throwOnFault)
     throw new Error(faults.map((fault) => `${fault.kind}: ${fault.detail}`).join("\n"));
 }
@@ -316,7 +426,12 @@ async function initialize() {
       `--device=${manifest.device}`,
     ]),
   );
-  await code(installPolicy);
+  await health({ browser: false });
+  await code(installPolicy, {
+    origin: new URL(manifest.seed.url).origin,
+    identityUrl: new URL("/__ux-review/identity", manifest.seed.url).href,
+    identity: manifest.identity,
+  });
   manifest.postconditions = await code(seedPage, manifest.seed);
   if (manifest.postconditions.url !== manifest.seed.url)
     throw new Error("Seed route postcondition failed.");
@@ -325,10 +440,7 @@ async function initialize() {
   await check(); // Seed faults must not disappear at the log boundary.
   await cli(["console", "--clear"]);
   await cli(["requests", "--clear"]);
-  await code((page) => {
-    page.context().__chessUxFaults.length = 0;
-    return true;
-  });
+  // Keep seed warnings and faults for the entire run, including after navigation.
   console.log(
     await cli([
       "snapshot",
@@ -352,6 +464,7 @@ async function initialize() {
 }
 
 async function cleanup() {
+  await event("stop-requested", { server: manifest.server });
   const errors = [];
   if (manifest.containerId) {
     try {
@@ -368,7 +481,8 @@ async function cleanup() {
       errors.push(error.message);
     }
   }
-  if (manifest.server) {
+  // Do not release the server/port if the owned browser could not be closed.
+  if (manifest.server && !errors.length) {
     try {
       const actual = await processIdentity(manifest.server.pid);
       if (actual) {
@@ -386,8 +500,17 @@ async function cleanup() {
       errors.push(error.message);
     }
   }
+  if (manifest.portLease && !errors.length) {
+    try {
+      await releasePortLease(manifest.portLease, manifest.token);
+      manifest.portLease = null;
+    } catch (error) {
+      errors.push(error.message);
+    }
+  }
   manifest.status = errors.length ? "cleanup-failed" : "stopped";
   await save();
+  await event("cleanup", { status: manifest.status, errors });
   if (errors.length) throw new Error(errors.join("\n"));
 }
 
@@ -446,7 +569,19 @@ async function main() {
     };
     creating = true;
     await newRun();
-    if (!options.url) await startServer();
+    if (!options.url) {
+      manifest.portLease = await acquirePortLease(seed.url, {
+        token: manifest.token,
+        root,
+        session,
+        manifestPath,
+      });
+      await save();
+      await startServer();
+    } else {
+      manifest.identity = await serverIdentity(seed.url, root);
+      await save();
+    }
     assertRunning();
     manifest.containerId = await docker([
       "create",
@@ -454,6 +589,13 @@ async function main() {
       "--network",
       "host",
       "--ipc=host",
+      "--memory",
+      containerMemory,
+      // Equal swap disables swap for the container: Docker otherwise grants twice the memory bound.
+      "--memory-swap",
+      containerMemory,
+      "--cpus",
+      containerCpus,
       "--name",
       `chess-ux-${session}-${manifest.token.slice(0, 8)}`,
       "--label",
@@ -494,8 +636,17 @@ async function main() {
   )
     throw new Error("Invalid run directory in manifest.");
   await resolvePath(root, manifest.runDir, { outside: true });
-  if (command === "stop") return cleanup();
+  if (command === "stop") {
+    if (manifest.status !== "stopped") {
+      await health().catch(() => {});
+      await check({ throwOnFault: false });
+    }
+    return cleanup();
+  }
   if (command === "status") {
+    if (!["stopped", "infrastructure-failed", "cleanup-failed"].includes(manifest.status)) {
+      await health({ browser: false }).catch(async () => check({ throwOnFault: false }));
+    }
     console.log(
       JSON.stringify(
         {
@@ -514,6 +665,8 @@ async function main() {
             : null,
           runDir: manifest.runDir,
           seed: manifest.seed.digest,
+          identity: manifest.identity,
+          infrastructureFaults: manifest.infrastructureFaults ?? [],
         },
         null,
         2,
@@ -522,6 +675,13 @@ async function main() {
     console.log("Next: pnpm ux:review -- cli snapshot | screenshot <label> | check | reset | stop");
     return;
   }
+  try {
+    await health();
+  } catch (error) {
+    await check({ throwOnFault: false });
+    throw error;
+  }
+  await event("command", { command, args: positional });
   if (command === "reset") {
     const seed = await seedData(manifest.options);
     if (seed.digest !== manifest.seed.digest)
@@ -529,6 +689,7 @@ async function main() {
         "Seed/setup changed. Stop/start to establish a new baseline; reset requires the same digest.",
       );
     await check({ throwOnFault: false }); // Preserve the prior fault report before replaying a fix.
+    await event("reset-requested");
     await cli(["close"]);
     await cli(["delete-data"]);
     await newRun();
@@ -561,12 +722,14 @@ async function main() {
     }
     console.log(await cli(positional));
   }
+  await health();
 }
 
 try {
   await main();
 } catch (error) {
   console.error(error.message);
+  if (manifest?.runDir) await event("command-failed", { message: error.message });
   if (creating && manifest)
     await cleanup().catch((failure) => console.error(`Cleanup failed: ${failure.message}`));
   process.exitCode = 1;

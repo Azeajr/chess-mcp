@@ -16,6 +16,14 @@ const dockerNetwork = process.env.E2E_DOCKER_NETWORK;
 if (dockerNetwork && !["host", "bridge"].includes(dockerNetwork)) {
   throw new Error("E2E_DOCKER_NETWORK must be host or bridge.");
 }
+// A container overrun must kill the container, not the host: these bound the run well below a
+// developer machine's total memory. Playwright otherwise defaults to 50% of the logical cores,
+// which put six browser workers and this container's own dev server on one host at once.
+const dockerMemory = process.env.E2E_DOCKER_MEMORY ?? "6g";
+const dockerCpus = process.env.E2E_DOCKER_CPUS ?? "4";
+const callerSetWorkers = playwrightArgs.some(
+  (arg) => arg === "--workers" || arg === "-j" || /^(--workers|-j)=/.test(arg),
+);
 const temporaryRoot = await mkdtemp(path.join(tmpdir(), "chess-mcp-playwright-"));
 const workspace = path.join(temporaryRoot, "work");
 const containerName = `chess-mcp-playwright-${process.pid}`;
@@ -155,7 +163,9 @@ async function copyReport() {
 }
 
 try {
-  console.log(`Playwright ${playwrightVersion}; container image ${image}`);
+  console.log(
+    `Playwright ${playwrightVersion}; container image ${image}; memory ${dockerMemory}; cpus ${dockerCpus}; workers ${callerSetWorkers ? "caller-set" : 1}`,
+  );
   await docker(["pull", image], `Required Playwright image is unavailable: ${image}`);
   assertNotInterrupted();
   await copyWorkingTree();
@@ -168,7 +178,7 @@ try {
     "export PATH=/tmp/pnpm-bin:$PATH",
     "pnpm install --frozen-lockfile",
     "pnpm --filter @chess-mcp/chess-tools build",
-    `pnpm exec playwright test --config apps/ui/playwright.config.ts --reporter=list,html${updateSnapshots ? " --update-snapshots" : ""} "$@"`,
+    `pnpm exec playwright test --config apps/ui/playwright.config.ts --reporter=list,html${updateSnapshots ? " --update-snapshots" : ""}${callerSetWorkers ? "" : " --workers=1"} "$@"`,
   ].join("\n");
   testStarted = true;
   await docker(
@@ -177,6 +187,13 @@ try {
       "--rm",
       "--init",
       "--ipc=host",
+      "--memory",
+      dockerMemory,
+      // Equal swap disables swap for the container: Docker otherwise grants twice the memory bound.
+      "--memory-swap",
+      dockerMemory,
+      "--cpus",
+      dockerCpus,
       ...(dockerNetwork ? ["--network", dockerNetwork] : []),
       "--name",
       containerName,

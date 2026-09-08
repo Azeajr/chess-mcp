@@ -2,12 +2,14 @@
 
 // Serialized into CLI run-code. Retain faults on the BrowserContext because CLI network logs are
 // scoped to navigation; a later reload must not erase a failed request from the reviewed journey.
-export async function installPolicy(page) {
+export async function installPolicy(page, config) {
   const context = page.context();
   if (context.__chessUxFaults)
     throw new Error("Policy already installed; reset the profile first.");
   context.__chessUxFaults = [];
-  const record = (kind, detail) => context.__chessUxFaults.push({ kind, detail });
+  context.__chessUxWarnings = [];
+  const record = (kind, detail) =>
+    context.__chessUxFaults.push({ at: new Date().toISOString(), kind, detail });
   const attach = (target) => {
     target.on("console", (message) => {
       if (
@@ -15,6 +17,12 @@ export async function installPolicy(page) {
         (message.type() === "warning" && /^\[engine\]/.test(message.text()))
       ) {
         record(`console.${message.type()}`, message.text());
+      } else if (message.type() === "warning") {
+        context.__chessUxWarnings.push({
+          at: new Date().toISOString(),
+          detail: message.text(),
+          location: message.location(),
+        });
       }
     });
     target.on("pageerror", (error) => record("pageerror", `${error.name}: ${error.message}`));
@@ -32,9 +40,7 @@ export async function installPolicy(page) {
     if (response.status() >= 400) record("http", `${response.status()} ${response.url()}`);
   });
   await context.route(
-    (url) =>
-      ["http:", "https:"].includes(url.protocol) &&
-      !["127.0.0.1", "localhost"].includes(url.hostname),
+    (url) => ["http:", "https:"].includes(url.protocol) && url.origin !== config.origin,
     async (route) => {
       record("external", `${route.request().method()} ${route.request().url()}`);
       await route.fulfill({
@@ -47,6 +53,27 @@ export async function installPolicy(page) {
           "access-control-allow-methods": "*",
         },
       });
+    },
+  );
+  // Guard automatic reloads as well as explicit CLI navigation after a server turnover.
+  await context.route(
+    (url) => url.origin === config.origin,
+    async (route) => {
+      if (!route.request().isNavigationRequest()) return route.continue();
+      try {
+        const response = await context.request.get(config.identityUrl, { timeout: 2_000 });
+        const identity = await response.json();
+        if (
+          !response.ok() ||
+          identity.root !== config.identity.root ||
+          identity.token !== config.identity.token
+        )
+          throw new Error("Review server identity changed; stop/start to reseed.");
+        await route.continue();
+      } catch (error) {
+        record("infrastructure", error.message);
+        await route.abort("blockedbyclient");
+      }
     },
   );
   await context.addInitScript(() => {

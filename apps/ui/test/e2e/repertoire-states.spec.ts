@@ -132,7 +132,9 @@ test("WP-029 AC-3 AC-4 each export is a single button with no second button appe
   await expect(page.getByRole("button", { name: "Save annotated PGN" })).toHaveCount(0);
 
   const panel = page.locator(".rep-panel");
-  await expect(panel.getByRole("button", { name: "Generate", exact: true })).toHaveCount(1);
+  await expect(
+    panel.getByRole("button", { name: "Generate annotated repertoire", exact: true }),
+  ).toHaveCount(1);
 });
 
 test("WP-029 AC-5 the badge glyphs carry visible text labels", async ({ page }) => {

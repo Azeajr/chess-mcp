@@ -1,4 +1,4 @@
-import { createEffect, createSignal } from "solid-js";
+import { createEffect, createSignal, createRoot } from "solid-js";
 import { isPromotion } from "@chess-mcp/chess-tools";
 import { actions, color, dests, fen, lastMove, turnColor } from "./game";
 import { setPendingPromo } from "./promotion";
@@ -49,10 +49,14 @@ export function resetCursorForTesting(): void {
   resetCursorState();
 }
 
-createEffect(() => {
-  fen();
-  resetCursorState();
+const disposeCursor = createRoot((dispose) => {
+  createEffect(() => {
+    fen();
+    resetCursorState();
+  });
+  return dispose;
 });
+import.meta.hot?.dispose(disposeCursor);
 
 const OPPOSITE = { up: "down", down: "up", left: "right", right: "left" } as const;
 
