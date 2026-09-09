@@ -106,7 +106,7 @@ test("WP-031 AC-1 zero comparable routes render one terminal state with remedies
   await expect(dialog.locator("[data-strategic-fit-evidence-state='none']")).toBeVisible();
 });
 
-test("WP-031 AC-2 a degraded report with comparable routes keeps findings and adds a banner", async ({
+test("WP-031 AC-2 a degraded report keeps findings and states limited coverage once", async ({
   page,
 }) => {
   await bootstrap(page);
@@ -116,7 +116,10 @@ test("WP-031 AC-2 a degraded report with comparable routes keeps findings and ad
 
   await expect(dialog.locator("[data-evidence-state='limited']")).toBeVisible();
   await expect(dialog.getByText("Analysis finished — limited evidence").first()).toBeVisible();
-  await expect(dialog.locator("[data-limited-evidence-banner]")).toBeVisible();
+  await expect(dialog.locator("[data-limited-evidence-banner]")).toHaveCount(0);
+  await expect(dialog.locator(".strategic-fit-assessment-coverage")).toContainText(
+    "long enough to compare",
+  );
 
   await expect(dialog.locator("[data-strategic-fit-evidence-state='none']")).toHaveCount(0);
   await showFindings(dialog);
@@ -142,6 +145,7 @@ test("WP-031 AC-3 AC-5 a deep multi-route repertoire reaches a full-evidence rep
 test("WP-031 AC-4 the preflight counts and issue list survive the terminal state", async ({
   page,
 }) => {
+  test.slow();
   await bootstrap(page);
   await loadProfile(page, SHALLOW_PGN, "wp031-shallow-counts.pgn");
   const dialog = await openWorkspace(page);
@@ -150,6 +154,7 @@ test("WP-031 AC-4 the preflight counts and issue list survive the terminal state
   await showFindings(dialog);
   await expect(dialog.locator("[data-strategic-fit-evidence-state='none']")).toBeVisible();
 
+  await dialog.locator(".strategic-fit-analysis-details > summary").click();
   const preflightSummary = dialog.locator("[data-preflight-collapsed='true'] button");
   await expect(preflightSummary).toBeVisible();
   await preflightSummary.click();

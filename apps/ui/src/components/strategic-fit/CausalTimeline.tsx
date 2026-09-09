@@ -105,28 +105,31 @@ export default function CausalTimeline(props: { causality: CausalAttribution }) 
         when={presentation().events.length > 0}
         fallback={
           <p class="strategic-fit-evidence-unavailable">
-            No causal timeline events are supported by this report.
+            No move-by-move explanation is supported by this report.
           </p>
         }
       >
-        <ol aria-label="Causal timeline events">
-          <For each={presentation().events}>
-            {(event) => (
-              <li data-causal-event={event.kind}>
-                <span class="strategic-fit-causal-marker" aria-hidden="true">
-                  {event.marker}
-                </span>
-                <div>
-                  <strong>{event.label}</strong>
-                  <span>
-                    Ply {event.ply} · {event.move} · {event.pattern}
+        <details>
+          <summary>See the move-by-move explanation</summary>
+          <ol aria-label="Causal timeline events">
+            <For each={presentation().events}>
+              {(event) => (
+                <li data-causal-event={event.kind}>
+                  <span class="strategic-fit-causal-marker" aria-hidden="true">
+                    {event.marker}
                   </span>
-                  <p>{event.explanation}</p>
-                </div>
-              </li>
-            )}
-          </For>
-        </ol>
+                  <div>
+                    <strong>{event.label}</strong>
+                    <span>
+                      Move {Math.ceil(event.ply / 2)} · {event.move}
+                    </span>
+                    <p>{event.explanation}</p>
+                  </div>
+                </li>
+              )}
+            </For>
+          </ol>
+        </details>
       </Show>
     </section>
   );

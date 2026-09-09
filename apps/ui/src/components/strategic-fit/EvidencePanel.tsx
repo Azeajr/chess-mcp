@@ -13,7 +13,7 @@ import ConfidenceDetails, { ConfidenceExpertValues } from "./ConfidenceDetails";
 import ComparisonBoards from "./ComparisonBoards";
 import CausalTimeline from "./CausalTimeline";
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
-import { setStrategicFitWorkspaceStage } from "../../store/ui";
+import { buildStrategicFindingStory } from "./finding-story";
 
 const PROFILE_LABELS: Readonly<Record<StrategicFitProfileMode, string>> = {
   "familiar-plans": "Familiar plans",
@@ -230,6 +230,7 @@ export default function EvidencePanel(props: {
     const total = comparison().reconciliation.listed_total;
     return total === null ? "Unavailable" : formatNumber(total, 6);
   };
+  const story = () => buildStrategicFindingStory(props.finding);
   return (
     <article
       class="strategic-fit-evidence"
@@ -237,17 +238,30 @@ export default function EvidencePanel(props: {
       data-evidence-finding-id={props.finding.finding_id}
     >
       <header class="strategic-fit-evidence-header">
-        <span>Selected finding</span>
-        <h3>{props.finding.plain_language_category}</h3>
-        {/*
-          One meta line. The cohort was bold on its own row, which read as the branch's name;
-          it is a comparison group the report assigned, so it sits with the rest of the scope.
-        */}
+        <span>{story().action_label}</span>
+        <h3>{story().title}</h3>
         <p>
-          {props.finding.opening_scope} · {props.finding.affected_line_summary} · cohort{" "}
-          {props.cohortName}
+          {props.finding.opening_scope} · {props.finding.affected_line_summary}
         </p>
       </header>
+
+      <section class="strategic-fit-finding-story" aria-label="What this finding means">
+        <div>
+          <h4>What is happening?</h4>
+          <p>{story().situation}</p>
+        </div>
+        <div>
+          <h4>Who controls it?</h4>
+          <p>{story().control}</p>
+        </div>
+        <div>
+          <h4>What should I do?</h4>
+          <p>{story().next_step}</p>
+        </div>
+        <Show when={story().uncertainty}>
+          {(uncertainty) => <p class="strategic-fit-finding-uncertainty">{uncertainty()}</p>}
+        </Show>
+      </section>
 
       <ComparisonBoards
         reportId={props.reportId}
@@ -258,217 +272,227 @@ export default function EvidencePanel(props: {
         onGoToLine={props.onGoToLine}
       />
 
-      <ConceptComparison finding={props.finding} />
-
-      <section class="strategic-fit-comparison-basis" aria-labelledby="strategic-fit-basis-title">
-        <h4 id="strategic-fit-basis-title">What this comparison is based on</h4>
-        <dl>
-          <div>
-            <dt>Effective branches</dt>
-            <dd>{presentation().effective_branches}</dd>
-          </div>
-          <div>
-            <dt>Weighted reference games</dt>
-            <dd>{presentation().weighted_reference_games}</dd>
-          </div>
-          <div>
-            <dt>Structural coverage</dt>
-            <dd>{presentation().structural_coverage}</dd>
-          </div>
-          <div>
-            <dt>Analysis window</dt>
-            <dd>{presentation().analysis_window}</dd>
-          </div>
-          <div>
-            <dt>Opening taxonomy</dt>
-            <dd>{presentation().taxonomy_version}</dd>
-          </div>
-          <div>
-            <dt>Review profile</dt>
-            <dd>{presentation().profile}</dd>
-          </div>
-        </dl>
-      </section>
-
       <CausalTimeline causality={props.finding.evidence.causality} />
 
-      <ConfidenceDetails confidence={props.finding.confidence} />
+      <details class="strategic-fit-chess-evidence">
+        <summary>See the detailed position comparison</summary>
+        <ConceptComparison finding={props.finding} />
+      </details>
 
-      <section
-        class="strategic-fit-objective"
-        aria-labelledby="strategic-fit-objective-title"
-        data-objective-state={presentation().objective.state}
-      >
-        <h4 id="strategic-fit-objective-title">Objective quality</h4>
-        <strong>{presentation().objective.state_label}</strong>
-        <p>{presentation().objective.verdict}</p>
-        <Show when={presentation().objective.reason}>
-          {(reason) => <p class="strategic-fit-evidence-reason">{reason()}</p>}
-        </Show>
-      </section>
+      <details class="strategic-fit-evidence-audit">
+        <summary>Analysis details and limitations</summary>
 
-      <section class="strategic-fit-evidence-paths" aria-labelledby="strategic-fit-paths-title">
-        <h4 id="strategic-fit-paths-title">Affected source lines</h4>
-        <Show
-          when={presentation().paths.length > 0}
-          fallback={
-            <p class="strategic-fit-evidence-unavailable">No source SAN path is available.</p>
-          }
+        <section class="strategic-fit-comparison-basis" aria-labelledby="strategic-fit-basis-title">
+          <h4 id="strategic-fit-basis-title">What this comparison is based on</h4>
+          <dl>
+            <div>
+              <dt>Effective branches</dt>
+              <dd>{presentation().effective_branches}</dd>
+            </div>
+            <div>
+              <dt>Weighted reference games</dt>
+              <dd>{presentation().weighted_reference_games}</dd>
+            </div>
+            <div>
+              <dt>Structural coverage</dt>
+              <dd>{presentation().structural_coverage}</dd>
+            </div>
+            <div>
+              <dt>Analysis window</dt>
+              <dd>{presentation().analysis_window}</dd>
+            </div>
+            <div>
+              <dt>Opening taxonomy</dt>
+              <dd>{presentation().taxonomy_version}</dd>
+            </div>
+            <div>
+              <dt>Review profile</dt>
+              <dd>{presentation().profile}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <ConfidenceDetails confidence={props.finding.confidence} />
+
+        <section
+          class="strategic-fit-objective"
+          aria-labelledby="strategic-fit-objective-title"
+          data-objective-state={presentation().objective.state}
         >
-          <ol>
-            <For each={presentation().paths}>
-              {(path) => (
-                <li>
-                  <code>{path}</code>
-                </li>
-              )}
-            </For>
-          </ol>
-        </Show>
-      </section>
+          <h4 id="strategic-fit-objective-title">Objective quality</h4>
+          <strong>{presentation().objective.state_label}</strong>
+          <p>{presentation().objective.verdict}</p>
+          <Show when={presentation().objective.reason}>
+            {(reason) => <p class="strategic-fit-evidence-reason">{reason()}</p>}
+          </Show>
+        </section>
 
-      <section class="strategic-fit-data-quality" aria-labelledby="strategic-fit-quality-title">
-        <h4 id="strategic-fit-quality-title">Evidence limitations</h4>
-        <Show
-          when={presentation().limitations.length > 0}
-          fallback={<p>No data-quality limitation is recorded for this comparison.</p>}
-        >
-          <ul>
-            <For each={presentation().limitations}>{(limitation) => <li>{limitation}</li>}</For>
-          </ul>
-        </Show>
-      </section>
-
-      <section class="strategic-fit-evidence-sources" aria-labelledby="strategic-fit-sources-title">
-        <h4 id="strategic-fit-sources-title">Evidence sources</h4>
-        <Show
-          when={presentation().sources.length > 0}
-          fallback={
-            <p class="strategic-fit-evidence-unavailable">No source provenance is available.</p>
-          }
-        >
-          <ul>
-            <For each={presentation().sources}>
-              {(entry) => (
-                <li data-source-state={entry.source.state}>
-                  <span>{entry.group}</span>
-                  <strong>{entry.kind_label}</strong>
-                  <em>{entry.state_label}</em>
-                  <Show when={entry.source.reason}>
-                    <p>{entry.source.reason}</p>
-                  </Show>
-                </li>
-              )}
-            </For>
-          </ul>
-        </Show>
-      </section>
-
-      <details class="strategic-fit-evidence-expert">
-        <summary>Expert evidence values and provenance</summary>
-        <div>
-          <ConfidenceExpertValues confidence={props.finding.confidence} />
-
-          <section aria-labelledby="strategic-fit-contribution-values-title">
-            <h5 id="strategic-fit-contribution-values-title">Raw comparison contributions</h5>
-            <p data-strategic-distance-definition>
-              {STRATEGIC_FIT_VOCABULARY.strategicDistanceDefinition}
-            </p>
-            <p>
-              Listed total: {listedContributionTotal()}. Report strategic distance:{" "}
-              {formatNumber(comparison().reconciliation.report_distance, 6)}.
-            </p>
-            <ul>
-              <For each={comparison().dimensions}>
-                {(dimension) => (
+        <section class="strategic-fit-evidence-paths" aria-labelledby="strategic-fit-paths-title">
+          <h4 id="strategic-fit-paths-title">Affected source lines</h4>
+          <Show
+            when={presentation().paths.length > 0}
+            fallback={
+              <p class="strategic-fit-evidence-unavailable">No source SAN path is available.</p>
+            }
+          >
+            <ol>
+              <For each={presentation().paths}>
+                {(path) => (
                   <li>
-                    <strong>{dimension.dimension_id}</strong>: contribution{" "}
-                    {formatNumber(dimension.contribution, 6)}; typical{" "}
-                    <code>{dimension.raw_typical}</code>; affected{" "}
-                    <code>{dimension.raw_affected}</code>.<span>{dimension.explanation}</span>
+                    <code>{path}</code>
                   </li>
                 )}
               </For>
+            </ol>
+          </Show>
+        </section>
+
+        <section class="strategic-fit-data-quality" aria-labelledby="strategic-fit-quality-title">
+          <h4 id="strategic-fit-quality-title">Evidence limitations</h4>
+          <Show
+            when={presentation().limitations.length > 0}
+            fallback={<p>No data-quality limitation is recorded for this comparison.</p>}
+          >
+            <ul>
+              <For each={presentation().limitations}>{(limitation) => <li>{limitation}</li>}</For>
             </ul>
-          </section>
+          </Show>
+        </section>
 
-          <section aria-labelledby="strategic-fit-objective-values-title">
-            <h5 id="strategic-fit-objective-values-title">Objective values</h5>
-            <dl>
-              <dt>{presentation().objective.repertoire_pov_label}</dt>
-              <dd>
-                {presentation().objective.repertoire_pov_value}.{" "}
-                {presentation().objective.repertoire_pov_explanation}
-              </dd>
-              <dt>Loss from best for repertoire side</dt>
-              <dd>{presentation().objective.loss_from_best}</dd>
-              <dt>Engine depth</dt>
-              <dd>{presentation().objective.engine_depth}</dd>
-              <dt>Engine lines</dt>
-              <dd>{presentation().objective.engine_lines}</dd>
-              <dt>Database performance</dt>
-              <dd>{presentation().objective.database_performance}</dd>
-              <dt>Theoretical status</dt>
-              <dd>{presentation().objective.theoretical_status}</dd>
-            </dl>
-          </section>
-
-          <section aria-labelledby="strategic-fit-reference-values-title">
-            <h5 id="strategic-fit-reference-values-title">Semantic references</h5>
-            <dl>
-              <dt>Finding</dt>
-              <dd>
-                <code>{props.finding.finding_id}</code>
-              </dd>
-              <dt>Semantic finding</dt>
-              <dd>
-                <code>{props.finding.semantic_finding_id}</code>
-              </dd>
-              <dt>Positions</dt>
-              <dd>
-                <code>{props.finding.references.position_ids.join(", ") || "None"}</code>
-              </dd>
-              <dt>Decisions</dt>
-              <dd>
-                <code>{props.finding.references.decision_ids.join(", ") || "None"}</code>
-              </dd>
-              <dt>Routes</dt>
-              <dd>
-                <code>{props.finding.references.route_ids.join(", ") || "None"}</code>
-              </dd>
-              <dt>Data-quality issue IDs</dt>
-              <dd>
-                <code>{props.finding.evidence.data_quality_issue_ids.join(", ") || "None"}</code>
-              </dd>
-            </dl>
-          </section>
-
-          <section aria-labelledby="strategic-fit-provenance-values-title">
-            <h5 id="strategic-fit-provenance-values-title">Exact provenance</h5>
-            <p>
-              Report revision <code>{props.finding.provenance.repertoire_revision}</code>; generated
-              at <code>{props.finding.provenance.generated_at}</code>; deterministic:{" "}
-              {props.finding.provenance.deterministic ? "yes" : "no"}.
-            </p>
+        <section
+          class="strategic-fit-evidence-sources"
+          aria-labelledby="strategic-fit-sources-title"
+        >
+          <h4 id="strategic-fit-sources-title">Evidence sources</h4>
+          <Show
+            when={presentation().sources.length > 0}
+            fallback={
+              <p class="strategic-fit-evidence-unavailable">No source provenance is available.</p>
+            }
+          >
             <ul>
               <For each={presentation().sources}>
                 {(entry) => (
-                  <li>
-                    <strong>
-                      {entry.group}: {entry.source.source_id}
-                    </strong>
-                    <span>
-                      kind {entry.source.kind}; state {entry.source.state}; version{" "}
-                      {entry.source.version ?? "unavailable"}; snapshot{" "}
-                      {entry.source.snapshot ?? "unavailable"}; reason{" "}
-                      {entry.source.reason ?? "none"}.
-                    </span>
+                  <li data-source-state={entry.source.state}>
+                    <span>{entry.group}</span>
+                    <strong>{entry.kind_label}</strong>
+                    <em>{entry.state_label}</em>
+                    <Show when={entry.source.reason}>
+                      <p>{entry.source.reason}</p>
+                    </Show>
                   </li>
                 )}
               </For>
             </ul>
-          </section>
-        </div>
+          </Show>
+        </section>
+
+        <details class="strategic-fit-evidence-expert">
+          <summary>Expert evidence values and provenance</summary>
+          <div>
+            <ConfidenceExpertValues confidence={props.finding.confidence} />
+
+            <section aria-labelledby="strategic-fit-contribution-values-title">
+              <h5 id="strategic-fit-contribution-values-title">Raw comparison contributions</h5>
+              <p data-strategic-distance-definition>
+                {STRATEGIC_FIT_VOCABULARY.strategicDistanceDefinition}
+              </p>
+              <p>
+                Listed total: {listedContributionTotal()}. Report strategic distance:{" "}
+                {formatNumber(comparison().reconciliation.report_distance, 6)}.
+              </p>
+              <ul>
+                <For each={comparison().dimensions}>
+                  {(dimension) => (
+                    <li>
+                      <strong>{dimension.dimension_id}</strong>: contribution{" "}
+                      {formatNumber(dimension.contribution, 6)}; typical{" "}
+                      <code>{dimension.raw_typical}</code>; affected{" "}
+                      <code>{dimension.raw_affected}</code>.<span>{dimension.explanation}</span>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </section>
+
+            <section aria-labelledby="strategic-fit-objective-values-title">
+              <h5 id="strategic-fit-objective-values-title">Objective values</h5>
+              <dl>
+                <dt>{presentation().objective.repertoire_pov_label}</dt>
+                <dd>
+                  {presentation().objective.repertoire_pov_value}.{" "}
+                  {presentation().objective.repertoire_pov_explanation}
+                </dd>
+                <dt>Loss from best for repertoire side</dt>
+                <dd>{presentation().objective.loss_from_best}</dd>
+                <dt>Engine depth</dt>
+                <dd>{presentation().objective.engine_depth}</dd>
+                <dt>Engine lines</dt>
+                <dd>{presentation().objective.engine_lines}</dd>
+                <dt>Database performance</dt>
+                <dd>{presentation().objective.database_performance}</dd>
+                <dt>Theoretical status</dt>
+                <dd>{presentation().objective.theoretical_status}</dd>
+              </dl>
+            </section>
+
+            <section aria-labelledby="strategic-fit-reference-values-title">
+              <h5 id="strategic-fit-reference-values-title">Semantic references</h5>
+              <dl>
+                <dt>Finding</dt>
+                <dd>
+                  <code>{props.finding.finding_id}</code>
+                </dd>
+                <dt>Semantic finding</dt>
+                <dd>
+                  <code>{props.finding.semantic_finding_id}</code>
+                </dd>
+                <dt>Positions</dt>
+                <dd>
+                  <code>{props.finding.references.position_ids.join(", ") || "None"}</code>
+                </dd>
+                <dt>Decisions</dt>
+                <dd>
+                  <code>{props.finding.references.decision_ids.join(", ") || "None"}</code>
+                </dd>
+                <dt>Routes</dt>
+                <dd>
+                  <code>{props.finding.references.route_ids.join(", ") || "None"}</code>
+                </dd>
+                <dt>Data-quality issue IDs</dt>
+                <dd>
+                  <code>{props.finding.evidence.data_quality_issue_ids.join(", ") || "None"}</code>
+                </dd>
+              </dl>
+            </section>
+
+            <section aria-labelledby="strategic-fit-provenance-values-title">
+              <h5 id="strategic-fit-provenance-values-title">Exact provenance</h5>
+              <p>
+                Report revision <code>{props.finding.provenance.repertoire_revision}</code>;
+                generated at <code>{props.finding.provenance.generated_at}</code>; deterministic:{" "}
+                {props.finding.provenance.deterministic ? "yes" : "no"}.
+              </p>
+              <ul>
+                <For each={presentation().sources}>
+                  {(entry) => (
+                    <li>
+                      <strong>
+                        {entry.group}: {entry.source.source_id}
+                      </strong>
+                      <span>
+                        kind {entry.source.kind}; state {entry.source.state}; version{" "}
+                        {entry.source.version ?? "unavailable"}; snapshot{" "}
+                        {entry.source.snapshot ?? "unavailable"}; reason{" "}
+                        {entry.source.reason ?? "none"}.
+                      </span>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </section>
+          </div>
+        </details>
       </details>
 
       {/*
@@ -477,15 +501,23 @@ export default function EvidencePanel(props: {
         reader has to remember rather than something the page offers where they finish reading.
       */}
       <div class="strategic-fit-evidence-next">
-        <button
-          type="button"
-          data-evidence-record-decision
-          onClick={() => {
-            setStrategicFitWorkspaceStage("resolution");
-          }}
+        <Show
+          when={
+            story().kind !== "gap" && props.finding.classification !== "transpositional-equivalence"
+          }
         >
-          Record a decision
-        </button>
+          <button
+            type="button"
+            data-evidence-record-decision
+            onClick={() => {
+              const target = document.querySelector<HTMLElement>("#strategic-fit-inline-actions");
+              target?.scrollIntoView({ block: "start" });
+              target?.querySelector<HTMLElement>("button, input, select, textarea")?.focus();
+            }}
+          >
+            Review your options
+          </button>
+        </Show>
       </div>
     </article>
   );

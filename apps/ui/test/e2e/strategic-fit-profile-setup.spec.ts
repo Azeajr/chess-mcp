@@ -154,7 +154,7 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
 
   await expect(
     dialog.getByRole("heading", {
-      name: "How should Strategic Fit review your repertoire?",
+      name: "What kind of repertoire are you trying to build?",
     }),
   ).toBeVisible();
   const choices = dialog.getByRole("radio");
@@ -171,11 +171,11 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
   await dialog.getByRole("button", { name: "Skip for now" }).click();
   await expect(
     dialog.getByRole("heading", {
-      name: "How should Strategic Fit review your repertoire?",
+      name: "What kind of repertoire are you trying to build?",
     }),
   ).toHaveCount(0);
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
-  await expect(dialog.getByText(/Balanced · Inferred · provisional/)).toBeVisible();
+  await expect(dialog.getByText("Review preference Balanced", { exact: true })).toBeVisible();
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
     mode: "balanced",
     source: "inferred",
@@ -216,7 +216,7 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   await expect(dialog.getByRole("button", { name: "Use Familiar plans profile" })).toBeVisible();
   await dialog.getByRole("button", { name: "Use Familiar plans profile" }).click();
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
-  await expect(dialog.getByText(/Familiar plans · Explicit/)).toBeVisible();
+  await expect(dialog.getByText("Review preference Familiar plans", { exact: true })).toBeVisible();
   expect(await appSnapshot(page)).toEqual(before);
   expect(await workerStarts(page)).toEqual(workersBefore);
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
@@ -236,7 +236,9 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   const afterReload = await openWorkspace(page);
   await expect(afterReload.dialog.getByRole("radio")).toHaveCount(0);
   await expect(afterReload.dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
-  await expect(afterReload.dialog.getByText(/Familiar plans · Explicit/)).toBeVisible();
+  await expect(
+    afterReload.dialog.getByText("Review preference Familiar plans", { exact: true }),
+  ).toBeVisible();
 });
 
 test("Custom saves every bounded preference without changing repertoire or staged state", async ({
@@ -350,6 +352,7 @@ test("setup has a keyboard-safe phone layout and accessible advanced controls", 
 test("post-setup custom settings preview, clamp, persist, invalidate reports, and never edit the tree", async ({
   page,
 }) => {
+  test.slow();
   await chess(page, (api) =>
     api.loadPgn("1. e4 e5 2. Nf3 Nc6 *\n\n1. d4 d5 2. c4 e6 *", "custom-settings.pgn"),
   );
@@ -358,11 +361,12 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
   const { dialog } = await openWorkspace(page);
   await dialog.getByRole("button", { name: "Use Balanced profile" }).click();
 
-  await expect(dialog.getByRole("heading", { name: "Profile and evidence" })).toBeVisible();
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect
     .poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 })
     .toBe("completed");
+  await openSection(dialog, "Explore the full analysis");
+  await expect(dialog.getByRole("heading", { name: "Profile and evidence" })).toBeVisible();
   const reportBefore = await chess(
     page,
     (api) => api.strategicFitLifecycle().current_result?.report_id,
@@ -370,6 +374,10 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
 
   await dialog.getByRole("button", { name: "Versatile" }).click();
   await expect.poll(() => chess(page, (api) => api.strategicFitProfile().mode)).toBe("versatile");
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 })
+    .toBe("completed");
+  await openSection(dialog, "Explore the full analysis");
   await dialog.getByRole("button", { name: "Customize" }).click();
   await expect(dialog.getByText(/Weights are relative/)).toBeVisible();
   await dialog.getByLabel("Center dynamics weight").fill("2.5");

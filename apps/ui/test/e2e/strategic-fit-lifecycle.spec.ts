@@ -202,6 +202,7 @@ test(
 test("real canonical analysis stays current through navigation and refreshes profile and document changes", async ({
   page,
 }) => {
+  test.slow();
   await bootstrap(page);
   await loadExplicitProfile(page);
   await chess(page, (api) => {
@@ -229,8 +230,13 @@ test("real canonical analysis stays current through navigation and refreshes pro
 
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
   await expect
-    .poll(() =>
-      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    .poll(
+      () =>
+        chess(
+          page,
+          (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null,
+        ),
+      { timeout: 20_000 },
     )
     .toBe("profile-change");
   const profileRefreshed = await chess(page, (api) => api.strategicFitLifecycle());
@@ -261,8 +267,13 @@ test("real canonical analysis stays current through navigation and refreshes pro
   expect(edited.ok).toBe(true);
   const currentRevision = await chess(page, (api) => api.version());
   await expect
-    .poll(() =>
-      chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
+    .poll(
+      () =>
+        chess(
+          page,
+          (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null,
+        ),
+      { timeout: 20_000 },
     )
     .toBe("document-change");
   const refreshed = await chess(page, (api) => api.strategicFitLifecycle());

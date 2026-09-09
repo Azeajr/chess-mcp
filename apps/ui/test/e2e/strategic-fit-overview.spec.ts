@@ -86,6 +86,7 @@ async function bootstrap(page: Page, pgn: string, name: string) {
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });
+  await dialog.locator(".strategic-fit-advanced-report > summary").click();
   return dialog;
 }
 

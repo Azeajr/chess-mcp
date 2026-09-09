@@ -40,8 +40,10 @@ test("WP-032 AC-1 completed disclosures put the first finding inside a 1280x800 
   test.slow();
   const dialog = await completedWorkspace(page);
 
-  await expect(dialog.locator("[data-progress-collapsed='true']")).toBeVisible();
-  await expect(dialog.locator("[data-preflight-collapsed='true']")).toBeVisible();
+  await expect(dialog.locator("details.strategic-fit-analysis-details")).not.toHaveAttribute(
+    "open",
+    "",
+  );
 
   await dialog.locator("#strategic-fit-stage-findings").click();
   const firstFinding = dialog.locator("[data-finding-id]").first();
@@ -82,6 +84,7 @@ test("WP-032 AC-3 both completed summaries expand and collapse from the keyboard
 }) => {
   const dialog = await completedWorkspace(page);
 
+  await dialog.getByText(/Analysis coverage:/).click();
   const phases = dialog.getByRole("button", { name: /All six phases completed/ });
   await expect(phases).toHaveAttribute("aria-expanded", "false");
   await phases.focus();
@@ -112,6 +115,7 @@ test("WP-032 AC-4 print/export and beforeprint force both disclosures fully open
   await expect(progress).toHaveAttribute("data-progress-collapsed", "true");
   await expect(preflight).toHaveAttribute("data-preflight-collapsed", "true");
 
+  await dialog.getByText("Explore the full analysis", { exact: true }).click();
   await dialog.locator("[data-strategic-fit-print-export-toggle]").click();
   await expect(progress).toHaveAttribute("data-progress-collapsed", "false");
   await expect(preflight).toHaveAttribute("data-preflight-collapsed", "false");

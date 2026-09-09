@@ -101,19 +101,7 @@ export default function AnalysisLifecycle() {
                 data-reanalysis-scope={summary().scope.kind}
                 data-resolving-revision={summary().resolving_revision}
               >
-                Reconciled{" "}
-                {summary().scope.kind === "full-scan"
-                  ? "the full report"
-                  : `${summary().scope.cohort_ids.length} affected cohort(s)`}{" "}
-                at revision <code>{summary().resolving_revision}</code>:{" "}
-                {/* Changed evidence and a reopened decision are different counts: a finding whose
-                    evidence moved has no resolution to reopen unless one was recorded, and the
-                    finding whose own resolution triggered the run keeps it. */}
-                {summary().auto_resolved_semantic_finding_ids.length} disappeared finding(s)
-                resolved, {summary().changed_evidence_semantic_finding_ids.length} finding(s) with
-                changed evidence, {summary().reopened_semantic_finding_ids.length} resolution(s)
-                reopened, and {summary().reappeared_semantic_finding_ids.length} finding(s)
-                reappeared.
+                Review updated after your last decision.
               </span>
             )}
           </Show>
@@ -165,7 +153,7 @@ export default function AnalysisLifecycle() {
         </div>
       </div>
 
-      <Show when={state().request_id !== null}>
+      <Show when={state().request_id !== null && state().status !== "completed"}>
         <AnalysisProgress
           state={state()}
           collapsed={
@@ -180,11 +168,30 @@ export default function AnalysisLifecycle() {
       </Show>
       <Show when={state().status === "completed" && state().current_result}>
         {(current) => (
-          <PreflightResults
-            preflight={current().result.preflight}
-            collapsed={!strategicFitPreflightExpanded() && !strategicFitPrintExportMode()}
-            onToggle={() => setStrategicFitPreflightExpanded(!strategicFitPreflightExpanded())}
-          />
+          <details class="strategic-fit-analysis-details" open={strategicFitPrintExportMode()}>
+            <summary>
+              Analysis coverage: {current().result.preflight.comparable_route_count} of{" "}
+              {current().result.preflight.route_count} branches compared
+            </summary>
+            <div>
+              <Show when={state().request_id !== null}>
+                <AnalysisProgress
+                  state={state()}
+                  collapsed={
+                    !strategicFitAnalysisPhasesExpanded() && !strategicFitPrintExportMode()
+                  }
+                  onToggle={() =>
+                    setStrategicFitAnalysisPhasesExpanded(!strategicFitAnalysisPhasesExpanded())
+                  }
+                />
+              </Show>
+              <PreflightResults
+                preflight={current().result.preflight}
+                collapsed={!strategicFitPreflightExpanded() && !strategicFitPrintExportMode()}
+                onToggle={() => setStrategicFitPreflightExpanded(!strategicFitPreflightExpanded())}
+              />
+            </div>
+          </details>
         )}
       </Show>
     </section>
