@@ -1,4 +1,5 @@
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from "solid-js";
+import { STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE } from "../../content/strategicFit";
 import {
   buildDecisionFlowProjection,
   type DecisionFlowCausalLabel,
@@ -590,7 +591,8 @@ export default function DecisionFlow(props: {
         when={model().projection.state !== "unavailable" && activeCohort()}
         fallback={
           <div class="decision-flow-unavailable" data-flow-unavailable>
-            <strong>Decision flow unavailable</strong>
+            {/* The <h3> above already says "Decision flow"; the rule is in the content module. */}
+            <strong>{STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE.titledSection}</strong>
             <p>{model().projection.reason}</p>
             <Show when={model().projection.exclusions.length > 0}>
               <details>

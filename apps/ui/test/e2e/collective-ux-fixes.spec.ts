@@ -20,7 +20,7 @@ test("Save status is reachable by keyboard and describes browser storage separat
   page,
 }) => {
   await openApp(page, { width: 375, height: 629 });
-  const menu = page.getByRole("button", { name: "Repertoire", exact: true });
+  const menu = page.getByRole("button", { name: "File", exact: true });
   await menu.focus();
   await page.keyboard.press("Enter");
   const entry = page.getByRole("menuitem", { name: "Save status", exact: true });
@@ -100,6 +100,6 @@ test("application reloads do not create ownerless reactive computations", async 
   await page.getByRole("tab", { name: "Moves", exact: true }).click();
   await page.getByRole("tab", { name: "Analysis", exact: true }).click();
   await page.reload();
-  await expect(page.getByRole("button", { name: "Repertoire", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "File", exact: true })).toBeVisible();
   expect(warnings.filter((message) => message.includes("will never be disposed"))).toEqual([]);
 });

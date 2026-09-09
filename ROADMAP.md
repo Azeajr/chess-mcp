@@ -67,47 +67,36 @@ changes and release candidates.
 
 ## UI/UX pass
 
-One pass over the interface defects that survived assessment (2026-09-08). Each was confirmed
-against the code, and each is a demonstrable defect rather than a presentation preference — the
-preferences were either removed or moved to **Settled** above. Ordered by evidence, not by size.
+The pass ran on 2026-09-08 and its confirmed items shipped. What is left is recorded here, with the
+one item that was assessed and deliberately not done.
 
-- **Print capture drops its own background.** `styles.css` has no `print-color-adjust` anywhere, and
-  its two `@media print` blocks only fix overflow and positioning. `.strategic-map` and
-  `.strategic-map-chart` do set opaque backgrounds, so the original wording of this item was wrong:
-  the defect is that user agents discard backgrounds when printing, so a dark-theme chart prints
-  light-on-white. It applies to all three print-export visualizations — `StrategicMap`,
-  `ConceptHeatmap` and `DecisionFlow` all carry a `data-*-print-export` attribute — not to the map
-  alone.
-- **Two different things are both called `Repertoire`.** The top-bar document menu button
-  (`DocumentMenu.tsx`) and the analysis panel header (`RepertoirePanel.tsx`) render that word on the
-  same screen at the same time; both appear in the CT run's screenshots. Rename the document menu.
-- **A `<select>` nested inside a `<summary>`.** The repertoire panel puts 11 interactive controls
-  inside `<summary>` elements, which is invalid HTML. The buttons are already worked around —
-  `preventDefault()` plus an explicit `openSection()`, guarded by "a scan opens the section its
-  results land in" — so they are not the risk. The `Extend here` mode `<select>` is: it has no such
-  workaround and no test, and opening a dropdown inside a `<summary>` can toggle the disclosure on
-  some platforms. Fix that one and the markup validity together.
-- **The chat surface still hides the gap scan's scope.** `find_repertoire_gaps` in `ToolResult.tsx`
-  renders bare navigation rows with no summary line, where the neighbouring audit and only-move
-  cards both report `positions_scanned`. `positions_available` and `gaps_found` now exist for it to
-  use. The chat surface was not driven in the CT run, so this needs a journey rather than a blind
-  edit.
-- **Three near-identical unavailable states.** `strategic-map-unavailable`,
-  `concept-heatmap-unavailable` and `decision-flow-unavailable` are structurally parallel with
-  separately worded headings. They are not identical — the map additionally carries an exclusions
-  `<details>` — so this is de-duplication with a caveat, and the lowest-value item here.
+**Not done, on purpose: merging the three unavailable-visualization states.** `strategic-map-`,
+`concept-heatmap-` and `decision-flow-unavailable` render the same shape — heading, reason, and a
+`<details>` of excluded routes. (An earlier note here claimed only the map had that `<details>`;
+all three do.) They differ in three tokens: the heading, the `data-*-exclusion` attribute name, and
+the route-id shortener. Parameterizing that needs a component with more props than the duplication
+costs, and the per-chart data attributes that tests select on are worth keeping distinct, so the
+duplication stays. The copy inconsistency inside it was the part worth fixing and was fixed: the
+decision flow no longer repeats its own `<h3>` in its empty state. The strategic map deliberately
+still names itself there, because it renders no section title and its empty state is the only thing
+that identifies it.
 
-Drive the pass with `pnpm ux:review` against the CT repertoires rather than the fixture, and use it
-to measure progress and cancellation on a tree that is large enough for either to matter: the CT
-sessions never pressed cancel to completion, and Strategic Fit's cost on a 62-leaf,
-265-decision-node tree is still unmeasured.
+**Still open: measure progress and cancellation on a representative large repertoire.** Cancel has
+never been pressed to completion in any session, and Strategic Fit's cost on a 62-leaf,
+265-decision-node tree is unmeasured. Drive it with `pnpm ux:review` against the CT repertoires
+rather than the fixture.
 
-Blocked rather than scheduled: replacing the permanent Strategic Fit cold-start pitch needs a report
-summary that survives document load, and no such thing exists.
-`application/strategic-fit-report-cache` is a per-session compute cache that is invalidated on
-edits, colour changes and settings changes. The pitch also carries the reassurance that opening
-Strategic Fit does not analyze or change the repertoire, which is worth keeping until there is
-something to replace it with.
+**Still open: a chat journey.** The chat-side `find_repertoire_gaps` card now reports what the scan
+covered, and its copy is unit-tested, but no session has driven the chat surface — that needs a
+provider stub, as `apps/ui/test/fixtures/ux-review/` holds for the game-review and position
+journeys.
+
+**Blocked rather than scheduled: replacing the permanent Strategic Fit cold-start pitch.** It needs
+a report summary that survives document load, and no such thing exists —
+`application/strategic-fit-report-cache` is a per-session compute cache invalidated on edits, colour
+changes and settings changes. The pitch also carries the reassurance that opening Strategic Fit does
+not analyze or change the repertoire, which is worth keeping until there is something to replace it
+with.
 
 ## Release checks
 

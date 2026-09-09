@@ -6,6 +6,21 @@ export const STRATEGIC_FIT_ENTRY = {
   action: "Open Strategic Fit",
 } as const;
 
+/*
+  Headings for a visualization that cannot be drawn for a report. The rule is about the section
+  around it, not the chart: a section that renders its own visible heading must not name itself
+  again underneath, because "Concept heatmap" over "Concept heatmap unavailable" is two headings
+  differing by one word. The strategic map is the exception in the other direction — it renders no
+  section title at all, so its empty state is the only thing that says which visualization is
+  missing, and it has to keep saying it.
+*/
+export const STRATEGIC_FIT_VISUALIZATION_UNAVAILABLE = {
+  /* For `ConceptHeatmap` and `DecisionFlow`, which both render an `<h3>`. */
+  titledSection: "Not available for this report",
+  /* For `StrategicMap`, which renders none. */
+  untitledMap: "Strategic map unavailable",
+} as const;
+
 export const STRATEGIC_FIT_EVIDENCE = {
   noneTitle: "Not enough comparable evidence to analyze",
   noneBody: (routeCount: number, comparableCount: number, ply: number | null) =>
