@@ -118,7 +118,12 @@ export default function StrategicAssessment(props: {
                 const story = buildStrategicFindingStory(finding);
                 return (
                   <li>
-                    <button type="button" onClick={() => props.onOpenFinding(finding.finding_id)}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        props.onOpenFinding(finding.finding_id);
+                      }}
+                    >
                       <span>{finding.opening_scope}</span>
                       <strong>{story.title}</strong>
                       <small>{story.frequency ?? story.control}</small>
@@ -128,7 +133,13 @@ export default function StrategicAssessment(props: {
               }}
             </For>
           </ol>
-          <button type="button" class="strategic-fit-assessment-all" onClick={props.onReviewAll}>
+          <button
+            type="button"
+            class="strategic-fit-assessment-all"
+            onClick={() => {
+              props.onReviewAll();
+            }}
+          >
             See all results
           </button>
         </div>

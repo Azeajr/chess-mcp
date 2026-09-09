@@ -335,7 +335,7 @@ export default function StrategicFitWorkspace() {
     if (stage !== "evidence" || selected === null) return;
     queueMicrotask(() => {
       dialog
-        ?.querySelector<HTMLElement>("#strategic-fit-pane-evidence")
+        .querySelector<HTMLElement>("#strategic-fit-pane-evidence")
         ?.scrollTo({ top: 0, behavior: "auto" });
     });
   });
@@ -514,9 +514,9 @@ export default function StrategicFitWorkspace() {
                               findings={report().findings_snapshot ?? report().result.findings}
                               resolutionState={displayStrategicFitFindingResolution}
                               onReviewAll={openAssessmentQueue}
-                              onOpenFinding={(findingId) =>
-                                selectStrategicFitFinding(findingId, true)
-                              }
+                              onOpenFinding={(findingId) => {
+                                selectStrategicFitFinding(findingId, true);
+                              }}
                             />
                             <details class="strategic-fit-advanced-report">
                               <summary>Explore the full analysis</summary>
@@ -731,9 +731,9 @@ export default function StrategicFitWorkspace() {
                                   <button
                                     type="button"
                                     data-evidence-next-finding
-                                    onClick={() =>
-                                      selectStrategicFitFinding(next().finding_id, true)
-                                    }
+                                    onClick={() => {
+                                      selectStrategicFitFinding(next().finding_id, true);
+                                    }}
                                   >
                                     Next result
                                   </button>
