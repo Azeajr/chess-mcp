@@ -27,6 +27,10 @@ import { strategicFitLifecycle } from "../../store/strategic-fit";
 import { artifactSaveMessage, saveArtifact } from "../../store/artifacts";
 import { STRATEGIC_FIT_PROFILE_LABELS } from "./ProfileSetup";
 import { STRATEGIC_FIT_VOCABULARY } from "../../content/strategicFit";
+import {
+  setStrategicFitSettingsAnnouncement,
+  strategicFitSettingsAnnouncement,
+} from "../../store/ui";
 
 const PRESETS: readonly Exclude<StrategicFitProfileMode, "custom">[] = [
   "familiar-plans",
@@ -87,7 +91,8 @@ export default function ProfileSettings() {
     clonePreferences(strategicFitProfile().preferences),
   );
   const [sources, setSources] = createSignal(cloneSources(strategicFitDataSourceSettings()));
-  const [announcement, setAnnouncement] = createSignal("");
+  const announcement = strategicFitSettingsAnnouncement;
+  const setAnnouncement = setStrategicFitSettingsAnnouncement;
   const [trainingTransferMessage, setTrainingTransferMessage] = createSignal<string | null>(null);
 
   const exportTraining = () => {

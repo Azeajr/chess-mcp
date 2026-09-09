@@ -143,18 +143,17 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await expect(
     dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
   ).toBeVisible();
-  await expect(dialog.locator(".strategic-fit-workspace-pane")).toHaveCount(4);
+  await expect(dialog.locator(".strategic-fit-workspace-pane")).toHaveCount(3);
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
-  await expect(dialog.getByRole("heading", { name: "Strategic map" })).toBeVisible();
+  await expect(dialog.getByRole("heading", { name: "Your repertoire" })).toBeVisible();
   for (const [stage, heading] of [
-    ["findings", "Findings"],
+    ["findings", "What deserves attention"],
     ["evidence", "Evidence / comparison"],
-    ["resolution", "Resolution"],
   ] as const) {
     await dialog.locator(`#strategic-fit-stage-${stage}`).click();
     await expect(dialog.getByRole("heading", { name: heading })).toBeVisible();
   }
-  await expect(dialog.locator("[data-region-state='empty']")).toHaveCount(4);
+  await expect(dialog.locator("[data-region-state='empty']")).toHaveCount(3);
   expect(await snapshot(page)).toEqual(before);
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
   expect(await workerStarts(page)).toEqual(workersBefore);
@@ -187,9 +186,16 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeFocused();
-  for (const stage of ["Overview", "Findings", "Evidence", "Resolution"]) {
+  for (const [label, stage] of [
+    ["Assessment", "overview"],
+    ["Review", "findings"],
+    ["Branch", "evidence"],
+  ] as const) {
     await page.keyboard.press("Tab");
-    await expect(dialog.locator(`#strategic-fit-stage-${stage.toLowerCase()}`)).toBeFocused();
+    const stageControl = dialog.locator(`#strategic-fit-stage-${stage}`);
+    await expect(stageControl).toBeFocused();
+    await expect(stageControl).toHaveAccessibleName(label);
+    await expect(stageControl).toHaveAttribute("id", `strategic-fit-stage-${stage}`);
   }
   await page.keyboard.press("Tab");
   await expect(overview).toBeFocused();
@@ -212,22 +218,21 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   await expect(opener).toBeFocused();
 });
 
-test("phone shell exposes the four frozen stages one at a time", async ({ page }) => {
+test("phone shell exposes the three task stages one at a time", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const stages = dialog.getByRole("tab");
-  await expect(stages).toHaveCount(4);
-  await expect(stages).toHaveText(["Overview", "Findings", "Evidence", "Resolution"]);
-  await expect(stages.filter({ hasText: "Overview" })).toHaveAttribute("aria-selected", "true");
+  await expect(stages).toHaveCount(3);
+  await expect(stages).toHaveText(["Assessment", "Review", "Branch"]);
+  await expect(stages.filter({ hasText: "Assessment" })).toHaveAttribute("aria-selected", "true");
   await expect(dialog.locator("#strategic-fit-pane-overview")).toBeVisible();
   await expect(dialog.locator("#strategic-fit-pane-findings")).toBeHidden();
 
   for (const [stage, pane] of [
-    ["Findings", "findings"],
-    ["Evidence", "evidence"],
-    ["Resolution", "resolution"],
-    ["Overview", "overview"],
+    ["Review", "findings"],
+    ["Branch", "evidence"],
+    ["Assessment", "overview"],
   ] as const) {
     await dialog.getByRole("tab", { name: stage }).click();
     await expect(dialog.getByRole("tab", { name: stage })).toHaveAttribute("aria-selected", "true");
@@ -264,5 +269,5 @@ test("shell regions render explicit empty, loading, and error states", async ({ 
   await dialog.locator("#strategic-fit-stage-evidence").click();
   await expect(
     dialog.locator("#strategic-fit-pane-evidence [data-region-state='empty']"),
-  ).toContainText("No evidence selected");
+  ).toContainText("Choose a result to understand");
 });

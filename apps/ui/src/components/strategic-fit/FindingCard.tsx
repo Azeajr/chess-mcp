@@ -6,6 +6,7 @@ import type {
   StrategicFitClassification,
 } from "@chess-mcp/chess-tools";
 import type { StrategicFitDisplayedResolutionState } from "../../store/strategic-fit-finding-resolutions";
+import { buildStrategicFindingStory } from "./finding-story";
 
 export const STRATEGIC_FIT_CLASSIFICATION_LABELS: Readonly<
   Record<StrategicFitClassification, string>
@@ -147,6 +148,7 @@ export default function FindingCard(props: {
 }) {
   const resolutionState = () => props.resolutionState ?? props.finding.resolution_state;
   const presentation = () => buildFindingCardPresentation(props.finding, resolutionState());
+  const story = () => buildStrategicFindingStory(props.finding);
   return (
     <article
       class="strategic-fit-finding-card"
@@ -165,13 +167,15 @@ export default function FindingCard(props: {
     >
       <header>
         <div>
-          <span class="strategic-fit-finding-classification">{presentation().classification}</span>
-          <h3 id={`strategic-fit-finding-${props.finding.finding_id}`}>
-            {props.finding.plain_language_category}
-          </h3>
+          <span class="strategic-fit-finding-classification">{props.finding.opening_scope}</span>
+          <h3 id={`strategic-fit-finding-${props.finding.finding_id}`}>{story().title}</h3>
         </div>
-        <span class="strategic-fit-finding-resolution" data-resolution={resolutionState()}>
-          {presentation().resolution}
+        <span
+          class="strategic-fit-finding-resolution"
+          data-resolution={resolutionState()}
+          data-finding-kind={story().kind}
+        >
+          {resolutionState() === "unresolved" ? story().action_label : presentation().resolution}
         </span>
       </header>
 
@@ -181,45 +185,20 @@ export default function FindingCard(props: {
         </p>
       </Show>
 
-      <dl class="strategic-fit-finding-scope">
-        <div>
-          <dt>Opening / system</dt>
-          <dd>{props.finding.opening_scope}</dd>
-        </div>
-        <div>
-          <dt>Cohort</dt>
-          <dd>{props.cohortName ?? props.finding.evidence.cohort_id}</dd>
-        </div>
-        <div>
-          <dt>Affected line</dt>
-          <dd>{props.finding.affected_line_summary}</dd>
-        </div>
-      </dl>
-      <p class="strategic-fit-finding-explanation">{props.finding.explanation}</p>
+      <p class="strategic-fit-finding-explanation">{story().situation}</p>
+      <p class="strategic-fit-finding-control">{story().control}</p>
 
       <ul class="strategic-fit-finding-facts" aria-label="Finding summary">
-        <li>{presentation().baseline}</li>
-        <li
-          data-expected-frequency={
-            props.finding.expected_frequency === null ? "unavailable" : "available"
-          }
-        >
-          {presentation().expected_frequency}
-        </li>
+        <Show when={story().frequency}>{(frequency) => <li>{frequency()}</li>}</Show>
         <li>{presentation().difference}</li>
-        <li>{presentation().confidence}</li>
-        <li>{presentation().causal_ownership}</li>
-        <li data-objective-state={props.finding.objective_quality.state}>
-          {presentation().objective_soundness}
-        </li>
+        <li>{props.finding.affected_line_summary}</li>
       </ul>
-      <Show when={presentation().objective_reason}>
-        {(reason) => <p class="strategic-fit-finding-objective-reason">{reason()}</p>}
+      <Show when={story().uncertainty}>
+        {(uncertainty) => <p class="strategic-fit-finding-objective-reason">{uncertainty()}</p>}
       </Show>
 
-      <p class="strategic-fit-finding-priorities">
-        <span>{presentation().replacement_priority}</span>
-        <span>{presentation().training_priority}</span>
+      <p class="strategic-fit-finding-next-step">
+        <strong>What to do:</strong> {story().next_step}
       </p>
 
       <details class="strategic-fit-finding-paths">
@@ -253,11 +232,10 @@ export default function FindingCard(props: {
           selectWithKeyboard(event, props.onSelect);
         }}
       >
-        <span class="sr-only">
-          {props.selected ? "Selected for review" : "Select finding"}:{" "}
-          {props.finding.plain_language_category}
+        <span>
+          {props.selected ? "Continue review" : "Review finding"}
+          <span class="sr-only">: {story().title}</span>
         </span>
-        <span class="strategic-fit-finding-select-glyph" aria-hidden="true" />
       </button>
     </article>
   );

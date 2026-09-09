@@ -110,11 +110,11 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
         <div class="strategic-fit-profile-setup-intro">
           <div class="strategic-fit-workspace-kicker">First-run setup</div>
           <h2 id="strategic-fit-profile-setup-title">
-            How should Strategic Fit review your repertoire?
+            What kind of repertoire are you trying to build?
           </h2>
           <p id="strategic-fit-profile-setup-description">
-            Choose the tradeoff that best matches how you want to learn. Balanced is the recommended
-            starting point, and you can change these profile settings later.
+            This choice changes what the review calls out. Balanced is a good starting point, and
+            you can change it later.
           </p>
         </div>
 
@@ -146,6 +146,28 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
             )}
           </For>
         </fieldset>
+
+        <div class="strategic-fit-profile-setup-footer">
+          <p>
+            This saves a review preference only. It will not edit the repertoire or start the
+            review.
+          </p>
+          <div class="strategic-fit-profile-setup-actions">
+            <button
+              type="button"
+              class="secondary"
+              onClick={() => {
+                skipStrategicFitProfileSetup();
+                props.onComplete?.();
+              }}
+            >
+              Skip for now
+            </button>
+            <button type="submit" class="primary">
+              Use {STRATEGIC_FIT_PROFILE_LABELS[selectedMode()]} profile
+            </button>
+          </div>
+        </div>
 
         <div class="strategic-fit-profile-engine-note" role="note">
           <strong>The base scan is engine-free.</strong> Engine depth is used only later when
@@ -380,29 +402,6 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
             </label>
           </div>
         </details>
-
-        <div class="strategic-fit-profile-setup-footer">
-          <p>
-            Choosing a profile saves review preferences only. It does not edit the repertoire or
-            start analysis. Skipping keeps a visible, provisional inferred profile for this session
-            and does not save that inference.
-          </p>
-          <div class="strategic-fit-profile-setup-actions">
-            <button
-              type="button"
-              class="secondary"
-              onClick={() => {
-                skipStrategicFitProfileSetup();
-                props.onComplete?.();
-              }}
-            >
-              Skip for now
-            </button>
-            <button type="submit" class="primary">
-              Use {STRATEGIC_FIT_PROFILE_LABELS[selectedMode()]} profile
-            </button>
-          </div>
-        </div>
       </form>
     </main>
   );

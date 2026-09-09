@@ -52,8 +52,6 @@ test("first-run setup has a coherent accessible outline and returns focus to ana
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("radio", { name: /Balanced/ })).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(dialog.getByText("Advanced preferences", { exact: true })).toBeFocused();
-  await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Skip for now" })).toBeFocused();
   await page.keyboard.press("Tab");
   const submit = dialog.getByRole("button", { name: "Use Balanced profile" });
@@ -68,19 +66,19 @@ test("phone stage tabs support keyboard navigation and every touch action is at 
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog } = await openWorkspace(page, true);
-  const overview = dialog.getByRole("tab", { name: "Overview" });
+  const overview = dialog.getByRole("tab", { name: "Assessment" });
 
   await page.bringToFront();
   await overview.click();
   await expect(overview).toBeFocused();
 
   await page.keyboard.press("ArrowRight");
-  const findings = dialog.getByRole("tab", { name: "Findings" });
+  const findings = dialog.getByRole("tab", { name: "Review" });
   await expect(findings).toBeFocused();
   await expect(findings).toHaveAttribute("aria-selected", "true");
   await expect(dialog.locator("#strategic-fit-pane-findings")).toHaveAttribute("role", "tabpanel");
   await page.keyboard.press("End");
-  await expect(dialog.getByRole("tab", { name: "Resolution" })).toBeFocused();
+  await expect(dialog.getByRole("tab", { name: "Branch" })).toBeFocused();
   await page.keyboard.press("Home");
   await expect(overview).toBeFocused();
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
@@ -90,19 +88,14 @@ test("phone stage tabs support keyboard navigation and every touch action is at 
   expect(await contrastViolations(dialog)).toEqual([]);
 });
 
-test("custom profile settings remain accessible and overflow-free on a phone", async ({ page }) => {
+test("advanced first-run preferences remain accessible and overflow-free on a phone", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const { dialog } = await openWorkspace(page, true);
-  const customize = dialog.getByRole("button", { name: "Customize" });
-  await expect(customize).toHaveAttribute("aria-expanded", "false");
-  await customize.click();
-  await expect(dialog.getByRole("button", { name: "Close custom settings" })).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
+  const { dialog } = await openWorkspace(page);
+  const advanced = dialog.getByText("Advanced preferences", { exact: true });
+  await advanced.click();
   await expect(dialog.getByLabel("Center dynamics weight")).toBeVisible();
-  await dialog.getByText("Data sources and weighting", { exact: true }).click();
-  await expect(dialog.getByLabel("Data-source status")).toBeVisible();
   expect(await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await expectBasicAccessibility(dialog);
   expect(await touchTargetViolations(dialog)).toEqual([]);

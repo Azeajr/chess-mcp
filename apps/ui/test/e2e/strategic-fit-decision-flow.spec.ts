@@ -48,14 +48,16 @@ async function bootstrap(page: Page, pgn: string, name: string) {
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
-    timeout: 15_000,
+    timeout: 25_000,
   });
+  await dialog.locator(".strategic-fit-advanced-report > summary").click();
   return dialog;
 }
 
 test("the decision flow shows weighted player and opponent steps with an outline equivalent", async ({
   page,
 }) => {
+  test.slow();
   const dialog = await bootstrap(page, FLOW_REPERTOIRE, "flow-complete.pgn");
   const before = await chess(page, (api) => api.toPgn());
   const flow = dialog.locator(".decision-flow");

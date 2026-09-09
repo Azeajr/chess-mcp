@@ -11,7 +11,7 @@ test(
     await open.click();
     const dialog = page.getByRole("dialog");
     await expect(
-      dialog.getByRole("heading", { name: "How should Strategic Fit review your repertoire?" }),
+      dialog.getByRole("heading", { name: "What kind of repertoire are you trying to build?" }),
     ).toBeVisible();
     const accept = dialog.getByRole("button", { name: "Use Balanced profile" });
     // The full mobile descriptor makes this a touch/scroll reachability contract, not just a width test.
@@ -19,7 +19,7 @@ test(
     await expect(accept).toBeInViewport();
     await accept.tap();
     await expect(
-      dialog.getByRole("heading", { name: "How should Strategic Fit review your repertoire?" }),
+      dialog.getByRole("heading", { name: "What kind of repertoire are you trying to build?" }),
     ).toHaveCount(0);
     await expect(dialog).toBeVisible();
     const bounds = await dialog.boundingBox();

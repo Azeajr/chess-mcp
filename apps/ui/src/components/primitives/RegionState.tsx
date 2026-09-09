@@ -12,16 +12,16 @@ export interface RegionStateProps {
 
 const REGION_COPY: Record<string, { title: string; detail: string }> = {
   overview: {
-    title: "No strategic map yet",
-    detail: "Opening this workspace does not start an analysis.",
+    title: "Ready when you are",
+    detail: "Run the review to see whether your repertoire returns to familiar plans.",
   },
   findings: {
-    title: "No findings to review",
-    detail: "Findings will appear here only after a Strategic Fit analysis is requested.",
+    title: "No results yet",
+    detail: "Run the review first, then the branches that need attention will appear here.",
   },
   evidence: {
-    title: "No evidence selected",
-    detail: "Select a future finding to compare its branch with the cohort baseline.",
+    title: "Choose a result to understand",
+    detail: "Open a result to see its explanation, source line, and concrete position evidence.",
   },
   resolution: {
     title: "No resolution selected",

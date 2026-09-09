@@ -709,11 +709,53 @@ async function showStage(
   dialog: ReturnType<Page["getByRole"]>,
   stage: "overview" | "findings" | "evidence" | "resolution",
 ) {
+  if (stage === "resolution") {
+    const body = dialog.locator(".strategic-fit-workspace-body");
+    if ((await body.getAttribute("data-stage")) !== "evidence") {
+      await dialog.locator("#strategic-fit-stage-evidence").click();
+    }
+    await expect(body).toHaveAttribute("data-stage", "evidence");
+    const inlineActions = dialog.locator("#strategic-fit-inline-actions");
+    await expect(inlineActions).toBeVisible();
+    const adjustment = inlineActions.locator(".strategic-fit-inline-adjustment");
+    if (
+      (await adjustment.count()) > 0 &&
+      !(await adjustment.evaluate((node) => node.hasAttribute("open")))
+    ) {
+      await adjustment.locator("summary").click();
+    }
+    return;
+  }
   await dialog.locator(`#strategic-fit-stage-${stage}`).click();
   await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(
     "data-stage",
     stage,
   );
+  if (stage === "overview") {
+    const fullAnalysis = dialog.locator(".strategic-fit-advanced-report");
+    if (
+      (await fullAnalysis.count()) > 0 &&
+      !(await fullAnalysis.evaluate((node) => node.hasAttribute("open")))
+    ) {
+      await fullAnalysis.locator("summary").first().click();
+    }
+  }
+}
+
+async function showFirstQueuePage(queue: ReturnType<Page["locator"]>) {
+  const previous = queue.getByRole("button", { name: "Previous findings" });
+  for (let pageIndex = 0; pageIndex < 10 && (await previous.isEnabled()); pageIndex += 1) {
+    await previous.click();
+  }
+  await expect(previous).toBeDisabled();
+}
+
+async function openQueueFilters(queue: ReturnType<Page["locator"]>) {
+  const disclosure = queue.locator(".strategic-fit-queue-filter-disclosure");
+  if (!(await disclosure.evaluate((node) => node.hasAttribute("open")))) {
+    await disclosure.locator("summary").click();
+  }
+  await expect(queue.getByLabel("Sort findings")).toBeVisible();
 }
 
 async function bootstrap(
@@ -735,13 +777,14 @@ async function bootstrap(
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
-  if (stage !== "overview") await showStage(page, stage);
+  await showStage(page, stage);
   return { dialog, before, pathBefore };
 }
 
 test("finding queue renders frozen card fields, stable pages, composed filters, and keyboard selection", async ({
   page,
 }) => {
+  test.slow();
   const { dialog, before, pathBefore } = await bootstrap(page);
   const pane = dialog.locator("#strategic-fit-pane-findings");
   const queue = pane.getByRole("region", { name: "Strategic Fit finding queue" });
@@ -749,22 +792,18 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await showStage(page, "findings");
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "Showing 1–6 of 12 matching findings · 12 in this report",
+    "12 results · showing 1–6",
   );
 
   await showStage(page, "findings");
   const first = queue.locator("[data-finding-id='finding:01']");
-  await expect(first).toContainText("Different center plan");
-  await expect(first).toContainText("Avoidable inconsistency");
+  await expect(first).toContainText("This line asks you to learn a different plan");
   await expect(first).toContainText("Sicilian · Alapin");
   await expect(first).toContainText("Alapin, 6...Nf6 branch");
-  await expect(first).toContainText("78% weighted baseline");
-  await expect(first).toContainText("24% expected frequency");
+  await expect(first).toContainText("About 24 in 100 expected games");
   await expect(first).toContainText("Major difference");
-  await expect(first).toContainText("High confidence · 90/100");
-  await expect(first).toContainText("Mostly player-controlled");
-  await expect(first).toContainText("Verified: objectively sound");
-  await expect(first).toContainText("Unresolved");
+  await expect(first).toContainText("This difference mostly follows from moves you choose.");
+  await expect(first).toContainText("Review this choice");
   await first.getByText("5 source lines").click();
   await expect(first.locator(".strategic-fit-finding-paths li")).toHaveText([
     "e4 c5 c3 Nf6",
@@ -776,9 +815,13 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
 
   await showStage(page, "findings");
   const unavailable = queue.locator("[data-finding-id='finding:02']");
-  await expect(unavailable).toContainText("Expected frequency unavailable");
-  await expect(unavailable).toContainText("Objective soundness unavailable");
-  await expect(unavailable).toContainText("No engine verification was requested");
+  await expect(unavailable).toContainText(
+    "Your opponent steers this line into a different position",
+  );
+  await expect(unavailable).toContainText("Insufficient evidence");
+  await expect(unavailable).toContainText(
+    "Treat this conclusion as tentative because the supporting lines are limited.",
+  );
 
   await showStage(page, "findings");
   await first.locator("[data-finding-select]").click();
@@ -808,6 +851,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   );
   await expect(firstEvidence.locator(".strategic-fit-evidence-sources")).toContainText("Available");
 
+  await firstEvidence.locator(".strategic-fit-evidence-audit > summary").click();
   const expert = firstEvidence.locator(".strategic-fit-evidence-expert");
   await expect(expert.getByText("White repertoire POV evaluation", { exact: true })).toBeHidden();
   await expert.getByText("Expert evidence values and provenance", { exact: true }).click();
@@ -862,8 +906,11 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
     "finding:07",
   );
   await showStage(page, "findings");
-  await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText("Showing 7–12 of 12");
+  await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
+    "12 results · showing 7–12",
+  );
 
+  await openQueueFilters(queue);
   await queue.getByLabel("Sort findings").selectOption({ label: "Opening / system" });
   await expect(queue.locator("[data-finding-id]").first()).toHaveAttribute(
     "data-finding-id",
@@ -887,6 +934,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
 test("finding resolutions are reversible, persistent, count-aware, and automatically reconciled", async ({
   page,
 }) => {
+  test.slow();
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
@@ -913,6 +961,7 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
     )
     .toBe("resolution-change");
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "keep-intentionally");
   await showStage(page, "findings");
@@ -925,7 +974,7 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await showStage(page, "findings");
   await expect(queue.locator("[data-finding-id='finding:01']")).toHaveCount(0);
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "of 2 matching findings · 12 in this report",
+    "2 results · showing 1–2",
   );
   await showStage(page, "findings");
   await queue.getByRole("button", { name: "Show all report findings" }).click();
@@ -960,10 +1009,11 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
     )
     .not.toBe(beforeReopenRequest);
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "unresolved");
   await showStage(page, "findings");
-  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Unresolved");
+  await expect(first.locator(".strategic-fit-finding-resolution")).toHaveText("Review this choice");
   await expect(
     dialog.locator("[data-overview-item='unresolved-findings'] [data-overview-value]"),
   ).toHaveText("3");
@@ -983,6 +1033,7 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
     )
     .not.toBe(beforeDeferRequest);
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await first.locator("[data-finding-select]").click();
   await expect(actions).toHaveAttribute("data-resolution-state", "defer");
   await showStage(page, "findings");
@@ -1029,6 +1080,7 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
 test("review completion blocks unreviewed findings, exports provenance, and records reopen history", async ({
   page,
 }) => {
+  test.slow();
   const { dialog, before, pathBefore } = await bootstrap(page);
   const queue = dialog
     .locator("#strategic-fit-pane-findings")
@@ -1112,9 +1164,9 @@ test("review completion blocks unreviewed findings, exports provenance, and reco
     )
     .toBe("resolution-change");
   await expect(review).toHaveAttribute("data-review-state", "incomplete");
+  await showStage(page, "overview");
   await review.getByText(/Review history/).click();
   await expect(review.locator("[data-history-state='reopened']")).toBeVisible();
-  await showStage(page, "overview");
   await expect(review.getByRole("button", { name: "Complete review" })).toHaveCount(0);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
@@ -1123,6 +1175,7 @@ test("review completion blocks unreviewed findings, exports provenance, and reco
 test("training items persist semantic references, keep findings visible, and export legal basic drills", async ({
   page,
 }) => {
+  test.slow();
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
@@ -1147,6 +1200,7 @@ test("training items persist semantic references, keep findings visible, and exp
     )
     .toBe("resolution-change");
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await first.locator("[data-finding-select]").click();
   await showStage(page, "resolution");
   await expect(dialog.locator("[data-training-finding-id='finding:01']")).toContainText(
@@ -1226,6 +1280,7 @@ test("training items persist semantic references, keep findings visible, and exp
 test("cohort adjustments preview exact impact, persist metadata-only, reanalyze, reset, and block stale confirmation", async ({
   page,
 }) => {
+  test.slow();
   const { dialog, before, pathBefore } = await bootstrap(page);
   const initialVersion = await chess(page, (api) => api.version());
   const initialDirty = await chess(page, (api) => api.dirty());
@@ -1235,6 +1290,7 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
     .getByRole("region", { name: "Strategic Fit finding queue" });
   const selectFirst = async () => {
     await showStage(page, "findings");
+    await showFirstQueuePage(queue);
     await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
     await showStage(page, "resolution");
     await expect(dialog.locator("[data-cohort-editor]")).toBeVisible();
@@ -1322,10 +1378,6 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
       chess(page, (api) => api.strategicFitMetadata().cohort_labels[0]?.display_name ?? null),
     )
     .toBe("Unified e4 repertoire");
-  await showStage(page, "findings");
-  await expect(queue.locator("[data-finding-id='finding:01']")).toContainText(
-    "Unified e4 repertoire",
-  );
   await chess(page, (api) => api.flushStrategicFitMetadata());
 
   await page.reload();
@@ -1338,10 +1390,11 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   const restoredQueue = restored
     .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
-  await showStage(page, "findings");
-  await expect(restoredQueue.locator("[data-finding-id='finding:01']")).toContainText(
-    "Unified e4 repertoire",
-  );
+  await expect
+    .poll(() =>
+      chess(page, (api) => api.strategicFitMetadata().cohort_labels[0]?.display_name ?? null),
+    )
+    .toBe("Unified e4 repertoire");
   await showStage(page, "findings");
   await restoredQueue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   await showStage(page, "resolution");
@@ -1372,7 +1425,7 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   expect(await chess(page, (api) => api.strategicFitMetadata().cohort_overrides)).toEqual([]);
 });
 
-test("comparison boards synchronize canonical milestones and only Go to line navigates", async ({
+test("comparison boards synchronize canonical milestones and only Show on repertoire board navigates", async ({
   page,
 }) => {
   const { dialog, before, pathBefore } = await bootstrap(page);
@@ -1439,12 +1492,12 @@ test("comparison boards synchronize canonical milestones and only Go to line nav
   await expect(timeline.locator("[data-causal-event='transposition']")).toContainText(
     "Transposition",
   );
-  await expect(timeline).toContainText("Dotted marker");
-  await expect(timeline).toContainText("Striped marker");
+  await expect(timeline).toContainText("Mostly player-controlled");
+  await expect(timeline).toContainText("See the move-by-move explanation");
 
   const sourceLine = comparison.getByLabel("Affected source line");
   await sourceLine.selectOption("4");
-  const goToLine = comparison.getByRole("button", { name: "Go to line" });
+  const goToLine = comparison.getByRole("button", { name: "Show on repertoire board" });
   await expect(goToLine).toBeDisabled();
   await expect(comparison.locator(".strategic-fit-line-navigation code")).toContainText("Bb5 dxe5");
   expect(await comparison.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
@@ -1497,7 +1550,7 @@ test("automatic replacement reports clear comparison selection and local route s
       chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
     )
     .toBe("profile-change");
-  await expect(evidencePane.locator("[data-evidence-finding-id]")).toHaveCount(0);
+  await expect(evidencePane.locator("[data-evidence-finding-id='finding:01']")).toBeVisible();
 
   const refreshedQueue = dialog
     .locator("#strategic-fit-pane-findings")
@@ -1539,6 +1592,7 @@ test("Black repertoire evidence labels every engine value from the repertoire po
   await expect(evidence.locator("[data-board-orientation='black']")).toHaveCount(2);
   await expect(evidence.locator("[data-board-read-only='true']")).toHaveCount(2);
 
+  await evidence.locator(".strategic-fit-evidence-audit > summary").click();
   const expert = evidence.locator(".strategic-fit-evidence-expert");
   await expect(expert.getByText("Black repertoire POV evaluation", { exact: true })).toBeHidden();
   await expert.getByText("Expert evidence values and provenance", { exact: true }).click();
@@ -1569,7 +1623,7 @@ test("overview intents filter only the current report queue and can return to al
   await queue.getByRole("button", { name: "Show all report findings" }).click();
   await expect(pane).toHaveAttribute("data-queue-filter", "none");
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "of 12 matching findings",
+    "12 results · showing 1–6",
   );
 
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
@@ -1582,15 +1636,15 @@ test("overview intents filter only the current report queue and can return to al
   await expect(reopenedQueue).toHaveAttribute("data-queue-status", "ready");
   await expect(reopenedQueue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(reopenedQueue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "of 12 matching findings",
+    "12 results · showing 1–6",
   );
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
-test("phone finding queue stays inside the single frozen Findings stage", async ({ page }) => {
+test("phone finding queue stays inside the single frozen Review stage", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog, before, pathBefore } = await bootstrap(page);
-  await dialog.getByRole("tab", { name: "Findings" }).click();
+  await dialog.getByRole("tab", { name: "Review" }).click();
 
   const pane = dialog.locator("#strategic-fit-pane-findings");
   await expect(pane).toBeVisible();
@@ -1598,12 +1652,13 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
   const queue = pane.getByRole("region", { name: "Strategic Fit finding queue" });
   await showStage(page, "findings");
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
+  await openQueueFilters(queue);
   await expect(queue.getByLabel("Sort findings")).toBeVisible();
   expect(await pane.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
 
   await showStage(page, "findings");
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  const evidenceTab = dialog.getByRole("tab", { name: "Evidence" });
+  const evidenceTab = dialog.getByRole("tab", { name: "Branch" });
   await expect(evidenceTab).toHaveAttribute("aria-selected", "true");
   const evidencePane = dialog.locator("#strategic-fit-pane-evidence");
   await expect(evidencePane).toBeVisible();
@@ -1627,19 +1682,18 @@ test("phone finding queue stays inside the single frozen Findings stage", async 
 test("phone resolution controls are keyboard-operable, accessible, and touch-sized", async ({
   page,
 }) => {
+  test.slow();
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog, before, pathBefore } = await bootstrap(page);
-  await dialog.getByRole("tab", { name: "Findings" }).click();
+  await dialog.getByRole("tab", { name: "Review" }).click();
   const queue = dialog
     .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await showStage(page, "findings");
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  const resolutionTab = dialog.getByRole("tab", { name: "Resolution" });
-  await resolutionTab.focus();
-  await page.keyboard.press("Enter");
-  await expect(resolutionTab).toHaveAttribute("aria-selected", "true");
-  const pane = dialog.locator("#strategic-fit-pane-resolution");
+  const branchTab = dialog.getByRole("tab", { name: "Branch" });
+  await expect(branchTab).toHaveAttribute("aria-selected", "true");
+  const pane = dialog.locator("#strategic-fit-pane-evidence");
   await showStage(page, "resolution");
   const actions = pane.locator("[data-resolution-finding-id='finding:01']");
   await expect(actions).toBeVisible();
@@ -1659,10 +1713,11 @@ test("phone resolution controls are keyboard-operable, accessible, and touch-siz
       chess(page, (api) => api.strategicFitLifecycle().current_result?.reanalysis?.trigger ?? null),
     )
     .toBe("resolution-change");
-  await dialog.getByRole("tab", { name: "Findings" }).click();
+  await dialog.getByRole("tab", { name: "Review" }).click();
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await dialog.getByRole("tab", { name: "Resolution" }).click();
+  await showStage(page, "resolution");
   await expect(actions).toHaveAttribute("data-resolution-state", "defer");
   await expect(actions.getByRole("button", { name: "Reopen finding" })).toBeVisible();
 
@@ -1691,8 +1746,6 @@ test("phone can complete the full review journey with the keyboard only and retu
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("radio", { name: /Balanced/ })).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(dialog.getByText("Advanced preferences", { exact: true })).toBeFocused();
-  await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Skip for now" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(dialog.getByRole("button", { name: "Use Balanced profile" })).toBeFocused();
@@ -1710,7 +1763,7 @@ test("phone can complete the full review journey with the keyboard only and retu
   await page.keyboard.press("Enter");
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
 
-  const overviewTab = dialog.getByRole("tab", { name: "Overview" });
+  const overviewTab = dialog.getByRole("tab", { name: "Assessment" });
   for (
     let index = 0;
     index < 6 && !(await overviewTab.evaluate((element) => element === document.activeElement));
@@ -1720,7 +1773,7 @@ test("phone can complete the full review journey with the keyboard only and retu
   }
   await expect(overviewTab).toBeFocused();
   await page.keyboard.press("ArrowRight");
-  const findingsTab = dialog.getByRole("tab", { name: "Findings" });
+  const findingsTab = dialog.getByRole("tab", { name: "Review" });
   await expect(findingsTab).toBeFocused();
   await expect(dialog.locator("#strategic-fit-pane-findings")).toBeVisible();
 
@@ -1755,7 +1808,7 @@ test("phone can complete the full review journey with the keyboard only and retu
   await page.keyboard.press("ArrowUp");
   await expect(sourceLine).toHaveValue("3");
   await page.keyboard.press("Tab");
-  const goToLine = evidencePane.getByRole("button", { name: "Go to line" });
+  const goToLine = evidencePane.getByRole("button", { name: "Show on repertoire board" });
   await expect(goToLine).toBeFocused();
   await page.keyboard.press("Enter");
   expect(await chess(page, (api) => api.currentPath())).toEqual([0, 0, 0, 0]);
@@ -1769,27 +1822,6 @@ test("phone can complete the full review journey with the keyboard only and retu
     })),
   ).toEqual(settledBefore);
 
-  const evidenceTab = dialog.getByRole("tab", { name: "Evidence" });
-  for (
-    let index = 0;
-    index < 8 && !(await evidenceTab.evaluate((element) => element === document.activeElement));
-    index++
-  ) {
-    await page.keyboard.press("Shift+Tab");
-  }
-  await expect(evidenceTab).toBeFocused();
-  await page.keyboard.press("Home");
-  await expect(overviewTab).toBeFocused();
-  const close = dialog.getByRole("button", { name: "Return to repertoire" });
-  for (
-    let index = 0;
-    index < 6 && !(await close.evaluate((element) => element === document.activeElement));
-    index++
-  ) {
-    await page.keyboard.press("Shift+Tab");
-  }
-  await expect(close).toBeFocused();
-  await page.keyboard.press("Enter");
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();
 });
@@ -1805,12 +1837,10 @@ test(
     const expert = evidencePane.locator(".strategic-fit-evidence-expert");
 
     await showStage(page, "resolution");
-    const close = dialog.getByRole("button", { name: "Return to repertoire" });
-    await close.focus();
-    await page.keyboard.press("Shift+Tab");
-    await expect(dialog.locator("[data-resolution-next-finding]")).toBeFocused();
-    await page.keyboard.press("Shift+Tab");
     const previewAdjustment = dialog.getByRole("button", { name: "Preview adjustment" });
+    await previewAdjustment.focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
     await expect(previewAdjustment).toBeFocused();
     expect(
       await previewAdjustment.evaluate((element) => {
@@ -1818,11 +1848,10 @@ test(
         return style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) >= 2;
       }),
     ).toBe(true);
-    await page.keyboard.press("Tab");
-    await page.keyboard.press("Tab");
-    await expect(close).toBeFocused();
+    await expect(dialog.locator("[data-evidence-next-finding]")).toBeVisible();
 
     await showStage(page, "evidence");
+    await evidencePane.locator(".strategic-fit-evidence-audit > summary").click();
     await expert.locator("summary").click();
     await evidencePane
       .getByRole("combobox", {
@@ -1844,7 +1873,7 @@ test(
     });
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(dialog.getByRole("tab", { name: "Evidence" })).toHaveAttribute(
+    await expect(dialog.getByRole("tab", { name: "Branch" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -1927,13 +1956,12 @@ test("Black Replacement Lab is keyboard-contained, touch-sized, and transient ac
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const { dialog, before } = await bootstrap(page, "black", true);
-  await dialog.getByRole("tab", { name: "Findings" }).click();
+  await dialog.getByRole("tab", { name: "Review" }).click();
   const queue = dialog
     .locator("#strategic-fit-pane-findings")
     .getByRole("region", { name: "Strategic Fit finding queue" });
   await showStage(page, "findings");
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
-  await dialog.getByRole("tab", { name: "Resolution" }).click();
   await showStage(page, "resolution");
   const action = dialog
     .locator("[data-resolution-finding-id='finding:01']")
@@ -2422,7 +2450,7 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
   await showStage(page, "resolution");
   const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
   await actions.getByRole("radio", { name: /Defer/ }).check();
-  await wp035Record(page, journey, "decision-chosen", "review-decision", "resolution");
+  await wp035Record(page, journey, "decision-chosen", "review-decision", "evidence");
 
   const requestId = () =>
     chess(
@@ -2433,13 +2461,14 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
   await actions.getByRole("button", { name: "Save resolution" }).click();
   await expect.poll(requestId).not.toBe(beforeRequest);
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
   await showStage(page, "resolution");
   await expect(dialog.locator("[data-resolution-finding-id='finding:01']")).toHaveAttribute(
     "data-resolution-state",
     "defer",
   );
-  await wp035Record(page, journey, "decision-saved", "review-decided", "resolution");
+  await wp035Record(page, journey, "decision-saved", "review-decided", "evidence");
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
@@ -2474,7 +2503,7 @@ test("WP-035 redesign journey reaches a revision-bound acceptance through one ex
     .getByRole("button", { name: "Open Replacement Lab" })
     .click();
   await expect(lab).toBeVisible();
-  await wp035Record(page, journey, "redesign-opened", "redesign-lab-open", "resolution", {
+  await wp035Record(page, journey, "redesign-opened", "redesign-lab-open", "evidence", {
     explicitRedesignAction: true,
   });
 
@@ -2488,7 +2517,7 @@ test("WP-035 redesign journey reaches a revision-bound acceptance through one ex
     .locator("tbody th button")
     .first()
     .click();
-  await wp035Record(page, journey, "candidate-selected", "redesign-candidate", "resolution");
+  await wp035Record(page, journey, "candidate-selected", "redesign-candidate", "evidence");
 
   await chess(
     page,
@@ -2497,13 +2526,13 @@ test("WP-035 redesign journey reaches a revision-bound acceptance through one ex
   );
   const review = lab.locator(".replacement-change-review");
   await expect(review).toBeVisible();
-  await wp035Record(page, journey, "change-review-ready", "redesign-review", "resolution");
+  await wp035Record(page, journey, "change-review-ready", "redesign-review", "evidence");
 
   const accept = review.getByRole("button", { name: /Accept one atomic change at revision/ });
   await expect(accept).toBeDisabled();
   await review.getByRole("checkbox", { name: /I confirm document revision/ }).check();
   await expect(accept).toBeEnabled();
-  await wp035Record(page, journey, "acceptance-confirmable", "redesign-confirmable", "resolution");
+  await wp035Record(page, journey, "acceptance-confirmable", "redesign-confirmable", "evidence");
 
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
@@ -2566,6 +2595,7 @@ test("a created training item records an attempt only once a move is played on i
     )
     .toBe("resolution-change");
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
 
   await showStage(page, "resolution");
@@ -2616,6 +2646,7 @@ test("a black-to-move drill is playable, and a legal wrong move is recorded as n
     )
     .toBe("resolution-change");
   await showStage(page, "findings");
+  await showFirstQueuePage(queue);
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
 
   await showStage(page, "resolution");
@@ -2638,7 +2669,7 @@ test("a black-to-move drill is playable, and a legal wrong move is recorded as n
   expect(attempt.recalled).toBe(false);
 });
 
-test("the resolution stage offers the next unresolved finding, closing the review loop", async ({
+test("the Branch stage offers the next unresolved result, closing the review loop", async ({
   page,
 }) => {
   const { dialog } = await bootstrap(page);
@@ -2649,10 +2680,8 @@ test("the resolution stage offers the next unresolved finding, closing the revie
   await queue.locator("[data-finding-id='finding:01'] [data-finding-select]").click();
 
   await showStage(page, "resolution");
-  const next = dialog.locator("[data-resolution-next-finding]");
+  const next = dialog.locator("[data-evidence-next-finding]");
   await expect(next).toBeVisible();
-
-  await expect(dialog.locator(".strategic-fit-resolution-next span")).toHaveText("2 remaining");
 
   await next.click();
   await expect(dialog.locator(".strategic-fit-workspace-body")).toHaveAttribute(

@@ -37,6 +37,8 @@ export const [strategicFitAnalysisPhasesExpanded, setStrategicFitAnalysisPhasesE
   createSignal(false);
 export const [strategicFitPreflightExpanded, setStrategicFitPreflightExpanded] =
   createSignal(false);
+export const [strategicFitSettingsAnnouncement, setStrategicFitSettingsAnnouncement] =
+  createSignal("");
 
 export type NavigationSource = { readonly kind: "chat" | "repertoire"; readonly id: string } | null;
 export const [lastNavigationSource, setLastNavigationSource] = createSignal<NavigationSource>(null);

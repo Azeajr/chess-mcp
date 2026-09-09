@@ -63,13 +63,15 @@ test("WP-033 AC-1 a stage indicator showing the current stage exists at every wi
 });
 
 const RESOLUTION_CONTROLS = [
+  ".strategic-fit-inline-actions",
   ".strategic-fit-resolution-actions",
   ".strategic-fit-training",
   ".strategic-fit-cohort-editor",
-  ".strategic-fit-review-actions",
 ] as const;
 
-test("WP-033 AC-2 resolution controls render exactly once at every width", async ({ page }) => {
+test("WP-033 AC-2 decision controls render exactly once inline at every width", async ({
+  page,
+}) => {
   test.slow();
   const dialog = await openWorkspace(page, { withFindings: true });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
@@ -80,7 +82,9 @@ test("WP-033 AC-2 resolution controls render exactly once at every width", async
   await dialog.locator("#strategic-fit-stage-findings").click();
   await expect(dialog.locator("[data-finding-select]")).not.toHaveCount(0);
   await dialog.locator("[data-finding-select]").first().click();
-  await expect(dialog.locator(".strategic-fit-review-actions")).toHaveCount(1, { timeout: 10_000 });
+  await expect(dialog.locator(".strategic-fit-inline-actions")).toHaveCount(1, {
+    timeout: 10_000,
+  });
 
   for (const viewport of WIDTHS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -90,27 +94,29 @@ test("WP-033 AC-2 resolution controls render exactly once at every width", async
   }
 });
 
-test("WP-033 AC-4 the compact tablist keyboard contract is unchanged", async ({ page }) => {
+test("WP-033 AC-4 the compact three-stage tablist supports wraparound keyboard navigation", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = await openWorkspace(page);
 
-  const overview = dialog.getByRole("tab", { name: "Overview" });
+  const overview = dialog.getByRole("tab", { name: "Assessment" });
   await overview.focus();
   await expect(overview).toHaveAttribute("aria-selected", "true");
   await expect(overview).toHaveAttribute("tabindex", "0");
 
   await page.keyboard.press("ArrowRight");
-  const findings = dialog.getByRole("tab", { name: "Findings" });
+  const findings = dialog.getByRole("tab", { name: "Review" });
   await expect(findings).toBeFocused();
   await expect(findings).toHaveAttribute("aria-selected", "true");
   await expect(overview).toHaveAttribute("tabindex", "-1");
 
   await page.keyboard.press("End");
-  await expect(dialog.getByRole("tab", { name: "Resolution" })).toBeFocused();
+  await expect(dialog.getByRole("tab", { name: "Branch" })).toBeFocused();
   await page.keyboard.press("Home");
   await expect(overview).toBeFocused();
   await page.keyboard.press("ArrowLeft");
-  await expect(dialog.getByRole("tab", { name: "Resolution" })).toBeFocused();
+  await expect(dialog.getByRole("tab", { name: "Branch" })).toBeFocused();
 
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
 });

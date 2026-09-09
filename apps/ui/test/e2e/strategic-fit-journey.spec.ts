@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./helpers/fixtures";
+import { installFindingWorkerFixture } from "./helpers/strategic-fit-worker-fixture";
 
 // Findings from the Strategic Fit completion journey (docs/UX_REVIEW.md).
 
@@ -21,27 +22,10 @@ const chess = <T>(page: Page, fn: (api: ChessHarness, arg: T) => unknown, arg?: 
     { source: fn.toString(), arg },
   );
 
-const REPERTOIRE = `[Event "Journey: move order A"]
-[Result "*"]
-
-1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 O-O 6. e3 h6 7. Bh4 *
-
-[Event "Journey: move order B"]
-[Result "*"]
-
-1. Nf3 d5 2. d4 Nf6 3. c4 e6 4. Nc3 Be7 5. Bg5 O-O 6. e3 h6 7. Bh4 *
-
-[Event "Journey: early h6"]
-[Result "*"]
-
-1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 h6 6. Bh4 O-O 7. e3 *
-
-[Event "Journey: Nbd7 setup"]
-[Result "*"]
-
-1. d4 Nf6 2. c4 e6 3. Nc3 d5 4. Nf3 Be7 5. Bg5 O-O 6. e3 Nbd7 7. Rc1 *`;
+const REPERTOIRE = "1. e4 e5 (1... c5) 2. Nf3 Nc6 *";
 
 async function bootstrap(page: Page, name: string) {
+  await installFindingWorkerFixture(page);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
   await chess(page, (api, input) => api.loadPgn(input.pgn, input.name), {
@@ -69,14 +53,13 @@ test("a recorded resolution holds and says so", async ({ page }) => {
   const before = await chess(page, (api) => api.toPgn());
   const dialog = await analyze(page);
 
-  // One stage is mounted at a time at every width, so each pane has to be opened before its
-  // controls exist.
+  // Selecting a result opens its Branch story, including the decision controls directly after the
+  // explanation.
   await dialog.locator("#strategic-fit-stage-findings").click();
   await dialog
-    .getByRole("button", { name: /^Select finding:/ })
+    .getByRole("button", { name: /^Review finding/ })
     .first()
     .click();
-  await dialog.locator("#strategic-fit-stage-resolution").click();
   const save = dialog.getByRole("button", { name: "Save resolution" });
   await expect(save).toBeVisible();
   await save.click();

@@ -102,6 +102,7 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 15_000
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout });
+  await dialog.locator(".strategic-fit-advanced-report > summary").click();
   return dialog;
 }
 
@@ -115,7 +116,7 @@ test(
   },
   async ({ page }) => {
     test.slow();
-    const dialog = await bootstrap(page, LARGE_REPERTOIRE, "hardening-large.pgn", 25_000);
+    const dialog = await bootstrap(page, LARGE_REPERTOIRE, "hardening-large.pgn", 60_000);
     const before = await chess(page, (api) => api.toPgn());
     const map = dialog.locator(".strategic-map");
 

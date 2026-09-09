@@ -16,6 +16,7 @@ import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import { replacementLab } from "../../store/strategic-fit-replacement";
 import type { StrategicFitCompletedResult } from "../../store/strategic-fit";
 import { STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS } from "./FindingCard";
+import { buildStrategicFindingStory } from "./finding-story";
 
 const ACTIONS: readonly {
   state: Exclude<StrategicFitReviewResolutionState, "automatically-resolved-by-another-edit">;
@@ -92,6 +93,7 @@ export default function ResolutionActions(props: {
     const current = strategicFitFindingResolutionReview();
     return current.finding_id === props.finding.finding_id ? current : null;
   };
+  const story = () => buildStrategicFindingStory(props.finding);
   const replacementAvailability = () => replacementLab.availability(props.completed, props.finding);
   const save = (event: SubmitEvent) => {
     event.preventDefault();
@@ -119,10 +121,8 @@ export default function ResolutionActions(props: {
       data-resolution-state={resolution()}
     >
       <header>
-        <span>Finding resolution</span>
-        <h3 id={`strategic-fit-resolution-heading-${props.finding.finding_id}`}>
-          {props.finding.plain_language_category}
-        </h3>
+        <span>Your decision</span>
+        <h3 id={`strategic-fit-resolution-heading-${props.finding.finding_id}`}>{story().title}</h3>
         <p>
           Current state: <strong>{STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS[resolution()]}</strong>
         </p>
@@ -180,8 +180,8 @@ export default function ResolutionActions(props: {
         >
           <form onSubmit={save}>
             <fieldset>
-              <legend>Choose a reversible resolution</legend>
-              <For each={ACTIONS}>
+              <legend>Choose what to do</legend>
+              <For each={ACTIONS.slice(0, 2)}>
                 {(action) => (
                   <label class="strategic-fit-resolution-choice">
                     <input
@@ -198,6 +198,26 @@ export default function ResolutionActions(props: {
                   </label>
                 )}
               </For>
+              <details class="strategic-fit-resolution-other">
+                <summary>Other review outcomes</summary>
+                <For each={ACTIONS.slice(2)}>
+                  {(action) => (
+                    <label class="strategic-fit-resolution-choice">
+                      <input
+                        type="radio"
+                        name={`strategic-fit-resolution-${props.finding.finding_id}`}
+                        value={action.state}
+                        checked={choice() === action.state}
+                        onInput={() => setChoice(action.state)}
+                      />
+                      <span>
+                        <strong>{action.label}</strong>
+                        <small>{action.detail}</small>
+                      </span>
+                    </label>
+                  )}
+                </For>
+              </details>
             </fieldset>
 
             <Show when={choice() === "keep-intentionally"}>

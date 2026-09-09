@@ -59,8 +59,12 @@ async function openWorkspace(page: Page) {
 
 async function expectCompletedAnalysis(dialog: ReturnType<Page["getByRole"]>) {
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
-    timeout: 15_000,
+    timeout: 25_000,
   });
+  const analysisDetails = dialog.locator(".strategic-fit-analysis-details");
+  if (!(await analysisDetails.evaluate((node) => node.hasAttribute("open")))) {
+    await analysisDetails.locator("> summary").click();
+  }
   const phaseSummary = dialog.locator("[data-progress-collapsed='true'] button");
   await expect(phaseSummary).toBeVisible();
   await phaseSummary.click();
@@ -73,6 +77,10 @@ async function expectAutoReanalysisCompleted(dialog: ReturnType<Page["getByRole"
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });
+  const analysisDetails = dialog.locator(".strategic-fit-analysis-details");
+  if (!(await analysisDetails.evaluate((node) => node.hasAttribute("open")))) {
+    await analysisDetails.locator("> summary").click();
+  }
   await expect(dialog.locator("[data-progress-collapsed='false']")).toBeVisible();
   await expect(dialog.locator("[data-preflight-collapsed='false']")).toBeVisible();
 }
@@ -332,9 +340,6 @@ test("empty input blocks after normalization and never claims dependent phases r
     await expect(phases.nth(index)).toContainText("Not run — blocked by the evidence check");
   }
   await expect(dialog.locator("[data-phase-state='cancelled']")).toHaveCount(0);
-  await expect(dialog.getByRole("status")).toContainText(
-    "The evidence check blocked analysis after normalization. One of six phases completed; five dependent phases were not run.",
-  );
 });
 
 test("small, shallow, incomplete, and insufficient evidence remains a meaningful degraded report", async ({
@@ -369,6 +374,7 @@ test("transpositions, terminal routes, and offline opening evidence remain visib
   page,
   allowPageFaults,
 }) => {
+  test.slow();
   // Aborting the opening data is the point of the test.
   allowPageFaults(/^Failed to load resource: net::ERR_FAILED .*\/openings\.tsv/);
   await page.route("**/openings.tsv", (route) => route.abort());

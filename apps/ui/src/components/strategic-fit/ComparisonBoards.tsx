@@ -325,18 +325,18 @@ export function buildComparisonBoardsPresentation(
 }
 
 function BoardCard(props: {
+  role: "baseline" | "affected";
   title: string;
   route: ComparisonRoutePresentation | null;
   snapshot: StrategicSnapshot | null;
   orientation: Color;
   missing: string;
 }) {
-  const role = () => (props.title === "Typical cohort" ? "baseline" : "affected");
-  const titleId = () => `strategic-fit-comparison-${role()}-title`;
+  const titleId = () => `strategic-fit-comparison-${props.role}-title`;
   return (
     <article
       class="strategic-fit-comparison-board-card"
-      data-board-role={role()}
+      data-board-role={props.role}
       aria-labelledby={titleId()}
     >
       <header>
@@ -452,10 +452,9 @@ export default function ComparisonBoards(props: {
       aria-describedby="strategic-fit-boards-help"
     >
       <header>
-        <h4 id="strategic-fit-boards-title">Matched position comparison</h4>
+        <h4 id="strategic-fit-boards-title">Compare the positions</h4>
         <p id="strategic-fit-boards-help">
-          Both boards use report snapshots. Changing these controls does not navigate or edit the
-          repertoire.
+          Compare this branch with a typical repertoire line at the same stage of the game.
         </p>
       </header>
       <div class="strategic-fit-comparison-controls">
@@ -536,13 +535,15 @@ export default function ComparisonBoards(props: {
 
       <div class="strategic-fit-comparison-board-grid">
         <BoardCard
-          title="Typical cohort"
+          role="baseline"
+          title="Typical repertoire line"
           route={presentation().baseline_route}
           snapshot={milestone()?.baseline_snapshot ?? null}
           orientation={props.repertoireColor}
           missing={milestone()?.explanation ?? "No baseline snapshot is available."}
         />
         <BoardCard
+          role="affected"
           title="This branch"
           route={presentation().affected_route}
           snapshot={milestone()?.affected_snapshot ?? null}
@@ -586,7 +587,7 @@ export default function ComparisonBoards(props: {
                 aria-describedby="strategic-fit-selected-source-line"
                 onClick={navigate}
               >
-                Go to line
+                Show on repertoire board
               </button>
               <Show when={!props.canNavigateToLine(source().path)}>
                 <p>This retained report path is not present in the current repertoire.</p>

@@ -130,71 +130,74 @@ export default function FindingQueue(props: {
           )}
         </Show>
 
-        <div class="strategic-fit-queue-controls" aria-label="Finding queue controls">
-          <div>
-            <label for="strategic-fit-finding-sort">Sort findings</label>
-            <select
-              id="strategic-fit-finding-sort"
-              value={state().sort}
-              onInput={(event) => {
-                strategicFitFindingQueue.setSort(
-                  event.currentTarget.value as StrategicFitFindingSort,
-                );
-              }}
-            >
-              <For each={STRATEGIC_FIT_FINDING_SORTS}>
-                {(sort) => <option value={sort}>{SORT_LABELS[sort]}</option>}
-              </For>
-            </select>
+        <details class="strategic-fit-queue-filter-disclosure">
+          <summary>Filter or sort results</summary>
+          <div class="strategic-fit-queue-controls" aria-label="Finding queue controls">
+            <div>
+              <label for="strategic-fit-finding-sort">Sort findings</label>
+              <select
+                id="strategic-fit-finding-sort"
+                value={state().sort}
+                onInput={(event) => {
+                  strategicFitFindingQueue.setSort(
+                    event.currentTarget.value as StrategicFitFindingSort,
+                  );
+                }}
+              >
+                <For each={STRATEGIC_FIT_FINDING_SORTS}>
+                  {(sort) => <option value={sort}>{SORT_LABELS[sort]}</option>}
+                </For>
+              </select>
+            </div>
+            <div>
+              <label for="strategic-fit-priority-kind">Priority type</label>
+              <select
+                id="strategic-fit-priority-kind"
+                value={state().priority_kind}
+                onInput={(event) => {
+                  strategicFitFindingQueue.setPriorityKind(
+                    event.currentTarget.value as FindingPriorityKind,
+                  );
+                }}
+              >
+                <For each={["replacement", "training"] as const}>
+                  {(kind) => <option value={kind}>{PRIORITY_KIND_LABELS[kind]}</option>}
+                </For>
+              </select>
+            </div>
+            <div>
+              <label for="strategic-fit-priority-filter">Priority</label>
+              <select
+                id="strategic-fit-priority-filter"
+                value={state().priority_filter}
+                onInput={(event) => {
+                  strategicFitFindingQueue.setPriorityFilter(
+                    event.currentTarget.value as FindingPriorityLabel | "all",
+                  );
+                }}
+              >
+                <For each={PRIORITY_FILTERS}>
+                  {(filter) => <option value={filter}>{PRIORITY_FILTER_LABELS[filter]}</option>}
+                </For>
+              </select>
+            </div>
+            <div>
+              <label for="strategic-fit-opening-filter">Opening / system</label>
+              <select
+                id="strategic-fit-opening-filter"
+                value={state().opening_filter}
+                onInput={(event) => {
+                  strategicFitFindingQueue.setOpeningFilter(event.currentTarget.value);
+                }}
+              >
+                <option value="">All openings / systems</option>
+                <For each={view().opening_options}>
+                  {(opening) => <option value={opening}>{opening}</option>}
+                </For>
+              </select>
+            </div>
           </div>
-          <div>
-            <label for="strategic-fit-priority-kind">Priority type</label>
-            <select
-              id="strategic-fit-priority-kind"
-              value={state().priority_kind}
-              onInput={(event) => {
-                strategicFitFindingQueue.setPriorityKind(
-                  event.currentTarget.value as FindingPriorityKind,
-                );
-              }}
-            >
-              <For each={["replacement", "training"] as const}>
-                {(kind) => <option value={kind}>{PRIORITY_KIND_LABELS[kind]}</option>}
-              </For>
-            </select>
-          </div>
-          <div>
-            <label for="strategic-fit-priority-filter">Priority</label>
-            <select
-              id="strategic-fit-priority-filter"
-              value={state().priority_filter}
-              onInput={(event) => {
-                strategicFitFindingQueue.setPriorityFilter(
-                  event.currentTarget.value as FindingPriorityLabel | "all",
-                );
-              }}
-            >
-              <For each={PRIORITY_FILTERS}>
-                {(filter) => <option value={filter}>{PRIORITY_FILTER_LABELS[filter]}</option>}
-              </For>
-            </select>
-          </div>
-          <div>
-            <label for="strategic-fit-opening-filter">Opening / system</label>
-            <select
-              id="strategic-fit-opening-filter"
-              value={state().opening_filter}
-              onInput={(event) => {
-                strategicFitFindingQueue.setOpeningFilter(event.currentTarget.value);
-              }}
-            >
-              <option value="">All openings / systems</option>
-              <For each={view().opening_options}>
-                {(opening) => <option value={opening}>{opening}</option>}
-              </For>
-            </select>
-          </div>
-        </div>
+        </details>
 
         <div class="strategic-fit-queue-summary">
           <p
@@ -204,8 +207,7 @@ export default function FindingQueue(props: {
             data-page-total={view().page.total_count}
             data-canonical-total={view().canonical_total_count}
           >
-            Showing {range()} of {view().page.total_count} matching findings ·{" "}
-            {view().canonical_total_count} in this report
+            {view().page.total_count} results · showing {range()}
           </p>
           <Show when={hasActiveFilters()}>
             <button type="button" onClick={clearFilters}>
