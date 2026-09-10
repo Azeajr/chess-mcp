@@ -79,4 +79,17 @@ if (result.status !== 0 && !process.env.E2E_CPU_QUOTA) {
   );
 }
 
+// The notice above the run says @visual is being skipped; this one says it again once the
+// result is in, because that is when a green run is easy to read as "everything passed".
+// Two @visual baseline drifts reached CI this way, each after a local run reported all
+// green — the drift was never in the run, it was in the tests the run never executed.
+if (result.status === 0 && skipVisual) {
+  console.log(
+    "\nPassed, but @visual was excluded from this run. Visual baselines are only " +
+      "verified by `pnpm test:e2e:container` (or E2E_VISUAL=1 against this host's fonts). " +
+      "Anything that shifts layout — copy length, wrapping, spacing — can move a baseline " +
+      "without failing a single test here.",
+  );
+}
+
 process.exitCode = result.status ?? 1;
