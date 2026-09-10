@@ -64,6 +64,10 @@ for (const signal of ["SIGINT", "SIGTERM"])
 const assertRunning = () => {
   if (interrupted) throw new Error("Review command interrupted.");
 };
+// A native dialog/file-chooser blocks Playwright's run-code tool until something resolves it
+// (dialog-accept/dismiss, upload, ...). That is a normal, recoverable UI state — not lost server
+// continuity — so callers must not let it fail health() or overwrite retained fault evidence.
+const isModalBusy = (error) => /does not handle the modal state/i.test(error.message);
 
 function help() {
   console.log(`Docker-based interactive UX review (Linux; local Playwright ${version}).
@@ -124,12 +128,21 @@ async function health({ browser = true } = {}) {
       throw new Error("Owned Vite server is no longer running. Stop/start to reseed.");
     await serverIdentity(manifest.seed.url, root, manifest.identity.token);
     if (browser) {
-      const identity = await code(async (page) => ({
-        token: await page
-          .locator('meta[name="chess-ux-server"]')
-          .getAttribute("content", { timeout: 2_000 }),
-        url: page.url(),
-      }));
+      let identity;
+      try {
+        identity = await code(async (page) => ({
+          token: await page
+            .locator('meta[name="chess-ux-server"]')
+            .getAttribute("content", { timeout: 2_000 }),
+          url: page.url(),
+        }));
+      } catch (error) {
+        if (isModalBusy(error)) {
+          await event("health-deferred", { message: error.message });
+          return; // A pending native dialog/chooser will resolve on the caller's next command.
+        }
+        throw error;
+      }
       if (
         identity.token !== manifest.identity.token ||
         new URL(identity.url).origin !== new URL(manifest.seed.url).origin
@@ -383,10 +396,48 @@ async function screenshot(label, options = {}) {
 
 async function check({ throwOnFault = true } = {}) {
   let collected;
+  let deferred = false;
   try {
-    collected = await code((page) => ({
+    collected = await code(async (page) => ({
       records: page.context().__chessUxFaults,
       warnings: page.context().__chessUxWarnings ?? [],
+      // Inline (not a shared helper): this whole callback is serialized via fn.toString() into a
+      // file the container's run-code sandbox executes, so it cannot close over anything from the
+      // controller's own module scope — only `page` and browser globals exist where this runs.
+      /* global window, document, getComputedStyle */
+      overflow: await page.evaluate(() => {
+        const selector =
+          '[role="menu"], [role="menuitem"], [role="dialog"], [role="alertdialog"], ' +
+          '[role="tooltip"], [role="listbox"], [role="option"]';
+        const slack = 1; // sub-pixel rounding from device scale factors, not real overflow
+        const found = [];
+        for (const el of document.querySelectorAll(selector)) {
+          if (el.offsetParent === null) continue; // display:none or detached
+          const style = getComputedStyle(el);
+          if (style.visibility === "hidden") continue;
+          const rect = el.getBoundingClientRect();
+          if (rect.width === 0 && rect.height === 0) continue;
+          if (
+            rect.left < -slack ||
+            rect.top < -slack ||
+            rect.right > window.innerWidth + slack ||
+            rect.bottom > window.innerHeight + slack
+          ) {
+            found.push({
+              role: el.getAttribute("role"),
+              name: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 80),
+              rect: {
+                left: Math.round(rect.left),
+                top: Math.round(rect.top),
+                right: Math.round(rect.right),
+                bottom: Math.round(rect.bottom),
+              },
+              viewport: { width: window.innerWidth, height: window.innerHeight },
+            });
+          }
+        }
+        return found;
+      }),
     }));
   } catch (error) {
     collected = { records: [], warnings: [] };
@@ -396,9 +447,25 @@ async function check({ throwOnFault = true } = {}) {
     } catch {
       /* no prior check */
     }
-    collected.records.push({ kind: "infrastructure", detail: error.message });
+    if (isModalBusy(error)) {
+      // A pending native dialog/chooser blocks in-page inspection; this is not a new fault, and
+      // resolving it (dialog-accept/dismiss, upload, ...) is the caller's very next move.
+      deferred = true;
+    } else {
+      collected.records.push({ kind: "infrastructure", detail: error.message });
+    }
   }
-  const records = [...collected.records, ...(manifest.infrastructureFaults ?? [])];
+  const overflowRecords = (collected.overflow ?? []).map((item) => ({
+    kind: "layout-overflow",
+    detail:
+      `${item.role} "${item.name}" renders outside the ${item.viewport.width}x${item.viewport.height} ` +
+      `viewport (edges left=${item.rect.left} top=${item.rect.top} right=${item.rect.right} bottom=${item.rect.bottom}).`,
+  }));
+  const records = [
+    ...collected.records,
+    ...overflowRecords,
+    ...(manifest.infrastructureFaults ?? []),
+  ];
   const faults = failures(records);
   const report = path.join(manifest.runDir, "faults.json");
   await writeFile(
@@ -415,6 +482,8 @@ async function check({ throwOnFault = true } = {}) {
       2,
     ) + "\n",
   );
+  if (deferred)
+    console.log("A native dialog/chooser is open; resolve it, then re-run check for a fresh read.");
   console.log(
     `${faults.length} fault(s), ${collected.warnings?.length ?? 0} warning(s): ${report}`,
   );

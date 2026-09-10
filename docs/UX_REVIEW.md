@@ -130,6 +130,13 @@ HTTP responses >= 400 also fail `check`. Only the E2E fixture's narrow ResizeObs
 noise is ignored. There is no broad fault suppression option. For deliberate error scenarios,
 retain expected faults in review notes and use scenario-local `allowPageFaults` in promoted tests.
 
+`check` also scans every visible `menu`/`menuitem`/`dialog`/`alertdialog`/`tooltip`/`listbox`/`option`
+for a `layout-overflow` fault: an element whose rendered edges fall outside the current viewport.
+This is automated, not a substitute for looking at a screenshot — it only covers popover-shaped
+overlays (an anchor-positioning bug like a menu growing off the trailing edge of a control near the
+screen edge), not general layout defects. Do not rely on memory or a screenshot alone to catch that
+one class of bug; `check` fails on it deterministically.
+
 The context-level collector supplements navigation-scoped CLI logs: reload/navigation cannot hide
 earlier failures. New pages are watched too. Seed faults fail startup before logs clear. `check`
 retains evidence; reset writes the prior report before starting clean. Never erase the collector
@@ -146,6 +153,15 @@ current snapshot, scoped to its active dialog or region. For example, branching 
 `getByRole('button', { name: 'Generate annotated repertoire', exact: true })`; `Annotate PGN` is a
 separate chat workflow label. The Black repertoire selector sets the prepared side and orientation,
 not whose turn it is.
+
+A control that opens a native file chooser (e.g. Open PGN, whose WebKit fallback is a detached
+`<input type="file">`) leaves the browser in a modal state: `cli upload <file>` resolves it, and
+`dialog-accept`/`dialog-dismiss` resolve an `alert`/`confirm`/`prompt`. While a modal is open,
+Playwright's `run-code` tool — which the controller's own health check and `check` use to read
+browser state — cannot execute; the controller treats that specific failure as a normal, transient
+wait rather than lost server continuity, so open the chooser and resolve it in back-to-back `cli`
+calls without a `reset`/`stop` in between. A different health-check failure still marks the run
+`infrastructure-failed` as before.
 
 ## Completion evidence by workflow
 
