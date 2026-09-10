@@ -232,7 +232,10 @@ test("unsafe blocked route enumeration withholds the incomplete-branch sentinel"
     },
   );
   assert.match(presentation.screen_reader_summary, /Incomplete-branch count is unavailable/);
-  assert.doesNotMatch(presentation.screen_reader_summary, /Incomplete branches: 0/);
+  assert.doesNotMatch(
+    presentation.screen_reader_summary,
+    /Branches without comparable evidence: 0/,
+  );
 });
 
 test("calibrated familiar-plan coverage is rendered as report percentage rather than availability copy", () => {

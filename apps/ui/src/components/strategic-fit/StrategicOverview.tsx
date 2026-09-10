@@ -219,7 +219,10 @@ export function buildStrategicOverviewPresentation(
     },
     {
       id: "incomplete-branches",
-      label: "Incomplete branches",
+      // Not preflight's `incomplete_route_count` (routes shorter than the comparable
+      // ply). This counts routes with no comparable checkpoint or stable signal, so it
+      // must not borrow the word "incomplete" from that other, different measure.
+      label: "Branches without comparable evidence",
       ...incomplete,
       description: "Branches that did not provide enough comparable strategic checkpoints.",
       review_filter:

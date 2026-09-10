@@ -276,3 +276,11 @@ not mean the browser is closed. Never delete another session's lease to start a 
 Real Safari/device checks remain separate for virtual keyboards, safe-area integration, installed-PWA
 chrome, file pickers/shares, codecs, Apple fonts, platform accessibility, performance/memory, or a
 Safari-only defect. They are not prerequisites for every Linux WebKit review.
+
+`scripts/playwright-low-impact.mjs` runs under `systemd-run` with `CPUQuota=30%` by default. That
+quota starves work the app performs during a test, so a timeout waiting on analysis completing, a
+click landing, or `page.evaluate` returning is usually starvation rather than a defect. Five
+`strategic-fit-*` specs failed this way and all passed unchanged at `E2E_CPU_QUOTA=200%`, one of
+them dropping from a 30s timeout to 4.3s. Re-run with a larger quota, or use
+`pnpm test:e2e:container`, before treating such a timeout as a real failure; the runner prints this
+hint when a run fails under the default quota.

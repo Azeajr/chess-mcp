@@ -66,4 +66,17 @@ if (result.error) {
     `Low-impact Playwright requires systemd-run to enforce its resource limits: ${result.error.message}`,
   );
 }
+
+// A failing run under a tight CPU quota is usually starvation, not a real defect: the
+// analysis worker misses each test's own in-test timeout. Observed on the strategic-fit
+// specs, where one test took 30s (timing out) at 30% and 4.3s at 200%.
+if (result.status !== 0 && !process.env.E2E_CPU_QUOTA) {
+  console.log(
+    `\nTests failed under the default CPU quota of ${cpuQuota}. If the failures are timeouts ` +
+      `waiting on work the app performs (analysis completing, a click landing, page.evaluate ` +
+      `returning), re-run with a larger quota before believing them:\n` +
+      `  E2E_CPU_QUOTA=200% pnpm test:e2e <spec>`,
+  );
+}
+
 process.exitCode = result.status ?? 1;

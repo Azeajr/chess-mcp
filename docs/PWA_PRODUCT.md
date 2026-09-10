@@ -45,6 +45,15 @@ Strategic Fit reports combine explicit profile preferences, source filters, pers
 signals, and training evidence. Findings expose bounded pages, cited evidence, and navigable SAN
 paths. Large visualizations and lists keep complete data available through bounded mounted windows.
 
+The overall workload verdict is measured only across branches that carry comparable evidence. A
+branch that stops before its position settles contributes no burden rather than zero burden, and
+when too little of the repertoire is measurable the summary reports workload as unavailable instead
+of inferring coherence from unmeasured lines. Profile presets carry distinct feature-family weights
+and memorization tolerance, so the chosen preference genuinely changes how far apart lines are
+judged; branches without enough moves to compare are unaffected, and the profile panel says so.
+Finding scopes name their opening rather than the deepest ECO fragment, so a line reads
+`English Opening: Fianchetto Line`, never `with Nb6` or a bare `Main Line`.
+
 Resolution options include retention with training, replacement, archive, and undo. Replacement Lab
 shows retained candidate, score, safety, risk, provenance, and change-set evidence. Selecting a
 candidate opens a staged before/after review. Acceptance applies one atomic document revision; a
