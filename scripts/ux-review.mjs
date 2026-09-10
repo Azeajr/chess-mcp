@@ -461,7 +461,11 @@ async function check({ throwOnFault = true } = {}) {
       `${item.role} "${item.name}" renders outside the ${item.viewport.width}x${item.viewport.height} ` +
       `viewport (edges left=${item.rect.left} top=${item.rect.top} right=${item.rect.right} bottom=${item.rect.bottom}).`,
   }));
-  const records = [...collected.records, ...overflowRecords, ...(manifest.infrastructureFaults ?? [])];
+  const records = [
+    ...collected.records,
+    ...overflowRecords,
+    ...(manifest.infrastructureFaults ?? []),
+  ];
   const faults = failures(records);
   const report = path.join(manifest.runDir, "faults.json");
   await writeFile(
