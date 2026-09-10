@@ -149,13 +149,17 @@ export default function FindingCard(props: {
   const resolutionState = () => props.resolutionState ?? props.finding.resolution_state;
   const presentation = () => buildFindingCardPresentation(props.finding, resolutionState());
   const story = () => buildStrategicFindingStory(props.finding);
+  const titleId = () => `strategic-fit-finding-${props.finding.finding_id}`;
+  // Distinct findings legitimately share a headline, so the scope labels the card too; without it a
+  // screen reader — and any name-based locator — sees several identically named cards in one list.
+  const scopeId = () => `strategic-fit-finding-scope-${props.finding.finding_id}`;
   return (
     <article
       class="strategic-fit-finding-card"
       data-finding-id={props.finding.finding_id}
       data-finding-classification={props.finding.classification}
       data-finding-selected={props.selected ? "true" : "false"}
-      aria-labelledby={`strategic-fit-finding-${props.finding.finding_id}`}
+      aria-labelledby={`${scopeId()} ${titleId()}`}
       onClick={(event) => {
         if (
           event.target instanceof Element &&
@@ -167,8 +171,10 @@ export default function FindingCard(props: {
     >
       <header>
         <div>
-          <span class="strategic-fit-finding-classification">{props.finding.opening_scope}</span>
-          <h3 id={`strategic-fit-finding-${props.finding.finding_id}`}>{story().title}</h3>
+          <span class="strategic-fit-finding-classification" id={scopeId()}>
+            {props.finding.opening_scope}
+          </span>
+          <h3 id={titleId()}>{story().title}</h3>
         </div>
         <span
           class="strategic-fit-finding-resolution"

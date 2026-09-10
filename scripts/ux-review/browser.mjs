@@ -1,4 +1,4 @@
-/* global window, document */
+/* global window, document, getComputedStyle */
 
 // Serialized into CLI run-code. Retain faults on the BrowserContext because CLI network logs are
 // scoped to navigation; a later reload must not erase a failed request from the reviewed journey.
@@ -118,4 +118,38 @@ export async function seedPage(page, seed) {
       dpr: window.devicePixelRatio,
     },
   }));
+}
+
+// A --full-page capture grows with the PAGE. A pane that scrolls inside itself keeps its offscreen
+// content out of the image, so the capture equals the viewport shot and looks complete while it is
+// not. Report those panes so the reviewer scrolls and captures them instead of trusting the image.
+export async function scanClippedRegions(page) {
+  return page.evaluate(() => {
+    const slack = 2; // sub-pixel rounding from device scale factors, not real hidden content
+    const label = (element) => {
+      const described =
+        element.getAttribute("aria-label") ??
+        element
+          .getAttribute("aria-labelledby")
+          ?.split(/\s+/)
+          .map((id) => document.getElementById(id)?.textContent ?? "")
+          .join(" ");
+      if (described?.trim()) return described.trim().slice(0, 60);
+      const heading = element.querySelector("h1, h2, h3, h4, h5, h6");
+      if (heading?.textContent?.trim()) return heading.textContent.trim().slice(0, 60);
+      return element.className?.toString().split(/\s+/)[0] || element.tagName.toLowerCase();
+    };
+    const regions = [];
+    for (const element of document.querySelectorAll("*")) {
+      if (element === document.body || element === document.documentElement) continue;
+      if (element.offsetParent === null) continue; // display:none or detached
+      const hidden = element.scrollHeight - element.clientHeight;
+      if (hidden <= slack) continue;
+      const style = getComputedStyle(element);
+      if (style.visibility === "hidden") continue;
+      if (!["auto", "scroll", "overlay"].includes(style.overflowY)) continue;
+      regions.push({ name: label(element), hidden, shown: element.clientHeight });
+    }
+    return regions;
+  });
 }

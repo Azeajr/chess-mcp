@@ -33,7 +33,7 @@ import {
   run,
   slug,
 } from "./ux-review/core.mjs";
-import { installPolicy, seedPage } from "./ux-review/browser.mjs";
+import { installPolicy, scanClippedRegions, seedPage } from "./ux-review/browser.mjs";
 
 const root = await realpath(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
 const require = createRequire(path.join(root, "package.json"));
@@ -390,8 +390,29 @@ async function screenshot(label, options = {}) {
       ...(options.hires ? ["--hires"] : []),
     ]),
   );
+  if (options["full-page"]) for (const line of await clippedRegions()) console.log(line);
   await save();
   console.log(`Inspect image: ${target}`);
+}
+
+// A --full-page capture grows with the PAGE. A pane that scrolls inside itself keeps its offscreen
+// content out of the image, so the capture equals the viewport shot and looks complete while it is
+// not. Name those panes so the reviewer scrolls and captures them instead of trusting the image.
+async function clippedRegions() {
+  let found;
+  try {
+    found = await code(scanClippedRegions);
+  } catch (error) {
+    // A capture must never fail because the advisory scan could not run.
+    return [`Could not scan for internally scrolled regions: ${error.message}`];
+  }
+  if (!found.length) return [];
+  return [
+    `Full-page capture omits ${found.length} internally scrolled region(s); scroll each and capture it separately:`,
+    ...found.map(
+      (region) => `  "${region.name}" shows ${region.shown}px, ${region.hidden}px stay offscreen.`,
+    ),
+  ];
 }
 
 async function check({ throwOnFault = true } = {}) {

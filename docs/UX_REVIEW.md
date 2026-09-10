@@ -47,23 +47,32 @@ Open each printed PNG with an image-capable tool. Creating a screenshot or readi
 is not visual verification. Record the goal/state, interactions, snapshot/screenshot paths, actual
 visible friction, acceptance condition, and after-change observation in the run's `review.md`.
 Viewport images are primary evidence; full-page captures supplement them for offscreen content.
+A full-page capture only grows with the page, so content hidden inside a pane that scrolls itself
+stays out of the image and the capture comes back identical to the viewport shot. `screenshot
+--full-page` names every such pane and how much of it is offscreen; scroll each one and capture it.
+Reading the hidden text out of the DOM proves it exists, not that a person can reach or read it —
+only a screenshot of the scrolled state does.
 
 Prefer accessible roles/names or references from the latest snapshot. References can change after
-rendering. `cli --help` and `cli --help <command>` show the pinned CLI syntax. Direct host CLI calls
-do not address the browser in the review container.
+rendering. In a repeating list, several entries can legitimately carry the same name; a name-only
+locator then resolves to more than one element, and `.first()` silently picks whichever came back
+first. Scope such a click by a stable identity attribute instead — finding cards expose
+`data-finding-id` — and record which entry you actually opened. `cli --help` and
+`cli --help <command>` show the pinned CLI syntax. Direct host CLI calls do not address the browser
+in the review container.
 
 ## Commands and options
 
-| Command              | Behavior                                                                                |
-| -------------------- | --------------------------------------------------------------------------------------- |
-| `preflight`          | Probe Docker/WebKit and the default port, or a supplied development URL.                |
-| `start`              | Start owned Vite/container, seed a fresh profile, capture and check the baseline.       |
-| `reset`              | Save the old fault report, recreate the profile, and replay the same seed in a new run. |
-| `screenshot <label>` | Save a numbered viewport PNG; optional `--full-page` and `--hires`.                     |
-| `check`              | Write `faults.json`; exit 1 for an unallowed runtime, engine, or network fault.         |
-| `status`             | Show ownership/state, seed digest, artifact path, and next commands.                    |
-| `stop`               | Close the session and remove only the owned container/server; retain evidence.          |
-| `cli <args...>`      | Forward arbitrary interactions to the named in-container CLI daemon.                    |
+| Command              | Behavior                                                                                                                     |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `preflight`          | Probe Docker/WebKit and the default port, or a supplied development URL.                                                     |
+| `start`              | Start owned Vite/container, seed a fresh profile, capture and check the baseline.                                            |
+| `reset`              | Save the old fault report, recreate the profile, and replay the same seed in a new run.                                      |
+| `screenshot <label>` | Save a numbered viewport PNG; optional `--full-page` (also reports internally scrolled panes the image omits) and `--hires`. |
+| `check`              | Write `faults.json`; exit 1 for an unallowed runtime, engine, or network fault.                                              |
+| `status`             | Show ownership/state, seed digest, artifact path, and next commands.                                                         |
+| `stop`               | Close the session and remove only the owned container/server; retain evidence.                                               |
+| `cli <args...>`      | Forward arbitrary interactions to the named in-container CLI daemon.                                                         |
 
 Exit 0 means success; exit 1 means invalid input, failed preflight/postcondition, a runtime fault,
 or an ownership/cleanup failure. Every command accepts `--help`.
