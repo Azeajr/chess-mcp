@@ -154,7 +154,8 @@ test("mixed strategic modes distinguish a player choice from opponent-forced con
 
   const opponentStory = buildStrategicFindingStory(opponentContext);
   assert.equal(opponentStory.kind, "context");
-  assert.equal(opponentStory.action_label, "Understand and keep");
+  // Advice, not asserted state: the resolution panel below still reads "Unresolved".
+  assert.equal(opponentStory.action_label, "Suggested: keep as is");
   assert.equal(
     opponentStory.control,
     "Your opponent mostly decides whether this position appears.",

@@ -232,6 +232,48 @@ const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freez
   feature_family_weights: DEFAULT_FEATURE_FAMILY_WEIGHTS,
 });
 
+/**
+ * Preset preferences per profile mode. These reach the analysis through
+ * `strategicFitProfileDistanceOptions`, so the mode a player picks genuinely changes how
+ * far apart two lines are judged. Branches without enough moves to compare carry no
+ * comparable evidence, so no weighting moves them.
+ *
+ * "Familiar plans" treats a changed pawn skeleton or king setup as a large distance —
+ * that is what makes a line feel foreign — and tolerates little extra memorization.
+ * "Versatile" inverts that, weighting dynamic character up and repeated-concept pressure
+ * down. `space-and-files` stays neutral because it discriminates between profiles least.
+ */
+export const STRATEGIC_FIT_PRESET_PREFERENCES: Readonly<
+  Record<StrategicFitProfileMode, StrategicFitProfilePreferences>
+> = Object.freeze({
+  "familiar-plans": Object.freeze({
+    ...DEFAULT_PROFILE_PREFERENCES,
+    additional_memorization_tolerance: 0.2,
+    feature_family_weights: Object.freeze({
+      "pawn-topology": 1.5,
+      "center-dynamics": 1.5,
+      "king-and-piece-setup": 1.25,
+      "space-and-files": 1,
+      "dynamic-character": 0.5,
+      "learning-concepts": 1.25,
+    }),
+  }),
+  balanced: DEFAULT_PROFILE_PREFERENCES,
+  versatile: Object.freeze({
+    ...DEFAULT_PROFILE_PREFERENCES,
+    additional_memorization_tolerance: 0.8,
+    feature_family_weights: Object.freeze({
+      "pawn-topology": 0.75,
+      "center-dynamics": 0.75,
+      "king-and-piece-setup": 0.75,
+      "space-and-files": 1,
+      "dynamic-character": 1.5,
+      "learning-concepts": 0.5,
+    }),
+  }),
+  custom: DEFAULT_PROFILE_PREFERENCES,
+});
+
 interface NormalizationContext {
   readonly issues: StrategicFitMetadataIssue[];
   fallback: boolean;

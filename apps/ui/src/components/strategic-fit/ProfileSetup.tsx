@@ -152,6 +152,10 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
             This saves a review preference only. It will not edit the repertoire or start the
             review.
           </p>
+          <p data-profile-scope-note>
+            Preferences steer how far apart lines are judged. Branches without enough moves to
+            compare are unaffected.
+          </p>
           <div class="strategic-fit-profile-setup-actions">
             <button
               type="button"

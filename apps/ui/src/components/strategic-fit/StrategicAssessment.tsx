@@ -39,7 +39,9 @@ export function buildStrategicAssessmentPresentation(
   const explanation =
     reuse.state === "unavailable" || reuse.value === null
       ? "The review could not measure how often strategic ideas repeat across the comparable lines."
-      : `Across the lines that could be compared, ${Math.round(reuse.value * 100)}% of identified ideas repeat.${reuse.state === "partial" ? " This estimate uses partial coverage." : ""}`;
+      : reuse.state === "partial"
+        ? `This estimate uses partial coverage: across the lines that could be compared, ${Math.round(reuse.value * 100)}% of identified ideas repeat.`
+        : `Across the lines that could be compared, ${Math.round(reuse.value * 100)}% of identified ideas repeat.`;
   return {
     headline: workloadHeadline(report.summary.workload),
     explanation,

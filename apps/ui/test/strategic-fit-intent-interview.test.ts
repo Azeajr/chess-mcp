@@ -342,9 +342,19 @@ test("a bare preset selection is applied as that preset rather than a custom pro
   const session = interview();
   const proposal = session.state.propose({ mode: "versatile" });
   assert.equal(proposal.resulting_mode, "versatile");
+  // A preset is not just a label: switching to it must disclose the preferences it moves,
+  // and leave untouched the one family that is identical across presets.
   assert.deepEqual(
     proposal.diff.map((entry) => entry.field),
-    ["mode"],
+    [
+      "mode",
+      "preferences.additional_memorization_tolerance",
+      "preferences.feature_family_weights.pawn-topology",
+      "preferences.feature_family_weights.center-dynamics",
+      "preferences.feature_family_weights.king-and-piece-setup",
+      "preferences.feature_family_weights.dynamic-character",
+      "preferences.feature_family_weights.learning-concepts",
+    ],
   );
   assert.equal(session.state.accept(proposal.proposal_id).ok, true);
   assert.equal(session.persisted().mode, "versatile");

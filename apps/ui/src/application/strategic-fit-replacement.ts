@@ -247,13 +247,8 @@ export function replacementLabActionability(
       "Replacement generation is unavailable for custom starting positions.",
     );
   }
-  const cohort = report.cohorts.find((entry) => entry.cohort_id === finding.evidence.cohort_id);
-  if (cohort?.state !== "actionable") {
-    return unavailable(
-      "unsupported-cohort",
-      "This finding has no current actionable comparison cohort.",
-    );
-  }
+  // Classification comes first: it explains *why* in the reader's own terms. The cohort
+  // check below is a fallback, and running it first made it the only reason ever shown.
   if (finding.classification === "uncertain" || finding.classification === "data-quality-issue") {
     return unavailable(
       "uncertain-finding",
@@ -264,6 +259,13 @@ export function replacementLabActionability(
     return unavailable(
       "forced-finding",
       "This difference is forced; train or retain it instead of implying a replacement.",
+    );
+  }
+  const cohort = report.cohorts.find((entry) => entry.cohort_id === finding.evidence.cohort_id);
+  if (cohort?.state !== "actionable") {
+    return unavailable(
+      "unsupported-cohort",
+      "There is no comparable group of lines to draw a replacement from yet.",
     );
   }
   if (finding.evidence.causality.label === "mostly-opponent-forced") {

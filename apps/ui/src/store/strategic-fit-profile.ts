@@ -1,6 +1,7 @@
 import {
   STRATEGIC_SIGNAL_FAMILIES,
   STRATEGIC_FIT_PROFILE_MODES,
+  STRATEGIC_FIT_PRESET_PREFERENCES,
   createDefaultStrategicFitDocumentMetadata,
   type StrategicFitDocumentMetadata,
   type StrategicFitMetadataNormalizationResult,
@@ -178,7 +179,7 @@ export function strategicFitPresetProfile(mode: StrategicFitProfileMode): Strate
     mode,
     source: "explicit",
     provisional: false,
-    preferences: clonePreferences(DEFAULT_PROFILE.preferences),
+    preferences: clonePreferences(STRATEGIC_FIT_PRESET_PREFERENCES[mode]),
   };
 }
 

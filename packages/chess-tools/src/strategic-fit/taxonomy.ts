@@ -135,6 +135,25 @@ export function classifyOpeningName(name: string): OpeningTaxonomyNameParts | nu
   };
 }
 
+const QUALIFIER_SEGMENT = /^\p{Ll}/u;
+
+/**
+ * A display label that names the opening on its own.
+ *
+ * ECO names split into family/system/variation segments and the deepest segment is often
+ * a bare qualifier ("with Nb6") or a generic label ("Main Line") that identifies nothing
+ * by itself. Skip trailing qualifiers and keep the family as context.
+ */
+export function openingScopeLabel(parts: OpeningTaxonomyNameParts | null): string {
+  if (parts === null || parts.family.length === 0) return "Unknown opening";
+  const leaf =
+    [...parts.variations].reverse().find((label) => !QUALIFIER_SEGMENT.test(label)) ??
+    parts.system ??
+    null;
+  if (leaf === null || leaf === parts.family) return parts.family;
+  return `${parts.family}: ${leaf}`;
+}
+
 function nodeSpecs(
   parts: OpeningTaxonomyNameParts,
 ): { level: OpeningTaxonomyLevel; label: string; pathLabels: string[] }[] {

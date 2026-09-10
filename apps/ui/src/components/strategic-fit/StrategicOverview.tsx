@@ -56,6 +56,8 @@ const BLOCKED_REASON =
   "The evidence check blocked position analysis, so this report value is unavailable.";
 const UNSAFE_ROUTE_ENUMERATION_REASON =
   "Incomplete-branch count is unavailable because the evidence check could not enumerate routes safely.";
+const THIN_WORKLOAD_COVERAGE_REASON =
+  "Too few branches carry comparable evidence to report an overall workload; add moves to the incomplete lines and run the review again.";
 
 const METRIC_STATE_LABELS: Readonly<Record<MetricState, string>> = {
   available: "Available",
@@ -124,9 +126,11 @@ export function buildStrategicOverviewPresentation(
     summary.workload === "unavailable"
       ? {
           value: "Unavailable",
-          report_value: "",
+          // Keep the canonical report value: the state already says it is unavailable,
+          // and blanking it loses what the report actually reported.
+          report_value: summary.workload,
           state: "unavailable" as const,
-          reason: BLOCKED_REASON,
+          reason: blocked ? BLOCKED_REASON : THIN_WORKLOAD_COVERAGE_REASON,
         }
       : {
           value: WORKLOAD_LABELS[summary.workload],

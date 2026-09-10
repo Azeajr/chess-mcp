@@ -6,6 +6,7 @@ import {
   buildOpeningTaxonomy,
   buildRepertoireGraph,
   classifyOpeningName,
+  openingScopeLabel,
   type OpeningTable,
   type OpeningTaxonomy,
   type RepertoireGraph,
@@ -235,4 +236,38 @@ test("fallback labels disclose inheritance and incompatible move orders stay unk
       "Zukertort Opening",
     ]);
   }
+});
+
+test("an opening scope label never resolves to a bare qualifier or an orphan generic", () => {
+  const scope = (name: string): string => openingScopeLabel(classifyOpeningName(name));
+
+  // The leaf segment of this real ECO name is "with Nb6", which names no opening.
+  assert.equal(
+    scope(
+      "English Opening: King's English Variation, Four Knights Variation, Fianchetto Line, with Nb6",
+    ),
+    "English Opening: Fianchetto Line",
+  );
+
+  // Generic leaves keep their family so the reader knows which opening is meant.
+  assert.equal(
+    scope("Caro-Kann Defense: Advance Variation, Main Line"),
+    "Caro-Kann Defense: Main Line",
+  );
+  assert.equal(
+    scope("Caro-Kann Defense: Advance Variation, Short Variation"),
+    "Caro-Kann Defense: Short Variation",
+  );
+
+  // Every trailing segment a qualifier: fall back through system, then family.
+  assert.equal(
+    scope("Slav Defense: Modern Line, with a6, without Bf5"),
+    "Slav Defense: Modern Line",
+  );
+  // Gambit names already split into family + system, so the system carries the label.
+  assert.equal(scope("Queen's Gambit Declined: with Nf6"), "Queen's Gambit: Declined");
+  assert.equal(scope("Caro-Kann Defense"), "Caro-Kann Defense");
+
+  assert.equal(scope(""), "Unknown opening");
+  assert.equal(openingScopeLabel(null), "Unknown opening");
 });

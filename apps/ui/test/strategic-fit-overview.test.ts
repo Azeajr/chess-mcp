@@ -166,8 +166,17 @@ test("blocked reports do not present unavailable overview sentinels as zero", ()
   }
 
   const presentation = buildStrategicOverviewPresentation(blocked);
+
+  // Workload is an enum, not a measurement: "unavailable" is the value the report
+  // carries, and it now distinguishes thin comparable coverage from a blocked
+  // preflight, so the canonical value is kept rather than blanked. The numeric
+  // metrics below have `value: null` — genuinely no number — and stay blank.
+  const workload = byId(presentation, "strategic-workload");
+  assert.equal(workload.value, "Unavailable");
+  assert.equal(workload.report_value, "unavailable");
+  assert.equal(workload.state, "unavailable");
+
   for (const id of [
-    "strategic-workload",
     "strategic-families",
     "intentional-exceptions",
     "unresolved-findings",

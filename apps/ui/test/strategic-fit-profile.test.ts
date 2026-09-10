@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   GameTree,
+  STRATEGIC_FIT_PRESET_PREFERENCES,
   analyzeStrategicFit,
   completeStrategicFitReport,
   createDefaultStrategicFitDocumentMetadata,
@@ -56,7 +57,7 @@ function memoryProfileState(initial = createDefaultStrategicFitDocumentMetadata(
   };
 }
 
-test("Balanced is canonical and all four profile modes use the documented optional defaults", () => {
+test("Balanced is canonical and each preset mode carries its own documented preferences", () => {
   const defaults = createDefaultStrategicFitDocumentMetadata().profile;
   assert.equal(defaults.mode, "balanced");
   assert.equal(defaults.source, "inferred");
@@ -86,8 +87,33 @@ test("Balanced is canonical and all four profile modes use the documented option
     assert.equal(preset.mode, mode);
     assert.equal(preset.source, "explicit");
     assert.equal(preset.provisional, false);
-    assert.deepEqual(preset.preferences, defaults.preferences);
+    assert.deepEqual(preset.preferences, STRATEGIC_FIT_PRESET_PREFERENCES[mode]);
   }
+
+  // Balanced is the canonical baseline; Custom starts from it before the user edits.
+  assert.deepEqual(strategicFitPresetProfile("balanced").preferences, defaults.preferences);
+  assert.deepEqual(strategicFitPresetProfile("custom").preferences, defaults.preferences);
+
+  // Familiar plans and Versatile must actually differ, or the picker changes nothing.
+  const familiar = strategicFitPresetProfile("familiar-plans").preferences;
+  const versatile = strategicFitPresetProfile("versatile").preferences;
+  assert.notDeepEqual(familiar, defaults.preferences);
+  assert.notDeepEqual(versatile, defaults.preferences);
+  assert.notDeepEqual(familiar.feature_family_weights, versatile.feature_family_weights);
+  assert.ok(
+    familiar.feature_family_weights["pawn-topology"] >
+      versatile.feature_family_weights["pawn-topology"],
+    "Familiar plans must treat a changed pawn skeleton as the larger distance",
+  );
+  assert.ok(
+    versatile.feature_family_weights["dynamic-character"] >
+      familiar.feature_family_weights["dynamic-character"],
+    "Versatile must weight dynamic character above Familiar plans",
+  );
+  assert.ok(
+    familiar.additional_memorization_tolerance < versatile.additional_memorization_tolerance,
+    "Familiar plans must tolerate less extra memorization than Versatile",
+  );
 });
 
 test("a custom profile round-trips every field through canonical document metadata", () => {
