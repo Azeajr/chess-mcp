@@ -404,6 +404,7 @@ async function check({ throwOnFault = true } = {}) {
       // Inline (not a shared helper): this whole callback is serialized via fn.toString() into a
       // file the container's run-code sandbox executes, so it cannot close over anything from the
       // controller's own module scope — only `page` and browser globals exist where this runs.
+      /* global window, document, getComputedStyle */
       overflow: await page.evaluate(() => {
         const selector =
           '[role="menu"], [role="menuitem"], [role="dialog"], [role="alertdialog"], ' +
