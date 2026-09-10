@@ -9586,7 +9586,7 @@ img,
 .document-menu-list {
   position: absolute;
   top: calc(100% + 0.25rem);
-  right: 0;
+  left: 0;
   z-index: var(--z-popover);
   min-width: 220px;
   max-width: min(90vw, 320px);
