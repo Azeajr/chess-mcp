@@ -242,6 +242,11 @@ const DEFAULT_PROFILE_PREFERENCES: StrategicFitProfilePreferences = Object.freez
  * that is what makes a line feel foreign — and tolerates little extra memorization.
  * "Versatile" inverts that, weighting dynamic character up and repeated-concept pressure
  * down. `space-and-files` stays neutral because it discriminates between profiles least.
+ *
+ * The relative ordering is deliberate and is locked by tests. The magnitudes are not: they are a
+ * reasoned guess that no test can check, because being wrong here means the presets misjudge how a
+ * repertoire feels to play rather than producing a wrong number. Treat them as open to a player's
+ * correction, not as measured constants.
  */
 export const STRATEGIC_FIT_PRESET_PREFERENCES: Readonly<
   Record<StrategicFitProfileMode, StrategicFitProfilePreferences>
