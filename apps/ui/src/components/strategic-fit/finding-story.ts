@@ -105,7 +105,7 @@ function actionLabel(
   if (kind === "gap") return "Needs more moves";
   if (classification === "transpositional-equivalence") return "No action needed";
   if (kind === "choice") return "Review this choice";
-  return "Understand and keep";
+  return "Suggested: keep as is";
 }
 
 function expectedFrequency(value: number | null): string | null {

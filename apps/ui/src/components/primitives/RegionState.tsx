@@ -13,7 +13,7 @@ export interface RegionStateProps {
 const REGION_COPY: Record<string, { title: string; detail: string }> = {
   overview: {
     title: "Ready when you are",
-    detail: "Run the review to see whether your repertoire returns to familiar plans.",
+    detail: "Run the review to see how your lines compare to one another.",
   },
   findings: {
     title: "No results yet",

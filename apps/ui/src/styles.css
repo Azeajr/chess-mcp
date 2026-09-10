@@ -8503,7 +8503,10 @@ img,
   .strategic-fit-profile-option:not(.selected) .strategic-fit-profile-option-description {
     display: none;
   }
-  .strategic-fit-profile-setup-footer p {
+  /* The scope note says what the preference does and does not steer. Hiding it here
+     would leave the phone — the device these reviews run on — with a control and no
+     statement of its reach. */
+  .strategic-fit-profile-setup-footer p:not([data-profile-scope-note]) {
     display: none;
   }
   .strategic-fit-profile-setup-footer {

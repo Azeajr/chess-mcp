@@ -42,7 +42,11 @@ import {
   type StrategicModeSelectionState,
 } from "./modes.js";
 import { preflightStrategicFit } from "./preflight.js";
-import { buildOpeningTaxonomy, type RepertoireOpeningTaxonomy } from "./taxonomy.js";
+import {
+  buildOpeningTaxonomy,
+  openingScopeLabel,
+  type RepertoireOpeningTaxonomy,
+} from "./taxonomy.js";
 import {
   buildStrategicTrajectories,
   type StrategicTrajectoryBuildOptions,
@@ -1041,7 +1045,12 @@ function evidence(
 
 function openingScope(context: FindingContext, routeId: string): string {
   const taxonomy = context.taxonomy.routes.find((route) => route.route_id === routeId)?.taxonomy;
-  return taxonomy?.path.at(-1)?.label ?? "Unknown opening";
+  if (!taxonomy?.family) return "Unknown opening";
+  return openingScopeLabel({
+    family: taxonomy.family.label,
+    system: taxonomy.system?.label ?? null,
+    variations: taxonomy.variation_path.map((node) => node.label),
+  });
 }
 
 function category(classification: StrategicFinding["classification"]): string {

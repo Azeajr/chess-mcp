@@ -78,6 +78,13 @@ export const STRATEGIC_WORKLOAD_THRESHOLDS = Object.freeze({
   high: 2 / 3,
 });
 
+/**
+ * Share of expected route weight that must carry comparable evidence before an overall
+ * workload verdict is reported at all. Below this the summary states that the evidence
+ * is insufficient rather than inferring coherence from unmeasured branches.
+ */
+export const STRATEGIC_WORKLOAD_MIN_COVERAGE = 1 / 3;
+
 const CORE_PROVENANCE: StrategicFitSourceProvenance = Object.freeze({
   source_id: "strategic-fit:metrics",
   kind: "deterministic-core",
@@ -570,6 +577,37 @@ function burdenByRoute(context: MetricContext): Map<string, number> {
   return burden;
 }
 
+function hasComparableEvidence(classification: StrategicFitClassification): boolean {
+  return classification !== "uncertain" && classification !== "data-quality-issue";
+}
+
+/**
+ * Burden restricted to routes a finding could actually classify. A branch that stops
+ * before its position settles carries no measured burden, so counting it as zero would
+ * read "no extra plans to learn" where the truth is "not measured yet".
+ */
+function measuredBurden(context: MetricContext): {
+  readonly weightedBurden: number;
+  readonly measuredWeight: number;
+} {
+  const burden = new Map<string, number>();
+  for (const finding of context.input.findings) {
+    if (!hasComparableEvidence(finding.classification)) continue;
+    for (const routeId of finding.references.route_ids) {
+      burden.set(routeId, Math.max(burden.get(routeId) ?? 0, finding.learning_burden));
+    }
+  }
+  let weightedBurden = 0;
+  let measuredWeight = 0;
+  for (const [routeId, value] of burden) {
+    const weight = context.routeWeight.get(routeId);
+    if (weight === undefined) continue;
+    measuredWeight += weight;
+    weightedBurden += weight * value;
+  }
+  return { weightedBurden, measuredWeight };
+}
+
 function exceptionBurden(
   context: MetricContext,
   training: ReturnType<typeof masteryByConcept>,
@@ -962,12 +1000,19 @@ export function calculateStrategicFitMetrics(input: StrategicFitMetricsInput): S
   };
 }
 
-function unadjustedWorkload(context: MetricContext): number {
-  const burden = burdenByRoute(context);
-  return [...burden.entries()].reduce(
-    (sum, [routeId, value]) => sum + assertDefined(context.routeWeight.get(routeId)) * value,
-    0,
-  );
+/**
+ * Mean burden across the routes that carry comparable evidence, plus the share of
+ * expected route weight that evidence covers. Unmeasured branches are excluded from
+ * both sides rather than averaged in as zero.
+ */
+function unadjustedWorkload(context: MetricContext): {
+  readonly score: number;
+  readonly coverage: number;
+} {
+  const { weightedBurden, measuredWeight } = measuredBurden(context);
+  if (measuredWeight <= EPSILON) return { score: 0, coverage: 0 };
+  const coverage = context.totalWeight > EPSILON ? measuredWeight / context.totalWeight : 1;
+  return { score: weightedBurden / measuredWeight, coverage };
 }
 
 export function calculateStrategicFitOverview(
@@ -983,13 +1028,15 @@ export function calculateStrategicFitOverview(
   const hasConceptEvidence = [...context.routeConceptIds.values()].some(
     (conceptIds) => conceptIds.length > 0,
   );
-  const workloadScore = unadjustedWorkload(context);
+  const { score: workloadScore, coverage: workloadCoverage } = unadjustedWorkload(context);
   const workload =
-    workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.high
-      ? ("high" as const)
-      : workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.moderate
-        ? ("moderate" as const)
-        : ("low" as const);
+    workloadCoverage < STRATEGIC_WORKLOAD_MIN_COVERAGE
+      ? ("unavailable" as const)
+      : workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.high
+        ? ("high" as const)
+        : workloadScore >= STRATEGIC_WORKLOAD_THRESHOLDS.moderate
+          ? ("moderate" as const)
+          : ("low" as const);
   return {
     analysis_version: STRATEGIC_FIT_ANALYSIS_VERSION,
     workload,

@@ -285,6 +285,11 @@ test(
     await expect(map.locator(".strategic-map-controls")).toBeHidden();
     await expect(map.locator("[data-map-chart]")).toBeVisible();
     await expect(map.locator("[data-map-list] tbody tr").first()).toBeVisible();
+    // The map is taller than the viewport, so this capture scrolls and the page chrome
+    // pinned above it composites into rows 0-98 of the image. That strip is not the map
+    // and is environment-coupled: the same commit renders identical map pixels in the
+    // local container and in CI while those top rows differ. Regenerate this baseline
+    // from CI, not locally. Masking the chrome would remove the coupling outright.
     await expect(map).toHaveScreenshot("strategic-map-print.png", {
       animations: "disabled",
       caret: "hide",

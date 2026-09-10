@@ -489,3 +489,42 @@ test("transposition resilience recognizes shared modes without double-counting c
     },
   ]);
 });
+
+test("workload measures only branches with comparable evidence and withholds a verdict below coverage", () => {
+  const graph = buildRepertoireGraph(GameTree.fromPgn(BRANCH_DEPTH_PGN), "white");
+  const weights = calculateStrategicRouteWeights(graph);
+  const groups = branchGroups(graph);
+  const all = [...groups.e5, ...groups.c5];
+  const overview = (findings: readonly StrategicFitMetricFinding[]) =>
+    calculateStrategicFitOverview(
+      input(graph, weights, [groups.e5, groups.c5], groups.concepts, { findings }),
+    );
+
+  // Fully measured: the verdict is the mean burden across measured routes.
+  assert.equal(overview([finding(all, "forced-diversity", 0.8)]).workload, "high");
+  assert.equal(overview([finding(all, "forced-diversity", 0.5)]).workload, "moderate");
+  assert.equal(overview([finding(all, "forced-diversity", 0.2)]).workload, "low");
+
+  // The regression this guards: a branch too short to classify carries no measured burden,
+  // so it must not dilute the verdict toward "low". Half the weight is uncertain here.
+  const halfMeasured = overview([
+    finding(groups.e5, "forced-diversity", 0.8),
+    finding(groups.c5, "uncertain", 0),
+  ]);
+  assert.equal(
+    halfMeasured.workload,
+    "high",
+    "unmeasured branches must not be averaged in as zero",
+  );
+
+  // Nothing comparable at all: state that, rather than inferring coherence from silence.
+  assert.equal(overview([finding(all, "uncertain", 0)]).workload, "unavailable");
+  assert.equal(overview([]).workload, "unavailable");
+
+  // Measured, but on too little of the repertoire to generalise: one c5 leaf is 0.25 weight.
+  const thinlyMeasured = overview([
+    finding([groups.c5[0]!], "forced-diversity", 0.8),
+    finding([groups.c5[1]!, ...groups.e5], "uncertain", 0),
+  ]);
+  assert.equal(thinlyMeasured.workload, "unavailable");
+});

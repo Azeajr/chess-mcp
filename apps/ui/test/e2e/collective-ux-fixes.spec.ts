@@ -59,7 +59,10 @@ test("annotation expands its status, cancels, retries and downloads a branching 
   await expect(
     section.getByRole("button", { name: "Generate annotated repertoire", exact: true }),
   ).toBeVisible();
-  const downloaded = page.waitForEvent("download", { timeout: 60_000 });
+  // Annotating this repertoire measures ~48s locally and in CI, so a 60s budget left
+  // roughly 20% headroom and a loaded runner tipped it into a timeout. The work is
+  // genuinely this slow; the wait, not the operation, was the wrong size.
+  const downloaded = page.waitForEvent("download", { timeout: 120_000 });
   await section.getByRole("button", { name: "Generate annotated repertoire", exact: true }).click();
   const download = await downloaded;
   const stream = await download.createReadStream();
