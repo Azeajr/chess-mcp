@@ -59,6 +59,18 @@ Black. What remains untested, worth knowing before trusting the workflows broadl
 - Accept digit-zero castling forms in proposed SAN lines.
 - Add summary-to-detail references where results approach model context limits.
 - Revisit public-tool consolidation only with usage evidence.
+- Mask the page chrome out of the `strategic-map-print.png` baseline. The map is taller than the
+  viewport, so the capture scrolls and the app chrome pinned above it composites into rows 0-98.
+  That strip is environment-coupled: the same commit renders identical map pixels in the local
+  container and in CI while those rows differ, so the baseline currently has to be taken from CI and
+  cannot be regenerated locally. Masking the chrome removes the coupling; the note sits at the
+  assertion in `strategic-fit-visualization-hardening.spec.ts`.
+- Have a player judge the Strategic Fit profile preset weights in
+  `STRATEGIC_FIT_PRESET_PREFERENCES` (`strategic-fit/metadata.ts`). Their direction is locked by
+  tests and their effect on real repertoires is measured, but the magnitudes — Familiar plans
+  weighting pawn topology 1.5 against dynamic character 0.5, Versatile inverted, memorization
+  tolerance 0.2/0.5/0.8 — are a reasoned guess. No test can catch them being wrong about how a
+  repertoire actually feels to play.
 
 Live provider checks, warm-cache behavior, OpenRouter verification, and performance benchmarks stay
 outside per-push CI because they depend on external uptime, credentials, persistent state, cost, or
