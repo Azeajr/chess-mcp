@@ -34,3 +34,6 @@ apps/ui/public/openings.tsv
 
 # Retained gate/validation logs; kept out of the tree but survive a reboot
 /logs/
+
+# Hermes agent worktrees — worker checkouts, never committed
+.worktrees/
