@@ -3,8 +3,15 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ["v*"]
+    paths-ignore: &docs-ignore
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+      - ".editorconfig"
   pull_request:
+    paths-ignore: *docs-ignore
+  create: # tag pushes: 'create' has no paths filter, so a v* release always runs full CI + release below
   workflow_dispatch:
 
 permissions:
@@ -14,6 +21,7 @@ jobs:
   node:
     name: Node — build, typecheck, smoke
     runs-on: ubuntu-latest
+    if: github.event_name != 'create' || github.ref_type == 'tag'
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v6 # version resolved from package.json "packageManager"
@@ -68,11 +76,13 @@ jobs:
 
   ui-checks:
     name: UI — typecheck, unit, PWA build
+    if: github.event_name != 'create' || github.ref_type == 'tag'
     uses: ./.github/workflows/ui-checks.yml
 
   ui-e2e:
     name: UI — browser regression (shard ${{ matrix.shard }}/6)
     runs-on: ubuntu-latest
+    if: github.event_name != 'create' || github.ref_type == 'tag'
     strategy:
       fail-fast: false
       matrix:
