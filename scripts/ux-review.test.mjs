@@ -5,7 +5,10 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { runInNewContext } from "node:vm";
 import { devices } from "playwright";
+import { batchSource } from "./ux-review/batch.mjs";
+import { observe, readState } from "./ux-review/inspect.mjs";
 import {
   availablePort,
   deviceFor,
@@ -37,6 +40,90 @@ test("CLI transport preserves literal code and uses controller options before cl
     assert.throws(() => parseArgs(args));
   for (const value of ["../other", "", "-bad", "A", "a/b", "x".repeat(49)])
     assert.throws(() => slug(value));
+});
+
+test("structured commands require explicit targets and preserve selectors and filenames", () => {
+  assert.equal(
+    parseArgs(["observe", 'button[aria-label="Open document"]']).positional[0],
+    'button[aria-label="Open document"]',
+  );
+  assert.equal(parseArgs(["run", "a file.js"]).positional[0], "a file.js");
+  assert.equal(parseArgs(["state"]).command, "state");
+  for (const args of [["observe"], ["run"], ["state", "extra"], ["run", "a", "b"]])
+    assert.throws(() => parseArgs(args));
+  assert.equal(parseArgs(["run", "--help"]).options.help, true);
+});
+
+test("batch stops at failed assertion and retains step, screenshot and state evidence", async () => {
+  const screenshots = [];
+  const page = {
+    context: () => ({ __chessUxFaults: [] }),
+    screenshot: async (options) => screenshots.push(options.path),
+    evaluate: async () => ({ documentId: "one", revision: 2 }),
+  };
+  const execute = runInNewContext(
+    batchSource(
+      `async (page, {step, assert}) => {
+    await step('first', async () => true);
+    await step('broken', async () => assert(false, 'expected failure'));
+    await step('must not run', async () => true);
+  };`,
+      "/tmp/evidence",
+    ),
+  );
+  const result = await execute(page);
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "expected failure");
+  assert.deepEqual(
+    Array.from(result.steps, (item) => [item.name, item.ok]),
+    [
+      ["first", true],
+      ["broken", false],
+    ],
+  );
+  assert.deepEqual(screenshots, ["/tmp/evidence.png"]);
+  assert.equal(result.artifacts.state.revision, 2);
+});
+
+test("batch captures retained faults and serialization errors without masking original failures", async () => {
+  const page = {
+    context: () => ({ __chessUxFaults: [{ kind: "pageerror", detail: "earlier fault" }] }),
+    screenshot: async () => {
+      throw new Error("page closed");
+    },
+    evaluate: async () => {
+      throw new Error("state unavailable");
+    },
+  };
+  const execute = runInNewContext(batchSource("async () => ({ done: true })", "/tmp/evidence"));
+  const failed = await execute(page);
+  assert.equal(failed.ok, false);
+  assert.match(failed.error, /earlier fault/);
+  assert.equal(failed.artifactErrors.length, 2);
+  page.context = () => ({ __chessUxFaults: [] });
+  const success = await execute(page);
+  assert.equal(success.ok, true);
+  assert.equal(success.artifactErrors.length, 0);
+  const circular = runInNewContext(
+    batchSource(
+      "async () => { const value = {}; value.self = value; return value; }",
+      "/tmp/evidence",
+    ),
+  );
+  assert.equal((await circular(page)).ok, false);
+  assert.throws(() => batchSource("async page => {", "/tmp/evidence"));
+});
+
+test("inspection rejects unbounded queries and unknown state sections before browser access", async () => {
+  for (const options of [
+    { limit: 0 },
+    { limit: 21 },
+    { textLimit: 2001 },
+    { css: [1] },
+    { attributes: Array(21).fill("id") },
+  ])
+    await assert.rejects(observe({}, "button", options));
+  await assert.rejects(readState({}, ["apiKey"]), /state sections/);
 });
 
 test("review ports and lifetime leases isolate owners even while their server is down", async () => {
