@@ -373,9 +373,15 @@ test("small, shallow, incomplete, and insufficient evidence remains a meaningful
 test("transpositions, terminal routes, and offline opening evidence remain visibly qualified", async ({
   page,
   allowPageFaults,
+  expectPageFault,
 }) => {
   test.slow();
-  // Aborting the opening data is the point of the test.
+  // Aborting the opening data is the point of the test: the aborted request must
+  // actually happen, and the browser's console line for it is expected with it.
+  // The abort reason's wording is browser-specific (Chromium net::ERR_FAILED,
+  // Firefox NS_ERROR_FAILURE, WebKit "Blocked by Web Inspector"); match the
+  // request, not one browser's error text.
+  expectPageFault("requestfailed", /GET .*\/openings\.tsv: /);
   allowPageFaults(/^Failed to load resource: net::ERR_FAILED .*\/openings\.tsv/);
   await page.route("**/openings.tsv", (route) => route.abort());
   await bootstrap(page);

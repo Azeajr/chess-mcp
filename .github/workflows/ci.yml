@@ -1,35 +1,59 @@
 name: CI
 
+# One workflow proves a change and ships it (web-harness CI shape):
+#
+#   scope → node (build, docs, contracts, suites)
+#         → checks (UI typecheck, unit, PWA build + lifecycle → dist artifact) → smoke
+#         → e2e (6 container shards)
+#         → verdict (the one required status check) ;  deploy (main: checks + smoke) ; release (tags)
+#
+# No paths filter on the triggers. The old `paths-ignore: **/*.md` meant a docs-only PR ran
+# nothing — not even the docs, link and skill checks it exists for — and a REQUIRED check that
+# never reports blocks the PR forever. `scope` decides inside the run instead; Markdown here is
+# read by `docs:check`/`check:links`, so it counts as code.
+#
+# Deploy ships the exact bytes `checks` built and `smoke` proved (digest-checked), never a second
+# build. It does not wait for E2E: that is required to merge, and a flaky shard must not block a
+# release of already-verified bytes.
 on:
   push:
     branches: [main]
-    paths-ignore: &docs-ignore
-      - "**/*.md"
-      - "docs/**"
-      - "LICENSE"
-      - ".gitignore"
-      - ".editorconfig"
   pull_request:
-    paths-ignore: *docs-ignore
-  create: # tag pushes: 'create' has no paths filter, so a v* release always runs full CI + release below
+  create: # tag pushes: a v* release runs full CI + the release job
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  scope:
+    if: github.event_name != 'create' || github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      deploy: ${{ steps.scope.outputs.deploy }}
+    steps:
+      - id: scope
+        uses: Azeajr/web-harness/.github/actions/scope@v0.1.2
+        with:
+          skip: '^(LICENSE|\.editorconfig)$'
+          deploy-include: '^(apps/ui/(src|public)/|apps/ui/index\.html$|apps/ui/package\.json$|apps/ui/vite\.config\.|apps/ui/tsconfig|packages/|package\.json$|pnpm-lock\.yaml$|pnpm-workspace\.yaml$)'
+          deploy-exclude: '\.test\.'
+
   node:
     name: Node — build, typecheck, smoke
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
-    if: github.event_name != 'create' || github.ref_type == 'tag'
     steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v6 # version resolved from package.json "packageManager"
-      - uses: actions/setup-node@v6
+      - uses: Azeajr/web-harness/.github/actions/setup@v0.1.2
         with:
           node-version: 26
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
       - name: Plugin skills in sync with dev skills (no drift)
         run: pnpm check:skills # fix with `pnpm sync:skills` (.claude/skills → plugin/skills)
       - name: Lint
@@ -56,8 +80,10 @@ jobs:
         run: pnpm test:chess-tools
       - name: Design token, responsive tier, and primitive contracts
         run: node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs
-      - name: UX review controller and link check contracts
-        run: node --test scripts/ux-review.test.mjs scripts/check-links.test.mjs
+      - name: Link check contract
+        run: node --test scripts/check-links.test.mjs
+      - name: Scenario inventory maps to tests that exist
+        run: pnpm exec web-harness scenarios
       - name: Deterministic smoke suites (engine-free, no network)
         run: |
           node scripts/smoke-gametree.mjs
@@ -74,35 +100,130 @@ jobs:
           EVAL_CACHE_DIR: "0" # cold cache — CI must not depend on a warm eval store
         run: node apps/mcp-server/test/smoke-client.mjs
 
-  ui-checks:
+  checks:
     name: UI — typecheck, unit, PWA build
-    if: github.event_name != 'create' || github.ref_type == 'tag'
-    uses: ./.github/workflows/ui-checks.yml
-
-  ui-e2e:
-    name: UI — browser regression (shard ${{ matrix.shard }}/6)
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
-    if: github.event_name != 'create' || github.ref_type == 'tag'
+    outputs:
+      digest: ${{ steps.digest.outputs.digest }}
+    steps:
+      - uses: Azeajr/web-harness/.github/actions/setup@v0.1.2
+        with:
+          node-version: 26
+          browsers: chromium
+      # Supply-chain gate before anything runs installed code.
+      - run: pnpm audit signatures
+      - run: pnpm --filter @chess-mcp/chess-tools build
+      - run: pnpm --filter @chess-mcp/ui typecheck
+      - run: pnpm --filter @chess-mcp/ui test:chat
+      - name: Production PWA build assertions
+        run: |
+          pnpm --filter @chess-mcp/ui build
+          node --test apps/ui/test/pwa-build.test.mjs
+      # Instrumented A/B builds of its own (update prompt, Later, Reload), then restores and
+      # re-asserts the ordinary build, which is what ships.
+      - name: Production offline behavior and service-worker update lifecycle
+        run: |
+          node apps/ui/test/pwa-lifecycle.mjs
+          node --test apps/ui/test/pwa-build.test.mjs
+      - id: digest
+        run: echo "digest=$(pnpm exec web-harness digest apps/ui/dist)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: pwa-${{ github.sha }}
+          path: apps/ui/dist
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    needs: [scope, checks]
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: Azeajr/web-harness/.github/actions/setup@v0.1.2
+        with:
+          node-version: 26
+          browsers: chromium
+      - uses: actions/download-artifact@v8
+        with:
+          name: pwa-${{ github.sha }}
+          path: apps/ui/dist
+      - run: pnpm exec web-harness digest apps/ui/dist --expect "$DIGEST"
+        env:
+          DIGEST: ${{ needs.checks.outputs.digest }}
+      - run: pnpm smoke
+      - if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: smoke-report
+          path: .web-harness/smoke/
+          include-hidden-files: true
+          retention-days: 7
+
+  e2e:
+    name: UI — browser regression (shard ${{ matrix.shard }}/6)
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
-      - uses: actions/checkout@v6
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v6
+      - uses: Azeajr/web-harness/.github/actions/setup@v0.1.2
         with:
           node-version: 26
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # The dev target (the suite drives window.__chess), in the pinned Playwright image where
+      # the pixel baselines were taken.
       - run: pnpm test:e2e:container -- --shard=${{ matrix.shard }}/6
       - name: Upload Playwright report
         if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report-${{ matrix.shard }}
           path: apps/ui/playwright-report
           if-no-files-found: ignore
+
+  # THE required status check.
+  verdict:
+    needs: [scope, node, checks, smoke, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: Azeajr/web-harness/.github/actions/verdict@v0.1.2
+        with:
+          needs: ${{ toJSON(needs) }}
+          code: ${{ needs.scope.outputs.code }}
+          required: node checks smoke e2e
+
+  deploy:
+    needs: [scope, checks, smoke]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && needs.scope.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      # Installs the lockfile-pinned, signature-audited wrangler; nothing is rebuilt.
+      - uses: Azeajr/web-harness/.github/actions/setup@v0.1.2
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@v8
+        with:
+          name: pwa-${{ github.sha }}
+          path: apps/ui/dist
+      - run: pnpm exec web-harness digest apps/ui/dist --expect "$DIGEST"
+        env:
+          DIGEST: ${{ needs.checks.outputs.digest }}
+      - name: Deploy to Cloudflare Pages
+        run: pnpm exec wrangler pages deploy apps/ui/dist --project-name chess-repertoire-analysis --branch main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
   release:
     name: GitHub release
@@ -112,7 +233,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

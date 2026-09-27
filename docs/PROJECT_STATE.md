@@ -28,7 +28,7 @@ CI is defined in `.github/workflows/ci.yml` (job `node`, job `ui-e2e` sharded 6 
 | Browser content registry                                     | `scripts/check-content.mjs`                                                                                                 | `pnpm check:content`                                                                                                                               | CI `node` job                                                                  | yes — pass                                                 |
 | Legacy import boundary                                       | `scripts/check-legacy-imports.mjs`                                                                                          | `pnpm check:legacy-imports`                                                                                                                        | CI `node` job                                                                  | yes — pass                                                 |
 | Design-contract tests (inspect `apps/ui/src` CSS/TSX)        | `scripts/wp020-responsive-tiers.test.mjs`, `scripts/wp036-design-tokens.test.mjs`, `scripts/wp037-primitives.test.mjs`      | `node --test scripts/wp020-responsive-tiers.test.mjs scripts/wp036-design-tokens.test.mjs scripts/wp037-primitives.test.mjs`                       | CI `node` job                                                                  | yes — 13/13 pass                                           |
-| UX-review controller contract                                | `scripts/ux-review.test.mjs` (+ `scripts/ux-review.integration.test.mjs`, not in CI)                                        | `node --test scripts/ux-review.test.mjs scripts/check-links.test.mjs`                                                                              | CI `node` job                                                                  | yes — 14/14 pass                                           |
+| Agent-harness adapter (web-harness)                          | `scripts/harness.integration.test.mjs` (Docker, not in CI); controller contracts are tested in the web-harness repo         | `node --test scripts/harness.integration.test.mjs`                                                                                                 | opt-in, local                                                                  | yes — 3/3 pass (2026-09-27)                                |
 | Deterministic smoke (engine-free, no network)                | `scripts/smoke-gametree.mjs`, `scripts/structure-accuracy.mjs`                                                              | `node scripts/smoke-gametree.mjs && node scripts/structure-accuracy.mjs`                                                                           | CI `node` job                                                                  | yes — 207 passed; 27/27                                    |
 | MCP server unit suites                                       | `apps/mcp-server/test/{confine,cache,handles,perftools}.mjs`                                                                | `node --import tsx apps/mcp-server/test/<name>.mjs`                                                                                                | CI `node` job                                                                  | yes — 10/22/22/40 pass                                     |
 | MCP stdio end-to-end smoke                                   | `apps/mcp-server/test/smoke-client.mjs` (spawns `apps/mcp-server/src/index.ts`, checks every tool against `TOOL_CONTRACTS`) | `SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs`                                                                      | CI `node` job; authoritative for MCP host behavior                             | yes — 89 pass, 0 fail, 3 network groups skipped            |
@@ -107,19 +107,21 @@ human. The pieces, from cheapest to most expensive:
   absent from production builds.
 - Commands: `pnpm test:e2e -- <path-or-grep>` (host, one worker, 15-min cap);
   `pnpm test:e2e -- --grep @smoke` (7 critical-path tests); `pnpm test:e2e:container` (authoritative;
-  Docker, 1 worker, 6g/4 CPU bound); `E2E_DOCKER_NETWORK=host pnpm test:e2e:container` where Docker
+  Docker, 1 worker, 6g/4 CPU bound); `WEB_HARNESS_E2E_NETWORK=host pnpm test:e2e:container` where Docker
   bridge networking is unavailable; `pnpm test:e2e:update-snapshots` to regenerate PNG baselines
   (copied only after a fully green run). Failure artifacts: `apps/ui/playwright-report`.
-- Runners: `scripts/playwright-container.mjs` (container gate), `scripts/playwright-low-impact.mjs`
+- Runners: `web-harness e2e` (container gate, via `pnpm test:e2e:container`), `scripts/playwright-low-impact.mjs`
   (host runner under systemd resource limits `E2E_CPU_QUOTA`, `E2E_MEMORY_HIGH`, `E2E_MEMORY_MAX`,
   `E2E_NICE`, `E2E_RUNTIME_MAX`).
 
 ### 2.3 Interactive UX review (`pnpm ux:review`) — visual state capture
 
-Documented in `docs/UX_REVIEW.md`; controller is `scripts/ux-review.mjs` with helpers in
-`scripts/ux-review/`; there is also a scoped skill `apps/ui/.claude/skills/run-ui/SKILL.md` that
+Documented in `docs/UX_REVIEW.md`; the controller is the shared
+[web-harness](https://github.com/Azeajr/web-harness) package, adapted to this app by
+`harness.config.mjs`; there is also a scoped skill `apps/ui/.claude/skills/run-ui/SKILL.md` that
 points at the same controller. It drives the repo-local Playwright CLI inside the version-matched
-Docker image (default headless WebKit, `iPhone 13 Mini`), against a host Vite dev server on port 4173.
+Docker image (default headless WebKit, `iPhone 13 Mini`), against an owned host Vite dev server on
+port 4183 (or, with `--target production`, the built bundle).
 
 Typical agent loop (from `docs/UX_REVIEW.md` "First review"):
 
@@ -135,9 +137,9 @@ pnpm ux:review -- reset                                   # replay same seed aft
 pnpm ux:review -- stop                                    # remove owned container/server, keep evidence
 ```
 
-- Evidence lands under `.ux-review/` (git-ignored): manifest (image, device, commit, seed digest),
+- Evidence lands under `.web-harness/` (git-ignored): manifest (image, device, commit, fixture digest),
   screenshots, `faults.json`, and the agent-written `review.md`.
-- Options: `--session`, `--port` (use distinct ports per concurrent worktree), `--url`, `--seed`,
+- Options: `--session`, `--target`, `--port` (use distinct ports per concurrent worktree), `--url`, `--fixture`,
   `--pgn`/`--color`, `--setup` (trusted `async page => {…}` for prerequisites only), `--output`.
 - Stubbed providers for journeys needing network: `apps/ui/test/fixtures/ux-review/`
   (`game-review-provider.js`, `position-provider.js`).

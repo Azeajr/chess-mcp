@@ -26,6 +26,8 @@ pnpm ux:review -- start --workflow review
 pnpm ux:review -- check
 pnpm ux:review -- reset
 pnpm ux:review -- stop
+pnpm smoke          # production smoke of apps/ui/dist: headers, SW, persist, offline
+pnpm harness scenarios
 ```
 
 `SMOKE_NETWORK=0` skips live provider assertions; `EVAL_CACHE_DIR=0` disables persistent evaluation
@@ -38,16 +40,16 @@ only after a completely successful run; numeric geometry baselines must be updat
 failure output.
 
 On Linux hosts unable to create Docker bridge interfaces, use
-`E2E_DOCKER_NETWORK=host pnpm test:e2e:container`. Stop host Vite/review servers first to free
+`WEB_HARNESS_E2E_NETWORK=host pnpm test:e2e:container`. Stop host Vite/review servers first to free
 port 4173. This changes only container networking, not the authoritative image or test matrix.
 
-The container gate runs one Playwright worker and is bounded by `E2E_DOCKER_MEMORY` (6g) and
-`E2E_DOCKER_CPUS` (4); passing `--workers`/`-j` overrides the single-worker default. Review-session
-containers are bounded by `UX_REVIEW_DOCKER_MEMORY` (3g) and `UX_REVIEW_DOCKER_CPUS` (2). Each
+The container gate runs one Playwright worker and is bounded by `WEB_HARNESS_E2E_MEMORY` (6g) and
+`WEB_HARNESS_E2E_CPUS` (4); passing `--workers`/`-j` overrides the single-worker default. Review-session
+containers are bounded by `WEB_HARNESS_DOCKER_MEMORY` (3g) and `WEB_HARNESS_DOCKER_CPUS` (2). Each
 container pins `--memory-swap` to its memory bound, because Docker otherwise grants twice it. Playwright
 otherwise takes 50% of the logical cores, which exhausted host memory on 2026-09-07. Each review
 session's Vite server runs on the host, outside those container bounds, so it starts with
-`--max-old-space-size` (`UX_REVIEW_SERVER_HEAP_MB`, default 1024); that caps its V8 heap but not
+`--max-old-space-size` (`WEB_HARNESS_SERVER_HEAP_MB`, default 1024); that caps its V8 heap but not
 child processes such as esbuild. Run one heavy validation workload at a time.
 
 For focused host iteration, `pnpm test:e2e -- <path-or-grep>` runs one worker with a 15-minute cap.

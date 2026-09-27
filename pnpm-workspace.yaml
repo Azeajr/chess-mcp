@@ -4,8 +4,7 @@ packages:
 allowBuilds:
   esbuild: true
   stockfish: false
-minimumReleaseAgeExclude:
-  - playwright-core@1.62.1
-  - playwright@1.62.1
+  # wrangler's local runtime; `pages deploy` never starts it.
+  workerd: false
 overrides:
-  playwright-core: 1.62.1
+  playwright-core: 1.63.0
