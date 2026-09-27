@@ -1,19 +1,33 @@
-// Opt-in Docker acceptance proof: node --test scripts/ux-review.integration.test.mjs
+// Opt-in Docker acceptance proof of the shared controller (web-harness) against THIS app, through
+// harness.config.mjs: node --test scripts/harness.integration.test.mjs
+// The controller's own contracts are unit-tested in the web-harness repository; this file proves
+// the chess adapter — seeding, state accessors, fault policy, reset and ownership — end to end.
 import assert from "node:assert/strict";
+import { execFile } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { run } from "./ux-review/core.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const bin = path.join(
+  path.dirname(createRequire(import.meta.url).resolve("@azeajr/web-harness/package.json")),
+  "bin/web-harness.mjs",
+);
+const run = (args, { timeout = 240_000 } = {}) =>
+  new Promise((resolve, reject) =>
+    execFile(
+      process.execPath,
+      [bin, ...args],
+      { cwd: root, timeout, maxBuffer: 64 << 20 },
+      (error, stdout, stderr) =>
+        error ? reject(new Error(`${error.message}\n${stderr || stdout}`)) : resolve(stdout.trim()),
+    ),
+  );
 const session = `ux-proof-${process.pid}`;
-const sessionPath = path.join(root, ".ux-review", session, "session.json");
-const invoke = (args) =>
-  run(process.execPath, ["scripts/ux-review.mjs", "--session", session, ...args], {
-    cwd: root,
-    timeout: 240_000,
-  });
+const sessionPath = path.join(root, ".web-harness", session, "session.json");
+const invoke = (args) => run(["--session", session, ...args]);
 const state = async () => JSON.parse(await readFile(sessionPath, "utf8"));
 
 test(
@@ -35,7 +49,7 @@ test(
       const sessionBefore = await state();
       const document = JSON.parse(await invoke(["state"]));
       assert.equal(document.ok, true);
-      assert.equal(document.result.documentId, sessionBefore.postconditions.documentId);
+      assert.equal(document.result.documentId, sessionBefore.postconditions.applied.documentId);
       assert.equal(document.result.commands.audit_repertoire_moves.status, "idle");
       assert.equal(JSON.stringify(document.result).includes("apiKey"), false);
       const board = JSON.parse(await invoke(["observe", ".board-wrap"]));
@@ -44,9 +58,7 @@ test(
       assert.ok(board.result.elements[0].box.width > 0);
       const empty = JSON.parse(await invoke(["observe", "#absent-ux-proof"]));
       assert.equal(empty.result.count, 0);
-      const journey = JSON.parse(
-        await invoke(["run", "scripts/ux-review/examples/strategic-fit.js"]),
-      );
+      const journey = JSON.parse(await invoke(["run", "apps/ui/test/harness/strategic-fit.js"]));
       assert.equal(journey.ok, true);
       assert.equal(journey.steps.length, 2);
       assert.equal(journey.result.profile.elements[0].visible, true);
@@ -86,7 +98,7 @@ test(
       );
       await assert.rejects(invoke(["run", probe]), /ux-batch-proof/);
       const events = (
-        await readFile(path.join(root, ".ux-review", session, "events.jsonl"), "utf8")
+        await readFile(path.join(root, ".web-harness", session, "events.jsonl"), "utf8")
       )
         .trim()
         .split("\n")
@@ -136,7 +148,7 @@ test(
       assert.equal((await state()).containerId, sessionBefore.containerId);
       await invoke(["reset"]);
       assert.equal(
-        JSON.parse(await invoke(["run", "scripts/ux-review/examples/strategic-fit.js"])).ok,
+        JSON.parse(await invoke(["run", "apps/ui/test/harness/strategic-fit.js"])).ok,
         true,
       );
       await invoke(["check"]);
@@ -207,7 +219,9 @@ test(
       ]);
       await assert.rejects(invoke(["check"]), /ux-proof/);
       const report = JSON.parse(await readFile(path.join(before.runDir, "faults.json"), "utf8"));
-      assert.ok(report.warnings.some((warning) => warning.detail === "ux-proof ordinary warning"));
+      assert.ok(
+        report.warnings.some((warning) => warning.detail.startsWith("ux-proof ordinary warning")),
+      );
       for (const kind of [
         "console.error",
         "console.warning",
@@ -226,8 +240,11 @@ test(
       assert.notEqual(after.runDir, before.runDir);
       assert.equal(after.containerId, before.containerId);
       assert.equal(after.seed.digest, before.seed.digest);
-      assert.notEqual(after.postconditions.documentId, before.postconditions.documentId);
-      assert.equal(after.postconditions.pgn, before.postconditions.pgn);
+      assert.notEqual(
+        after.postconditions.applied.documentId,
+        before.postconditions.applied.documentId,
+      );
+      assert.equal(after.postconditions.applied.pgn, before.postconditions.applied.pgn);
       await invoke([
         "cli",
         "run-code",
@@ -261,13 +278,9 @@ test(
     const a = `${session}-a`,
       b = `${session}-b`,
       external = `${session}-external`;
-    const call = (name, args) =>
-      run(process.execPath, ["scripts/ux-review.mjs", "--session", name, ...args], {
-        cwd: root,
-        timeout: 240_000,
-      });
+    const call = (name, args) => run(["--session", name, ...args]);
     const read = async (name) =>
-      JSON.parse(await readFile(path.join(root, ".ux-review", name, "session.json"), "utf8"));
+      JSON.parse(await readFile(path.join(root, ".web-harness", name, "session.json"), "utf8"));
     try {
       await call(a, ["start", "--port", "4184"]);
       await call(b, ["start", "--port", "4185"]);

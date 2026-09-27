@@ -24,6 +24,7 @@ export default defineConfig([
     "**/coverage/**",
     "**/test-results/**",
     "**/playwright-report/**",
+    "**/.web-harness/**",
     "**/.ux-review/**",
     ".worktrees/**",
     ".claude/worktrees/**",

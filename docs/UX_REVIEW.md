@@ -21,9 +21,9 @@ device/engine compatibility, matching image, an actual container browser launch,
 It removes its temporary probe container and never installs packages or pulls images. If the image
 is absent, run the exact `docker pull` command it prints through normal project Docker permissions.
 
-Probe and session containers are bounded by `UX_REVIEW_DOCKER_MEMORY` (3g) and
-`UX_REVIEW_DOCKER_CPUS` (2), so a runaway browser dies instead of the host. The session's Vite
-server runs on the host outside that bound and caps its heap through `UX_REVIEW_SERVER_HEAP_MB`
+Probe and session containers are bounded by `WEB_HARNESS_DOCKER_MEMORY` (3g) and
+`WEB_HARNESS_DOCKER_CPUS` (2), so a runaway browser dies instead of the host. The session's Vite
+server runs on the host outside that bound and caps its heap through `WEB_HARNESS_SERVER_HEAP_MB`
 (1024), which does not cover its child processes. Run one heavy workload at a time: concurrent
 sessions across worktrees, or a session alongside `pnpm test:e2e:container`, still add up on one
 machine.
@@ -82,40 +82,41 @@ or an ownership/cleanup failure. Every command accepts `--help`.
 
 | Option                  | Default / meaning                                                                                                     |
 | ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `--session`             | `chess-ux`; 1–48 lowercase letters, digits, or hyphens. Repeat on later commands.                                     |
+| `--session`             | `chess`; 1–48 lowercase letters, digits, or hyphens. Repeat on later commands.                                        |
 | `--browser`, `--device` | `webkit`, `iPhone 13 Mini`; overrides must be compatible. No fallback.                                                |
-| `--port`                | Owned Vite port, default `4173`; use a distinct port per concurrent session/worktree.                                 |
+| `--target`              | `dev` (Vite + `window.__chess`) or `production` (built bundle, `_headers` applied, `--fixture blank` only).           |
+| `--port`                | Owned server port, default `4183` (E2E owns 4173); use a distinct port per concurrent session/worktree.               |
 | `--url`                 | Known localhost dev server from this worktree, identity-verified and never stopped. Mutually exclusive with `--port`. |
 | `--route`               | `/`; must stay on the app origin.                                                                                     |
-| `--seed`                | `rich-repertoire`; the checked-in PGN also supplies the E2E helper.                                                   |
+| `--fixture`             | `rich-repertoire` (dev accessor seed; the checked-in PGN also supplies the E2E helper) or `blank`.                    |
 | `--pgn`, `--color`      | Optional repo-contained PGN and `white` (default) or `black`.                                                         |
 | `--setup`               | Trusted repo-contained file with one `async page => { ... }` expression.                                              |
 | `--workflow`            | `review`; artifact label, not a canned journey.                                                                       |
-| `--output`              | `.ux-review`; repeat alternatives on later commands; use a dedicated ignored directory.                               |
+| `--output`              | `.web-harness`; repeat alternatives on later commands; use a dedicated ignored directory.                             |
 
 Browser/seed/server options apply to start/preflight. Reset reuses the recorded configuration and
 refuses changed PGN/setup digests; stop/start establishes a new baseline. Put controller options
 before `cli`; everything after it belongs to Playwright:
 
 ```sh
-pnpm ux:review -- --session chess-ux cli find "Strategic Fit"
-pnpm ux:review -- --session chess-ux cli run-code "async page => { await page.getByRole('button', { name: 'Return to repertoire' }).click(); }"
+pnpm ux:review -- --session chess cli find "Strategic Fit"
+pnpm ux:review -- --session chess cli run-code "async page => { await page.getByRole('button', { name: 'Return to repertoire' }).click(); }"
 ```
 
 ## Fast model-driven runs
 
 Reuse one session across a journey. For general desktop iteration, explicitly choose Chromium;
 retain the default mobile WebKit profile for mobile review. Both use the existing bounded Docker
-image and a warm browser. Use `node scripts/ux-review.mjs` instead of `pnpm ux:review --` when
+image and a warm browser. Use `pnpm exec web-harness` instead of `pnpm ux:review --` when
 avoiding package-manager startup overhead matters.
 
 ```sh
-node scripts/ux-review.mjs start --browser chromium --device "Desktop Chrome"
-node scripts/ux-review.mjs observe '.board-wrap'
-node scripts/ux-review.mjs state
-node scripts/ux-review.mjs run scripts/ux-review/examples/strategic-fit.js
-node scripts/ux-review.mjs check
-node scripts/ux-review.mjs stop
+pnpm exec web-harness start --browser chromium --device "Desktop Chrome"
+pnpm exec web-harness observe '.board-wrap'
+pnpm exec web-harness state
+pnpm exec web-harness run apps/ui/test/harness/strategic-fit.js
+pnpm exec web-harness check
+pnpm exec web-harness stop
 ```
 
 `run` accepts a repository-contained file with one `async (page, helpers) => { ... }` expression
@@ -167,7 +168,7 @@ transport. The focused Docker acceptance test reports cold start and three separ
 versus the same queries in one batch:
 
 ```sh
-node --test --test-name-pattern='structured batches' scripts/ux-review.integration.test.mjs
+node --test --test-name-pattern='structured batches' scripts/harness.integration.test.mjs
 ```
 
 Use `cli snapshot TARGET --depth=...` or `cli find` for accessible discovery, and request screenshots
@@ -189,10 +190,10 @@ isolate the network address. The container uses Linux host networking,
 a read-only repository mount, and a writable session artifact mount. CLI state uses a temporary
 container home. Commands print exact Docker/CLI invocations and host-readable screenshot paths.
 The manifest records image/browser/device values, source commit/worktree status, seed digest, and
-ownership. Git ignores the default `.ux-review` tree; these are not approved regression snapshots.
+ownership. Git ignores the default `.web-harness` tree; these are not approved regression snapshots.
 
 The development server exposes a worktree identity and a unique server-lifetime token at
-`/__ux-review/identity`, also embedded in the page. The controller checks both before and after
+`/__web-harness/identity`, also embedded in the page. The controller checks both before and after
 interactions. Navigation checks reject a different server before loading its page; HMR paths are
 unique per server lifetime. This also applies to supplied `--url` servers: restart requires stop/start
 and a fresh seed. Production builds do not expose this review endpoint. A failed health check marks
@@ -331,10 +332,11 @@ pnpm ux:review -- stop
 pnpm ux:review -- status
 ```
 
-Controller checks: `node --test scripts/ux-review.test.mjs`. Docker acceptance proof:
-`node --test scripts/ux-review.integration.test.mjs` (starts and cleans up its own review session).
+The controller is [web-harness](https://github.com/Azeajr/web-harness), configured by
+`harness.config.mjs`; its own contracts are tested in that repository. Chess Docker acceptance proof:
+`node --test scripts/harness.integration.test.mjs` (starts and cleans up its own review session).
 If Docker bridge creation is unavailable on the Linux host, stop the review server to free port 4173
-and run `E2E_DOCKER_NETWORK=host pnpm test:e2e:container`. The image and test suite stay identical;
+and run `WEB_HARNESS_E2E_NETWORK=host pnpm test:e2e:container`. The image and test suite stay identical;
 the ordinary bridge mode remains the default.
 
 ## Recovery and limits
@@ -345,7 +347,7 @@ prune. Commands serialize through a session lock. After an uncatchable terminati
 `command.lock`, verify its PID/start time is no longer active, then remove that exact stale lock
 before `stop`. Retained review artifacts can be removed separately when no longer needed.
 
-Port leases live at `/tmp/chess-ux-<uid>-port-<port>.lock` and identify the session manifest. Use that
+Port leases live at `/tmp/web-harness-<uid>-port-<port>.lock` (shared by every project on the host) and identify the session manifest. Use that
 owner's `stop` to release one. After an uncatchable termination, inspect both its recorded server
 identity and owned container before manually removing that exact lease; a dead server alone does
 not mean the browser is closed. Never delete another session's lease to start a competing server.
@@ -366,21 +368,30 @@ hint when a run fails under the default quota.
 
 The development harness already provides warm Docker browser sessions, arbitrary Playwright
 interactions, targeted inspection, screenshots, batched assertions, computational summaries and
-failure evidence. The work below extends that foundation. These are planned capabilities, not
-additional commands available today. Completion means reproducible coverage of defined scenarios;
+failure evidence. The shared controller (web-harness) has since shipped the production target,
+persistent-profile `restart`, `reload`, scenario-local expected faults for tests and the scenario
+inventory; each stage below says what shipped and what remains. Remaining items are planned, not
+commands available today. Completion means reproducible coverage of defined scenarios;
 browser control alone cannot establish that every possible application state has been tested.
 
 ### 1. Production sessions and browser restart persistence
 
+**Status:** shipped in web-harness — `start --target production` builds into the session
+directory, records the content digest, serves it with `public/_headers` applied and checks
+readiness through visible controls; `state` answers `unsupported` there; `restart` reopens the same
+persistent profile with faults retained; `reset` clears the profile and replays the fixture.
+**Remaining for chess:** production setup through the visible file-import control (today only
+`--fixture blank` runs on production), and the acceptance journey below as a checked-in test.
+
 **Build:**
 
-- Add an explicit development/production target to `scripts/ux-review.mjs` and its manifest.
+- Add an explicit development/production target to the controller and its manifest.
   Development remains the default. Production serves a previously built artifact through an owned
   static server; build once and reuse it across journeys. Record its content digest, browser/image,
   origin, viewport and device scale factor. Reject an absent or mismatched artifact before starting.
 - Extract the reusable static-serving and build-switching behavior from
   `apps/ui/test/pwa-lifecycle.mjs` into shared test infrastructure. Preserve that script's existing
-  assertions while adding controller lifecycle support in `scripts/ux-review/`.
+  assertions while adding controller lifecycle support in web-harness.
 - Separate server ownership checks from application readiness checks. Production readiness uses
   visible controls and served artifact identity, with no dependency on `window.__chess` or the
   development identity endpoint. Keep unexpected server replacement a failure. An explicitly
@@ -406,7 +417,10 @@ ownership assertions. Confirm development accessors remain absent from productio
 
 ### 2. PWA controls and targeted storage inspection
 
-Depends on production sessions and persistent profiles.
+Depends on production sessions and persistent profiles. **Status:** expected-fault declarations
+shipped for Playwright tests (`expectPageFault(kind, pattern)`: excused and required); offline
+reload of the shipped artifact is proven by `pnpm smoke` in CI. Session-level offline/update
+controls and storage inspection remain planned.
 
 **Build:**
 
@@ -440,7 +454,7 @@ Can proceed alongside production work. Internal accessors remain development-onl
 **Build:**
 
 - Inventory each workflow's required observations against `apps/ui/src/index.tsx` and
-  `scripts/ux-review/inspect.mjs`. Record gaps before adding accessors: current FEN/path, engine and
+  `state.read` in `harness.config.mjs`. Record gaps before adding accessors: current FEN/path, engine and
   worker readiness, operation identity/progress/cancellation, staged mutation revision, training
   session state, result freshness and persistence completion are candidates to assess.
 - Add only missing read-only accessors at the store or worker-message owner, then compose them into
@@ -487,7 +501,9 @@ size against the same journey with recording off.
 
 ### 5. Executable coverage inventory and regression promotion
 
-Begin the inventory now; add production/PWA cases as the preceding stages land.
+**Status:** the inventory lives in `harness.config.mjs` (`scenarios`); `pnpm harness scenarios`
+checks every mapped test exists, CI runs it, and `--results` joins it to a Playwright JSON report.
+It covers a first set of journeys; growing it to the scope below remains planned.
 
 **Build:**
 
