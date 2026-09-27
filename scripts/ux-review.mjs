@@ -34,6 +34,7 @@ import {
   slug,
 } from "./ux-review/core.mjs";
 import { installPolicy, scanClippedRegions, seedPage } from "./ux-review/browser.mjs";
+import { batchSource } from "./ux-review/batch.mjs";
 
 const root = await realpath(path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."));
 const require = createRequire(path.join(root, "package.json"));
@@ -57,6 +58,9 @@ let manifestPath;
 let lockPath;
 let creating = false;
 let interrupted = false;
+let structuredOutput = false;
+const commandStarted = performance.now();
+const transport = { calls: 0, ms: 0 };
 for (const signal of ["SIGINT", "SIGTERM"])
   process.once(signal, () => {
     interrupted = true;
@@ -80,6 +84,9 @@ Usage: pnpm ux:review -- [--session NAME] <command> [options]
   status          Print ownership, artifacts, and next commands
   stop            Close session and remove only owned container/server; retain review artifacts
   cli <args...>   Run arbitrary Playwright CLI commands inside the owned session
+  observe SELECTOR  Inspect a targeted region as compact JSON (up to five matches)
+  state           Read document, command, and Strategic Fit state as compact JSON
+  run REPO_FILE   Batch trusted async (page, {step, assert, observe, state}) => {...}; JSON result
 
 Start/preflight: --browser webkit --device "iPhone 13 Mini" --seed rich-repertoire
   --port PORT (default 4173; use distinct ports for concurrent sessions)
@@ -177,28 +184,34 @@ async function inspectContainer() {
 }
 
 async function cli(args, { raw = false } = {}) {
-  assertRunning();
-  const info = await inspectContainer();
-  if (!info?.State.Running)
-    throw new Error("Owned review container is not running. Use stop, then start.");
-  const output = await docker(
-    [
-      "exec",
-      "-w",
-      path.dirname(manifest.runDir),
-      manifest.containerId,
-      "node",
-      cliEntry,
-      "cli",
-      `-s=${manifest.session}`,
-      ...(raw ? ["--raw"] : []),
-      ...args,
-    ],
-    { print: true, timeout: 180_000 },
-  );
-  // CLI tools may report an error while the transport itself exits successfully.
-  if (/^### Error\b/m.test(output)) throw new Error(output);
-  return raw ? resultJson(output) : output;
+  const started = performance.now();
+  transport.calls++;
+  try {
+    assertRunning();
+    const info = await inspectContainer();
+    if (!info?.State.Running)
+      throw new Error("Owned review container is not running. Use stop, then start.");
+    const output = await docker(
+      [
+        "exec",
+        "-w",
+        path.dirname(manifest.runDir),
+        manifest.containerId,
+        "node",
+        cliEntry,
+        "cli",
+        `-s=${manifest.session}`,
+        ...(raw ? ["--raw"] : []),
+        ...args,
+      ],
+      { print: !structuredOutput, timeout: 180_000 },
+    );
+    // CLI tools may report an error while the transport itself exits successfully.
+    if (/^### Error\b/m.test(output)) throw new Error(output);
+    return raw ? resultJson(output) : output;
+  } finally {
+    transport.ms += performance.now() - started;
+  }
 }
 
 async function code(fn, arg) {
@@ -208,6 +221,75 @@ async function code(fn, arg) {
     `async page => (${fn.toString()})(page, ${JSON.stringify(arg ?? null)})`,
   );
   return cli(["run-code", `--filename=${filename}`], { raw: true });
+}
+
+async function structuredCommand(command, positional) {
+  const id = `batch-${randomUUID()}`;
+  const base = path.join(manifest.runDir, id);
+  const sourcePath = command === "run" ? await resolvePath(root, positional[0]) : null;
+  const source = sourcePath
+    ? await readFile(sourcePath, "utf8")
+    : command === "observe"
+      ? `async (page, { observe }) => observe(${JSON.stringify(positional[0])})`
+      : "async (page, { state }) => state()";
+  const wrapped = batchSource(source, base);
+  await writeFile(`${base}.source.js`, source);
+  await writeFile(`${base}.js`, wrapped);
+  let report;
+  try {
+    report = await cli(["run-code", `--filename=${base}.js`], { raw: true });
+    await health();
+  } catch (error) {
+    // Transport/server failures must remain failures even when browser-side work succeeded.
+    report = {
+      ...report,
+      ok: false,
+      error: report?.error ?? error.message,
+      controllerError: error.message,
+    };
+  }
+  if (!report.ok) {
+    try {
+      await check({ throwOnFault: false });
+      report.faultsReport = path.join(manifest.runDir, "faults.json");
+    } catch (error) {
+      report.diagnosticsError = error.message;
+    }
+  }
+  report = {
+    ...report,
+    runId: manifest.runId,
+    source: sourcePath,
+    sourceDigest: digest(source),
+    report: `${base}.json`,
+    timing: {
+      totalMs: Math.round(performance.now() - commandStarted),
+      transportCalls: transport.calls,
+      transportMs: Math.round(transport.ms),
+    },
+  };
+  await writeFile(`${base}.json`, JSON.stringify(report, null, 2) + "\n");
+  await event("batch-completed", {
+    command,
+    ok: report.ok,
+    report: report.report,
+    timing: report.timing,
+  });
+  const output = JSON.stringify(report);
+  console.log(
+    output.length <= 16000
+      ? output
+      : JSON.stringify({
+          ok: report.ok,
+          error: report.error,
+          runId: report.runId,
+          report: report.report,
+          timing: report.timing,
+          outputTruncated: true,
+          screenshot: report.artifacts?.screenshot ?? null,
+        }),
+  );
+  if (!report.ok) process.exitCode = 1;
 }
 
 async function seedData(options) {
@@ -503,11 +585,12 @@ async function check({ throwOnFault = true } = {}) {
       2,
     ) + "\n",
   );
-  if (deferred)
+  if (deferred && !structuredOutput)
     console.log("A native dialog/chooser is open; resolve it, then re-run check for a fresh read.");
-  console.log(
-    `${faults.length} fault(s), ${collected.warnings?.length ?? 0} warning(s): ${report}`,
-  );
+  if (!structuredOutput)
+    console.log(
+      `${faults.length} fault(s), ${collected.warnings?.length ?? 0} warning(s): ${report}`,
+    );
   if (faults.length && throwOnFault)
     throw new Error(faults.map((fault) => `${fault.kind}: ${fault.detail}`).join("\n"));
 }
@@ -612,6 +695,7 @@ async function cleanup() {
 
 async function main() {
   const { command, options, positional } = parseArgs(process.argv.slice(2));
+  structuredOutput = ["run", "observe", "state"].includes(command);
   if (command === "help" || options.help) return help();
   const session = slug(options.session ?? "chess-ux");
   const output = await resolvePath(root, options.output ?? ".ux-review", {
@@ -778,6 +862,7 @@ async function main() {
     throw error;
   }
   await event("command", { command, args: positional });
+  if (structuredOutput) return structuredCommand(command, positional);
   if (command === "reset") {
     const seed = await seedData(manifest.options);
     if (seed.digest !== manifest.seed.digest)
@@ -824,7 +909,8 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  console.error(error.message);
+  if (structuredOutput) console.log(JSON.stringify({ ok: false, error: error.message }));
+  else console.error(error.message);
   if (manifest?.runDir) await event("command-failed", { message: error.message });
   if (creating && manifest)
     await cleanup().catch((failure) => console.error(`Cleanup failed: ${failure.message}`));

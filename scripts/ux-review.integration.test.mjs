@@ -1,6 +1,6 @@
 // Opt-in Docker acceptance proof: node --test scripts/ux-review.integration.test.mjs
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -15,6 +15,136 @@ const invoke = (args) =>
     timeout: 240_000,
   });
 const state = async () => JSON.parse(await readFile(sessionPath, "utf8"));
+
+test(
+  "structured batches inspect rendered state, retain failure evidence and reduce round trips",
+  { timeout: 300_000 },
+  async () => {
+    try {
+      const coldStart = performance.now();
+      await invoke([
+        "start",
+        "--browser",
+        "chromium",
+        "--device",
+        "Desktop Chrome",
+        "--port",
+        "4186",
+      ]);
+      const startupMs = Math.round(performance.now() - coldStart);
+      const sessionBefore = await state();
+      const document = JSON.parse(await invoke(["state"]));
+      assert.equal(document.ok, true);
+      assert.equal(document.result.documentId, sessionBefore.postconditions.documentId);
+      assert.equal(document.result.commands.audit_repertoire_moves.status, "idle");
+      assert.equal(JSON.stringify(document.result).includes("apiKey"), false);
+      const board = JSON.parse(await invoke(["observe", ".board-wrap"]));
+      assert.equal(board.result.count, 1);
+      assert.equal(board.result.elements[0].visible, true);
+      assert.ok(board.result.elements[0].box.width > 0);
+      const empty = JSON.parse(await invoke(["observe", "#absent-ux-proof"]));
+      assert.equal(empty.result.count, 0);
+      const journey = JSON.parse(
+        await invoke(["run", "scripts/ux-review/examples/strategic-fit.js"]),
+      );
+      assert.equal(journey.ok, true);
+      assert.equal(journey.steps.length, 2);
+      assert.equal(journey.result.profile.elements[0].visible, true);
+      assert.ok(journey.result.profile.elements[0].css["font-size"]);
+
+      const probe = path.join(sessionBefore.runDir, "probe.js");
+      await writeFile(
+        probe,
+        `async (page, { observe, assert }) => {
+      // A synthetic fixture checks inspection geometry; it is removed before the next journey.
+      await page.evaluate(() => {
+        const root = document.createElement('div'); root.id = 'ux-inspection';
+        root.style.cssText = 'position:fixed;left:10px;top:10px;width:40px;height:40px;overflow:hidden;z-index:99999';
+        root.innerHTML = '<div style="width:80px;height:80px">visible text</div><span style="display:none">hidden text</span>';
+        document.body.append(root);
+      });
+      try {
+        const clipped = await observe('#ux-inspection > div', { textLimit: 3, css: ['width'], attributes: ['id'] });
+        assert(clipped.elements[0].clippedBy.length > 0, 'Missing clipping ancestor');
+        assert(clipped.elements[0].text === 'vis' && clipped.elements[0].textTruncated, 'Text limit failed');
+        const hidden = await observe('#ux-inspection > span');
+        assert(!hidden.elements[0].visible && hidden.elements[0].text === '', 'Hidden text reported visible');
+        const bounded = await observe('#ux-inspection > *', { limit: 1 });
+        assert(bounded.count === 2 && bounded.truncated, 'Match bound failed');
+        return { clipped, hidden };
+      } finally { await page.locator('#ux-inspection').evaluate(el => el.remove()); }
+    }`,
+      );
+      assert.equal(JSON.parse(await invoke(["run", probe])).ok, true);
+
+      await writeFile(
+        probe,
+        `async (page, { step, assert }) => {
+      await step('deliberate assertion failure', async () => assert(false, 'ux-batch-proof'));
+      await page.evaluate(() => localStorage.setItem('must-not-run', 'bad'));
+    }`,
+      );
+      await assert.rejects(invoke(["run", probe]), /ux-batch-proof/);
+      const events = (
+        await readFile(path.join(root, ".ux-review", session, "events.jsonl"), "utf8")
+      )
+        .trim()
+        .split("\n")
+        .map(JSON.parse);
+      const failedEvent = events.filter((event) => event.kind === "batch-completed").at(-1);
+      const failure = JSON.parse(await readFile(failedEvent.report, "utf8"));
+      assert.equal(failure.ok, false);
+      assert.equal(failure.steps[0].name, "deliberate assertion failure");
+      assert.equal(failure.artifacts.state.documentId, document.result.documentId);
+      const png = await readFile(failure.artifacts.screenshot);
+      assert.ok(png.readUInt32BE(16) > 0);
+      await writeFile(
+        probe,
+        `async (page, { assert }) => assert(await page.evaluate(() => localStorage.getItem('must-not-run')) === null)`,
+      );
+      assert.equal(JSON.parse(await invoke(["run", probe])).ok, true);
+
+      // Compare equivalent read-only work. Report timings, never enforce machine-specific thresholds.
+      const separate = [];
+      for (let i = 0; i < 3; i++) separate.push(JSON.parse(await invoke(["state"])));
+      await writeFile(
+        probe,
+        `async (page, { state }) => {
+      const results = []; for (let i = 0; i < 3; i++) results.push(await state()); return results;
+    }`,
+      );
+      const batched = JSON.parse(await invoke(["run", probe]));
+      assert.equal(batched.ok, true);
+      assert.equal(batched.result.length, 3);
+      assert.ok(
+        batched.timing.transportCalls <
+          separate.reduce((sum, item) => sum + item.timing.transportCalls, 0),
+      );
+      const measurements = {
+        startupMs,
+        separateMs: separate.reduce((sum, item) => sum + item.timing.totalMs, 0),
+        batchedMs: batched.timing.totalMs,
+        separateCalls: separate.reduce((sum, item) => sum + item.timing.transportCalls, 0),
+        batchedCalls: batched.timing.transportCalls,
+      };
+      await writeFile(
+        path.join(sessionBefore.runDir, "timings.json"),
+        JSON.stringify(measurements, null, 2),
+      );
+      console.log(`Warm batch measurements: ${JSON.stringify(measurements)}`);
+      console.log(`Failure screenshot: ${failure.artifacts.screenshot}`);
+      assert.equal((await state()).containerId, sessionBefore.containerId);
+      await invoke(["reset"]);
+      assert.equal(
+        JSON.parse(await invoke(["run", "scripts/ux-review/examples/strategic-fit.js"])).ok,
+        true,
+      );
+      await invoke(["check"]);
+    } finally {
+      await invoke(["stop"]);
+    }
+  },
+);
 
 test(
   "Docker review retains faults, resets all storage, replays visible controls, and cleans up",

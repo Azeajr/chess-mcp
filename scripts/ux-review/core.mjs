@@ -15,6 +15,9 @@ export const commands = [
   "status",
   "stop",
   "cli",
+  "observe",
+  "state",
+  "run",
 ];
 const valueOptions = new Set([
   "session",
@@ -62,8 +65,12 @@ export function parseArgs(input) {
       if (command === "cli") return { command, options, positional: args };
     } else positional.push(arg);
   }
-  if (positional.length > (command === "screenshot" ? 1 : 0))
+  if (positional.length > (["screenshot", "observe", "run"].includes(command) ? 1 : 0))
     throw new Error("Unexpected positional arguments.");
+  if (["observe", "run"].includes(command) && !positional.length && !options.help)
+    throw new Error(
+      `${command} requires ${command === "run" ? "a repository file" : "a locator selector"}.`,
+    );
   return { command: command ?? "help", options, positional };
 }
 
