@@ -193,31 +193,56 @@ export default defineHarness({
         await page.keyboard.press("Enter");
       };
       await play("e2", "e4");
-      await page.locator(".move-tree").getByText("e4").first().waitFor({ timeout: 10_000 });
-      await page.waitForFunction(
-        () =>
-          new Promise((resolve) => {
-            const request = indexedDB.open("chess-repertoire", 1);
+      // Phone layouts keep a second, hidden move tree: match only what a person can see.
+      await page
+        .locator(".move-tree")
+        .getByText("e4")
+        .filter({ visible: true })
+        .first()
+        .waitFor({ timeout: 10_000 });
+      // Autosave is debounced: reload before it flushes and the move is legitimately gone. Poll
+      // from Node with an awaited boolean — page.waitForFunction does not reliably await an async
+      // predicate (a Promise resolving to false still satisfied it), which made this wait a no-op.
+      // Never open a database the app has not created: open() would create an empty one.
+      const saved = () =>
+        page.evaluate(async () => {
+          if (!(await indexedDB.databases()).some((db) => db.name === "chess-repertoire"))
+            return false;
+          return new Promise((resolve) => {
+            const request = indexedDB.open("chess-repertoire");
             request.onerror = () => resolve(false);
             request.onsuccess = () => {
-              const read = request.result
-                .transaction("kv")
-                .objectStore("kv")
-                .get("workingRepertoire");
+              const db = request.result;
+              if (!db.objectStoreNames.contains("kv")) {
+                db.close();
+                return resolve(false);
+              }
+              const read = db.transaction("kv").objectStore("kv").get("workingRepertoire");
               read.onsuccess = () => {
-                request.result.close();
+                db.close();
                 resolve(String(read.result?.pgn ?? "").includes("1. e4"));
               };
-              read.onerror = () => resolve(false);
+              read.onerror = () => {
+                db.close();
+                resolve(false);
+              };
             };
-          }),
-        null,
-        { timeout: 10_000, polling: 250 },
-      );
+          });
+        });
+      const deadline = Date.now() + 10_000;
+      while (!(await saved())) {
+        if (Date.now() > deadline) throw new Error("The move never reached IndexedDB.");
+        await page.waitForTimeout(250);
+      }
       return "e4";
     },
     verify: async (page, move) => {
-      await page.locator(".move-tree").getByText(move).first().waitFor({ timeout: 15_000 });
+      await page
+        .locator(".move-tree")
+        .getByText(move)
+        .filter({ visible: true })
+        .first()
+        .waitFor({ timeout: 15_000 });
     },
   },
   e2e: {
