@@ -177,7 +177,7 @@ jobs:
           node-version: 26
       # The dev target (the suite drives window.__chess), in the pinned Playwright image where
       # the pixel baselines were taken.
-      - run: pnpm test:e2e:container -- --shard=${{ matrix.shard }}/6
+      - run: pnpm test:e2e:container --shard=${{ matrix.shard }}/6
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v7
