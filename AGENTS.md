@@ -33,6 +33,11 @@ pnpm harness scenarios
 `SMOKE_NETWORK=0` skips live provider assertions; `EVAL_CACHE_DIR=0` disables persistent evaluation
 caching. The design-contract tests inspect `apps/ui/src`, so CSS changes can fail them.
 
+Agent development skills live in `.agents/skills/` (`.claude/skills/` is the plugin's product skills):
+`web-harness` is the shared guide to the harness (the loop, what each command proves, evidence
+rules); `ux-review` adds this app's journeys on top of it. After bumping web-harness, reinstall the
+shared one with `pnpm harness skill install --dir .agents/skills`.
+
 Use `pnpm test:e2e:container` as the authoritative e2e result. Host runs can fail from missing
 WebKit libraries, OS-specific rendering, or the default resource cap. Use the container command to
 confirm host failures and `pnpm test:e2e:update-snapshots` to update images. Snapshot copying occurs

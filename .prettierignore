@@ -1,3 +1,7 @@
 # The UX review controller evaluates these files as a single expression (pnpm ux:review --setup).
 # A formatter-added trailing semicolon makes them unparseable, so keep the formatter out.
 apps/ui/test/fixtures/ux-review/*-provider.js
+
+# Installed verbatim by `web-harness skill install`; a reinstall after each bump would undo any
+# reformatting, so the formatter leaves it alone.
+.agents/skills/web-harness/

@@ -3,7 +3,9 @@ name: ux-review
 description: Exercise and visually review the chess PWA through real user journeys, including mobile WebKit screenshots and iterative UX fixes. Use for interactive UI review rather than routine regression execution.
 ---
 
-Read `docs/UX_REVIEW.md` from the repository root. It owns commands and troubleshooting.
+Read `docs/UX_REVIEW.md` from the repository root. It owns commands and troubleshooting. The
+harness's general rules (what each command proves, evidence, host safety) are in
+`.agents/skills/web-harness/SKILL.md`; this skill adds the chess journeys.
 
 Use `pnpm ux:review -- preflight` and `start --workflow <slug>`. The browser lives in the existing
 Playwright Docker image; do not install host WebKit libraries or run the browser CLI on the host.
