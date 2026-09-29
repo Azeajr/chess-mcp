@@ -42,10 +42,10 @@ Batch IDs are abbreviated to their first 8 hex digits.
 ## Summary
 
 | Priority | Count |
-| --- | --- |
-| High | 7 |
-| Medium | 12 |
-| Low | 7 |
+| -------- | ----- |
+| High     | 7     |
+| Medium   | 12    |
+| Low      | 7     |
 
 26 findings: 12 live-validated, 3 partly live-validated, 3 found only by the live run (F24–F26),
 and 8 code-trace only.
@@ -53,34 +53,34 @@ and 8 code-trace only.
 Findings, ordered by practical impact. IDs are stable across revisions of this document, so later
 findings sit in impact order rather than numeric order.
 
-| ID | Workflow | Priority | Validation |
-| --- | --- | --- | --- |
-| F1 | Game review / move comparison | High | Live (`batch-129228eb`) |
-| F2 | Trying a move on the board | High | Live (`batch-0a4dd047`) |
-| F3 | Correcting the tree (undo, delete, promote) | High | Live (`batch-0a4dd047`) |
-| F4 | Opening / reopening / starting a repertoire | High | Live (`batch-a084a5d5`, `batch-21cb6177`); Reopen not exercised |
-| F5 | Finding and filling gaps | High | Live (`batch-568baf2f`, `batch-d7b722ba`) |
-| F24 | Gaps: "No gaps found" with unanswered replies | High | Live only, new in run 5 (`batch-d3b8d6ed`, `batch-beca9c51`) |
-| F6 | Training and recall drills | High | Code trace |
-| F7 | Live engine evaluation | Medium | Live (`batch-d1c12045`, `batch-c02872a3`) |
-| F8 | Adding an engine or candidate move | Medium | Live (partial): engine lines only (`batch-0a4dd047`) |
-| F21 | Scan results after edits or a new document | Medium | Live (`batch-0c63dd6c`) |
-| F25 | Gap fill on the phone jumps away from the list | Medium | Live only, new in run 5 (`batch-d7b722ba`, `batch-912cc2a9`) |
-| F9 | Strategic Fit first run | Medium | Live (`batch-eb333ece`) |
-| F10 | Strategic Fit → board → back | Medium | Live (`batch-c11ed687`) |
-| F11 | Strategic Fit finding triage | Medium | Code trace; form not reachable on the fixture (see F26) |
-| F26 | Strategic Fit Review queue not actionable | Medium | Live only, new in run 5 (`batch-706cad8b`, `batch-c11ed687`) |
-| F12 | Saving on the default (WebKit/iPhone) target | Medium | Live (`batch-4157da9a`) |
-| F13 | Only-move drill deck export | Medium | Code trace |
-| F14 | Exports: inconsistent one-step vs two-step | Medium | Code trace; corroborated by `strategic-fit-journey.spec.ts` (read, not run) |
-| F15 | Configuration scattered across three places | Medium | Code trace |
-| F16 | Chat starters | Low | Live (partial): hard-coded "White" only (`batch-129228eb`) |
-| F17 | Opponent prep / structure search inputs | Low | Live (partial), claim revised: near-misses show an error (`batch-1930b8b4`) |
-| F18 | Accepting several chat suggestions | Low | Code trace (needs an OpenRouter key) |
-| F19 | Extend here off-turn | Low | Code trace |
-| F20 | "Save status" menu entry | Low | Live (`batch-4157da9a`) |
-| F22 | Recovering a snapshot | Low | Live (`batch-3646cfe2`) |
-| F23 | Replacement Lab start | Low | Code trace |
+| ID  | Workflow                                       | Priority | Validation                                                                  |
+| --- | ---------------------------------------------- | -------- | --------------------------------------------------------------------------- |
+| F1  | Game review / move comparison                  | High     | Live (`batch-129228eb`)                                                     |
+| F2  | Trying a move on the board                     | High     | Live (`batch-0a4dd047`)                                                     |
+| F3  | Correcting the tree (undo, delete, promote)    | High     | Live (`batch-0a4dd047`)                                                     |
+| F4  | Opening / reopening / starting a repertoire    | High     | Live (`batch-a084a5d5`, `batch-21cb6177`); Reopen not exercised             |
+| F5  | Finding and filling gaps                       | High     | Live (`batch-568baf2f`, `batch-d7b722ba`)                                   |
+| F24 | Gaps: "No gaps found" with unanswered replies  | High     | Live only, new in run 5 (`batch-d3b8d6ed`, `batch-beca9c51`)                |
+| F6  | Training and recall drills                     | High     | Code trace                                                                  |
+| F7  | Live engine evaluation                         | Medium   | Live (`batch-d1c12045`, `batch-c02872a3`)                                   |
+| F8  | Adding an engine or candidate move             | Medium   | Live (partial): engine lines only (`batch-0a4dd047`)                        |
+| F21 | Scan results after edits or a new document     | Medium   | Live (`batch-0c63dd6c`)                                                     |
+| F25 | Gap fill on the phone jumps away from the list | Medium   | Live only, new in run 5 (`batch-d7b722ba`, `batch-912cc2a9`)                |
+| F9  | Strategic Fit first run                        | Medium   | Live (`batch-eb333ece`)                                                     |
+| F10 | Strategic Fit → board → back                   | Medium   | Live (`batch-c11ed687`)                                                     |
+| F11 | Strategic Fit finding triage                   | Medium   | Code trace; form not reachable on the fixture (see F26)                     |
+| F26 | Strategic Fit Review queue not actionable      | Medium   | Live only, new in run 5 (`batch-706cad8b`, `batch-c11ed687`)                |
+| F12 | Saving on the default (WebKit/iPhone) target   | Medium   | Live (`batch-4157da9a`)                                                     |
+| F13 | Only-move drill deck export                    | Medium   | Code trace                                                                  |
+| F14 | Exports: inconsistent one-step vs two-step     | Medium   | Code trace; corroborated by `strategic-fit-journey.spec.ts` (read, not run) |
+| F15 | Configuration scattered across three places    | Medium   | Code trace                                                                  |
+| F16 | Chat starters                                  | Low      | Live (partial): hard-coded "White" only (`batch-129228eb`)                  |
+| F17 | Opponent prep / structure search inputs        | Low      | Live (partial), claim revised: near-misses show an error (`batch-1930b8b4`) |
+| F18 | Accepting several chat suggestions             | Low      | Code trace (needs an OpenRouter key)                                        |
+| F19 | Extend here off-turn                           | Low      | Code trace                                                                  |
+| F20 | "Save status" menu entry                       | Low      | Live (`batch-4157da9a`)                                                     |
+| F22 | Recovering a snapshot                          | Low      | Live (`batch-3646cfe2`)                                                     |
+| F23 | Replacement Lab start                          | Low      | Code trace                                                                  |
 
 ---
 
@@ -106,6 +106,7 @@ click or tap.
   11. Wait for the model to choose `get_game_summary` and `analyze_game`.
 
   That is at least 10 interactions, typing, and a paid third-party key, on every first use.
+
 - **With a key saved:** Open PGN → Continue → pick → Load → Chat → type → Send = 7 interactions
   plus typing and LLM latency.
 - **Shortest reasonable path:** Open PGN → pick → **Review game** = 3.
@@ -161,6 +162,7 @@ click or tap.
 
   Steps 5–7 are 2–4 clicks per finding. To train, add Create training item → Drill N positions,
   then for each position a move plus Next position.
+
 - **Checking a line on the board:** Go to line closes the workspace. Coming back is Open Strategic
   Fit again, and on the phone also the Analysis tab and a scroll.
 - **Live (run 5, phone, rich fixture):** steps 1–3 took 3 clicks, and the analysis finished in
@@ -757,7 +759,7 @@ click or tap.
   idle autosaves around it. It can only be found by clicking through rows and reading the PGN
   preview, one click per row checked. Each restore adds another similar row, so the next search
   takes longer.
-- **Recommendation:** Label each row with its reason ("Before opening *other.pgn*", "Autosave",
+- **Recommendation:** Label each row with its reason ("Before opening _other.pgn_", "Autosave",
   "Before restore"). Group the rows by reason, or put the latest `before-replace` snapshot at the
   top and select it. The replace dialog's link to Recover can open with that row already selected.
 - **Expected improvement:** The common recovery takes 1 click instead of previewing rows one by
@@ -856,31 +858,31 @@ meant to test dirty saves should navigate to the root first.
 
 ## Attempt log
 
-| # | Run | Command | Result |
-| --- | --- | --- | --- |
-| 1 | 1 | `pnpm exec web-harness describe --json` | OK. Dev target, fixtures `rich-repertoire` (default) and `blank`, state sections `document`/`commands`/`strategicFit`, default device `webkit` / `iPhone 13 Mini`, port 4183. (`pnpm` installed `node_modules` as part of this call.) |
-| 2 | 1 | `free -h` | 12 GiB total, 3.7 GiB available, no swap. |
-| 3 | 1 | `pnpm exec web-harness doctor` | **Refused:** "needs 4.0 GiB + 2.5 GiB margin; 3.6 GiB usable … No swap: memory pressure freezes this host". |
-| 4 | 1 | `pnpm exec web-harness status` | `No session chess.` Nothing of this project was holding the memory. |
-| 5–8 | 1 | `pnpm exec web-harness doctor` (repeated) | Refused each time: 3.5, 3.3, 3.4, then 3.5 GiB usable. |
-| 9–11 | 2 | `pnpm exec web-harness doctor` (repeated) | Refused; usable memory peaked at 5.3 GiB, still under 6.5. |
-| 12 | 3 | `free -h` | 6.1 GiB available at the start of the run. |
-| 13 | 3 | `pnpm exec web-harness doctor` | Refused: 4.5 GiB usable. |
-| 14–21 | 3 | `pnpm exec web-harness doctor` (repeated through the run) | Refused each time: 3.2, 3.4, 3.3, 3.5, 3.5, 3.6, 3.5, 3.5 GiB usable, with no harness container running. |
-| 22 | 4 | `free -h` | 6.1 GiB available at the start of the run. |
-| 23 | 4 | `pnpm exec web-harness doctor` | Refused: 5.0 GiB usable, the highest in runs 1–4. |
-| 24 | 4 | Background poll of `MemAvailable` for 7.0 GiB, every 10 s for 10 minutes | Fell to 3.4 GiB and stayed between 3.8 and 4.1 GiB. |
-| 25–26 | 4 | `pnpm exec web-harness doctor` (mid-run, end of run) | Refused both times: 3.7, then 3.6 GiB usable. |
-| 27 | 5 | `git fetch origin main` + `git rebase origin/main` | Rebased onto `3bc467f` ("chore: update web-harness to v0.2.2"). The report was untracked; no conflicts. |
-| 28 | 5 | `pnpm install` | OK in 1 s: `@azeajr/web-harness` 0.2.0 → 0.2.2. No other change. |
-| 29 | 5 | `free -h`; `pnpm exec web-harness doctor` | 3.7 GiB available, 15 GiB swap. **Passed:** need 1.8 GiB + 1.5 GiB margin, 3.6 GiB usable, 16.0 GiB swap. |
-| 30 | 5 | `web-harness start --fixture blank` | Run `2026-09-29T14-34-22-875Z-53f2c2bf`, 0 faults; `00-seeded.png` inspected. |
-| 31–38 | 5 | 8 batches | 01 failed `batch-abf64fbf` (desktop selector) → passed `batch-a084a5d5`; 02 failed `batch-fc0778c5` (hidden `.current-line`) → passed `batch-0a4dd047`; 03 failed `batch-81b99b2b` (wrong tab) → passed `batch-568baf2f`; 08 passed `batch-1a6b6389`; 07 failed `batch-21cb6177` (dirty dialog has no Continue). |
-| 39 | 5 | `web-harness reset` | Run `2026-09-29T14-40-52-791Z-fedeb347`, 0 faults. |
-| 40–50 | 5 | 11 batches | 01 `batch-9e21e5ac`, 07 `batch-0c63dd6c`, 09 `batch-1930b8b4`, 10 `batch-3f73c3db`, 03 `batch-d3b8d6ed`, 04 failed `batch-22bde6d8` (no gap row on the thin White repertoire), 11 `batch-384cf8e4`, 12 `batch-9ca89860`, 03 `batch-beca9c51`, 04 `batch-d7b722ba`, 13 `batch-912cc2a9`. |
-| 51 | 5 | `web-harness reset` | Run `2026-09-29T14-46-33-930Z-4820b7f1`, 0 faults. |
-| 52–65 | 5 | 14 batches and one `reload` | 01 `batch-8f021895`, 05 `batch-eb333ece`, 06 failed `batch-a12988dc` (finding without a form) → rewritten, passed `batch-c11ed687`, 15 `batch-2359603f`, 16 failed `batch-b987cfe6` and `batch-e30304b8` (hidden buttons counted) → passed `batch-706cad8b`, 17 `batch-d1c12045`, `reload` (0 faults), 18 `batch-c02872a3`, 19 `batch-4157da9a`, 12 `batch-4e264067`, 20 `batch-3646cfe2`, 21 `batch-129228eb`. |
-| 66 | 5 | `web-harness stop`; `web-harness status` | Stopped; `state: stopped`, container `none`. |
+| #     | Run | Command                                                                  | Result                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----- | --- | ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | 1   | `pnpm exec web-harness describe --json`                                  | OK. Dev target, fixtures `rich-repertoire` (default) and `blank`, state sections `document`/`commands`/`strategicFit`, default device `webkit` / `iPhone 13 Mini`, port 4183. (`pnpm` installed `node_modules` as part of this call.)                                                                                                                                                                           |
+| 2     | 1   | `free -h`                                                                | 12 GiB total, 3.7 GiB available, no swap.                                                                                                                                                                                                                                                                                                                                                                       |
+| 3     | 1   | `pnpm exec web-harness doctor`                                           | **Refused:** "needs 4.0 GiB + 2.5 GiB margin; 3.6 GiB usable … No swap: memory pressure freezes this host".                                                                                                                                                                                                                                                                                                     |
+| 4     | 1   | `pnpm exec web-harness status`                                           | `No session chess.` Nothing of this project was holding the memory.                                                                                                                                                                                                                                                                                                                                             |
+| 5–8   | 1   | `pnpm exec web-harness doctor` (repeated)                                | Refused each time: 3.5, 3.3, 3.4, then 3.5 GiB usable.                                                                                                                                                                                                                                                                                                                                                          |
+| 9–11  | 2   | `pnpm exec web-harness doctor` (repeated)                                | Refused; usable memory peaked at 5.3 GiB, still under 6.5.                                                                                                                                                                                                                                                                                                                                                      |
+| 12    | 3   | `free -h`                                                                | 6.1 GiB available at the start of the run.                                                                                                                                                                                                                                                                                                                                                                      |
+| 13    | 3   | `pnpm exec web-harness doctor`                                           | Refused: 4.5 GiB usable.                                                                                                                                                                                                                                                                                                                                                                                        |
+| 14–21 | 3   | `pnpm exec web-harness doctor` (repeated through the run)                | Refused each time: 3.2, 3.4, 3.3, 3.5, 3.5, 3.6, 3.5, 3.5 GiB usable, with no harness container running.                                                                                                                                                                                                                                                                                                        |
+| 22    | 4   | `free -h`                                                                | 6.1 GiB available at the start of the run.                                                                                                                                                                                                                                                                                                                                                                      |
+| 23    | 4   | `pnpm exec web-harness doctor`                                           | Refused: 5.0 GiB usable, the highest in runs 1–4.                                                                                                                                                                                                                                                                                                                                                               |
+| 24    | 4   | Background poll of `MemAvailable` for 7.0 GiB, every 10 s for 10 minutes | Fell to 3.4 GiB and stayed between 3.8 and 4.1 GiB.                                                                                                                                                                                                                                                                                                                                                             |
+| 25–26 | 4   | `pnpm exec web-harness doctor` (mid-run, end of run)                     | Refused both times: 3.7, then 3.6 GiB usable.                                                                                                                                                                                                                                                                                                                                                                   |
+| 27    | 5   | `git fetch origin main` + `git rebase origin/main`                       | Rebased onto `3bc467f` ("chore: update web-harness to v0.2.2"). The report was untracked; no conflicts.                                                                                                                                                                                                                                                                                                         |
+| 28    | 5   | `pnpm install`                                                           | OK in 1 s: `@azeajr/web-harness` 0.2.0 → 0.2.2. No other change.                                                                                                                                                                                                                                                                                                                                                |
+| 29    | 5   | `free -h`; `pnpm exec web-harness doctor`                                | 3.7 GiB available, 15 GiB swap. **Passed:** need 1.8 GiB + 1.5 GiB margin, 3.6 GiB usable, 16.0 GiB swap.                                                                                                                                                                                                                                                                                                       |
+| 30    | 5   | `web-harness start --fixture blank`                                      | Run `2026-09-29T14-34-22-875Z-53f2c2bf`, 0 faults; `00-seeded.png` inspected.                                                                                                                                                                                                                                                                                                                                   |
+| 31–38 | 5   | 8 batches                                                                | 01 failed `batch-abf64fbf` (desktop selector) → passed `batch-a084a5d5`; 02 failed `batch-fc0778c5` (hidden `.current-line`) → passed `batch-0a4dd047`; 03 failed `batch-81b99b2b` (wrong tab) → passed `batch-568baf2f`; 08 passed `batch-1a6b6389`; 07 failed `batch-21cb6177` (dirty dialog has no Continue).                                                                                                |
+| 39    | 5   | `web-harness reset`                                                      | Run `2026-09-29T14-40-52-791Z-fedeb347`, 0 faults.                                                                                                                                                                                                                                                                                                                                                              |
+| 40–50 | 5   | 11 batches                                                               | 01 `batch-9e21e5ac`, 07 `batch-0c63dd6c`, 09 `batch-1930b8b4`, 10 `batch-3f73c3db`, 03 `batch-d3b8d6ed`, 04 failed `batch-22bde6d8` (no gap row on the thin White repertoire), 11 `batch-384cf8e4`, 12 `batch-9ca89860`, 03 `batch-beca9c51`, 04 `batch-d7b722ba`, 13 `batch-912cc2a9`.                                                                                                                         |
+| 51    | 5   | `web-harness reset`                                                      | Run `2026-09-29T14-46-33-930Z-4820b7f1`, 0 faults.                                                                                                                                                                                                                                                                                                                                                              |
+| 52–65 | 5   | 14 batches and one `reload`                                              | 01 `batch-8f021895`, 05 `batch-eb333ece`, 06 failed `batch-a12988dc` (finding without a form) → rewritten, passed `batch-c11ed687`, 15 `batch-2359603f`, 16 failed `batch-b987cfe6` and `batch-e30304b8` (hidden buttons counted) → passed `batch-706cad8b`, 17 `batch-d1c12045`, `reload` (0 faults), 18 `batch-c02872a3`, 19 `batch-4157da9a`, 12 `batch-4e264067`, 20 `batch-3646cfe2`, 21 `batch-129228eb`. |
+| 66    | 5   | `web-harness stop`; `web-harness status`                                 | Stopped; `state: stopped`, container `none`.                                                                                                                                                                                                                                                                                                                                                                    |
 
 Runs 1–4 ran on a host with no swap, where the harness added a 2.5 GiB margin; in those runs a
 smaller container bound was blocked by the session's permission policy, and `--force-resources`
