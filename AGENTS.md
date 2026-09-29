@@ -50,11 +50,11 @@ port 4173. This changes only container networking, not the authoritative image o
 
 The container gate runs one Playwright worker and is bounded by `WEB_HARNESS_E2E_MEMORY` (6g) and
 `WEB_HARNESS_E2E_CPUS` (4); passing `--workers`/`-j` overrides the single-worker default. Review-session
-containers are bounded by `WEB_HARNESS_DOCKER_MEMORY` (3g) and `WEB_HARNESS_DOCKER_CPUS` (2). Each
+containers are bounded by `WEB_HARNESS_DOCKER_MEMORY` (1536m) and `WEB_HARNESS_DOCKER_CPUS` (2). Each
 container pins `--memory-swap` to its memory bound, because Docker otherwise grants twice it. Playwright
 otherwise takes 50% of the logical cores, which exhausted host memory on 2026-09-07. Each review
 session's Vite server runs on the host, outside those container bounds, so it starts with
-`--max-old-space-size` (`WEB_HARNESS_SERVER_HEAP_MB`, default 1024); that caps its V8 heap but not
+`--max-old-space-size` (`WEB_HARNESS_SERVER_HEAP_MB`, default 256); that caps its V8 heap but not
 child processes such as esbuild. Run one heavy validation workload at a time.
 
 For focused host iteration, `pnpm test:e2e -- <path-or-grep>` runs one worker with a 15-minute cap.
