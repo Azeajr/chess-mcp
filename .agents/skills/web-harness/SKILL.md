@@ -2,7 +2,7 @@
 name: web-harness
 description: Drive, inspect and verify this project's web app with web-harness — owned browser sessions in Docker, batched journeys, failure bundles, production smoke, container E2E and scenario reports. Use when reproducing a UI bug, checking that a change works in a real browser, reviewing a layout, or proving a fix before a PR.
 ---
-<!-- web-harness 0.2.0: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
+<!-- web-harness 0.2.2: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
 
 # web-harness
 
@@ -76,7 +76,8 @@ What each proves:
 
 - One heavy job at a time: a session, `e2e` or `smoke` each run a browser. Check `free -h`
   before starting one. The memory budget refuses a start the host cannot hold; do not reach for
-  `--force-resources` to get around it.
+  `--force-resources` to get around it. If refused, stop a listed harness run or another heavy
+  workload and retry once. Do not poll for memory or repeatedly rerun `doctor`.
 - Use distinct `--session` names and `--port`s for concurrent sessions, and `stop` each one.
 - Never run a project's browser suite outside `web-harness e2e` while a session is up.
 
