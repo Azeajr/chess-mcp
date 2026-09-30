@@ -139,8 +139,18 @@ export default function FindingQueue(props: {
                           actions.goto(target);
                           setStrategicFitBoardReturn(documentId());
                           setStrategicFitWorkspaceOpen(false);
-                          if (finding.classification !== "transpositional-equivalence")
+                          if (finding.classification !== "transpositional-equivalence") {
                             void scanComplementary("low_memorization");
+                            requestAnimationFrame(() => {
+                              const section = document
+                                .querySelector("#extend-mode")
+                                ?.closest("details");
+                              if (section) {
+                                section.open = true;
+                                section.scrollIntoView({ block: "nearest" });
+                              }
+                            });
+                          }
                         }}
                       >
                         {finding.classification === "transpositional-equivalence"

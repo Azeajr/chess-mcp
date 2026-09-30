@@ -285,15 +285,21 @@ test(
     await expect(map.locator(".strategic-map-controls")).toBeHidden();
     await expect(map.locator("[data-map-chart]")).toBeVisible();
     await expect(map.locator("[data-map-list] tbody tr").first()).toBeVisible();
-    // The map is taller than the viewport, so this capture scrolls and the page chrome
-    // pinned above it composites into rows 0-98 of the image. That strip is not the map
-    // and is environment-coupled: the same commit renders identical map pixels in the
-    // local container and in CI while those top rows differ. Regenerate this baseline
-    // from CI, not locally. Masking the chrome would remove the coupling outright.
-    await expect(map).toHaveScreenshot("strategic-map-print.png", {
-      animations: "disabled",
-      caret: "hide",
+    // The oversized element capture scrolls behind the main app's page chrome.
+    // Hide that unrelated background only during capture so this baseline measures
+    // the complete map, not the filename/save status behind the modal. Keep layout
+    // intact and retain the normal pixel threshold.
+    const captureStyle = await page.addStyleTag({
+      content: ".app-main { visibility: hidden !important; }",
     });
+    try {
+      await expect(map).toHaveScreenshot("strategic-map-print.png", {
+        animations: "disabled",
+        caret: "hide",
+      });
+    } finally {
+      await captureStyle.evaluate((element) => element.parentNode?.removeChild(element));
+    }
     await page.emulateMedia({ media: "screen" });
   },
 );

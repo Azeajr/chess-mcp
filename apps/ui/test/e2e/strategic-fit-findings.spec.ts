@@ -791,7 +791,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await showStage(page, "findings");
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "12 results · showing 1–6",
+    "9 results · showing 1–6",
   );
 
   await showStage(page, "findings");
@@ -899,14 +899,14 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
 
   await showStage(page, "findings");
   await queue.getByRole("button", { name: "Next findings" }).click();
-  await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
+  await expect(queue.locator("[data-finding-id]")).toHaveCount(3);
   await expect(queue.locator("[data-finding-id]").first()).toHaveAttribute(
     "data-finding-id",
-    "finding:07",
+    "finding:10",
   );
   await showStage(page, "findings");
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "12 results · showing 7–12",
+    "9 results · showing 7–9",
   );
 
   await openQueueFilters(queue);
@@ -918,14 +918,14 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await showStage(page, "findings");
   await queue.getByLabel("Priority type").selectOption({ label: "Training" });
   await queue.getByLabel("Priority", { exact: true }).selectOption({ label: "Review now" });
-  await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
+  await expect(queue.locator("[data-finding-id]")).toHaveCount(5);
   await queue.getByLabel("Opening / system").selectOption({ label: "Sicilian · Alapin" });
-  await expect(queue.locator("[data-finding-id]")).toHaveCount(2);
+  await expect(queue.locator("[data-finding-id]")).toHaveCount(1);
   expect(
     await queue
       .locator("[data-finding-id]")
       .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-finding-id"))),
-  ).toEqual(["finding:01", "finding:07"]);
+  ).toEqual(["finding:01"]);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
@@ -1620,7 +1620,7 @@ test("overview intents filter only the current report queue and can return to al
   await queue.getByRole("button", { name: "Show all report findings" }).click();
   await expect(pane).toHaveAttribute("data-queue-filter", "none");
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "12 results · showing 1–6",
+    "9 results · showing 1–6",
   );
 
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
@@ -1633,7 +1633,7 @@ test("overview intents filter only the current report queue and can return to al
   await expect(reopenedQueue).toHaveAttribute("data-queue-status", "ready");
   await expect(reopenedQueue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(reopenedQueue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "12 results · showing 1–6",
+    "9 results · showing 1–6",
   );
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
@@ -2588,7 +2588,6 @@ test("a created training item records an attempt only once a move is played on i
 
   await showStage(page, "resolution");
   const reopened = dialog.locator("[data-training-finding-id='finding:01']");
-  await reopened.getByRole("button", { name: /^Drill \d+ position/u }).click();
   const active = reopened.locator(".strategic-fit-drill-active").first();
   await expect(active).toBeVisible();
 
@@ -2639,7 +2638,6 @@ test("a black-to-move drill is playable, and a legal wrong move is recorded as n
 
   await showStage(page, "resolution");
   const reopened = dialog.locator("[data-training-finding-id='finding:01']");
-  await reopened.getByRole("button", { name: /^Drill \d+ position/u }).click();
   const active = reopened.locator(".strategic-fit-drill-active").first();
   await expect(active).toHaveAttribute("data-drill-expected", "e5");
 

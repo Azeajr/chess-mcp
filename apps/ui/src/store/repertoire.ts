@@ -203,11 +203,15 @@ const [compSource, setCompSource] = createSignal<{
   document: string;
   revision: number;
   fen: string;
+  color: string;
 } | null>(null);
 const complementary = () => {
   const source = compSource();
   return source &&
-    (source.document !== documentId() || source.revision !== version() || source.fen !== fen())
+    (source.document !== documentId() ||
+      source.revision !== version() ||
+      source.fen !== fen() ||
+      source.color !== color())
     ? null
     : rawComplementary();
 };
@@ -216,9 +220,10 @@ const [compError, setCompError] = createSignal<string | null>(null);
 export { complementary, compScanning, compError };
 
 export async function scanComplementary(mode: "low_memorization" | "sharp") {
-  const source = { document: documentId(), revision: version(), fen: fen() };
+  const source = { document: documentId(), revision: version(), fen: fen(), color: color() };
   setCompSource(source);
   setComplementary(null);
+  setCompScanning(false);
   if ((fen().split(" ")[1] === "w" ? "white" : "black") !== color()) {
     setCompError("It is the opponent's turn. Select your next move to extend this line.");
     return;
@@ -233,7 +238,13 @@ export async function scanComplementary(mode: "low_memorization" | "sharp") {
       suggestions?: ComplementaryMove[];
       error?: string;
     };
-    if (source.document !== documentId() || source.revision !== version() || source.fen !== fen())
+    if (
+      compSource() !== source ||
+      source.document !== documentId() ||
+      source.revision !== version() ||
+      source.fen !== fen() ||
+      source.color !== color()
+    )
       return;
     if (r.error) {
       setCompError(r.error === "engine_unavailable" ? "engine offline" : r.error);
@@ -242,13 +253,15 @@ export async function scanComplementary(mode: "low_memorization" | "sharp") {
       setComplementary(r.suggestions ?? []);
     }
   } catch (e) {
-    setCompError(e instanceof Error ? e.message : String(e));
+    if (compSource() === source) setCompError(e instanceof Error ? e.message : String(e));
   } finally {
-    setCompScanning(false);
+    if (compSource() === source) setCompScanning(false);
   }
 }
 
 export function clearComplementary() {
+  setCompSource(null);
+  setCompScanning(false);
   setComplementary(null);
   setCompError(null);
 }

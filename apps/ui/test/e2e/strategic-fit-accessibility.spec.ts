@@ -57,7 +57,7 @@ test("first-run setup has a coherent accessible outline and returns focus to ana
   const submit = dialog.getByRole("button", { name: "Use Balanced profile" });
   await expect(submit).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeFocused();
+  await expect(dialog.locator("[data-strategic-fit-analysis-action]")).toBeFocused();
   await expectBasicAccessibility(dialog);
 });
 

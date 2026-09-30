@@ -48,7 +48,7 @@ export default function SettingsDrawer() {
         </button>
 
         <section data-settings-field="engine" tabindex="-1">
-          <h3>Engine</h3>
+          <h2>Engine</h2>
           <AnalysisSettings />
         </section>
         <Field class="field" label="Chat workflow">

@@ -182,7 +182,9 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(dialog.getByRole("button", { name: "Re-analyze strategic fit" })).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "Analyze again", exact: true })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(dialog.locator(".strategic-fit-analysis-details > summary")).toBeFocused();
   for (const [label, stage] of [
     ["Assessment", "overview"],
     ["Review", "findings"],

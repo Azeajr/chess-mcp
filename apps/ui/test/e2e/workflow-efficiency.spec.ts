@@ -19,6 +19,40 @@ const command = (page: Page, name: string) =>
     return api.commandStates()[key];
   }, name);
 
+test("F16 Black-side starters draft without credentials and send once when configured", async ({
+  page,
+}) => {
+  await openApp(page, { pgn: "1. e4 e5 *" });
+  await page.getByLabel("Repertoire colour").selectOption("black");
+  const question = "What is the plan for Black in this position?";
+  await page.getByRole("button", { name: question, exact: true }).click();
+  await expect(page.getByPlaceholder("Ask about this position, game, or repertoire…")).toHaveValue(
+    question,
+  );
+  await expect(page.getByRole("button", { name: "Review this game", exact: true })).toBeVisible();
+
+  await page.evaluate(() => localStorage.setItem("chess.openrouter.key", "fake-key"));
+  let requests = 0;
+  let sent = "";
+  await page.route("https://openrouter.ai/api/v1/chat/completions", async (route) => {
+    requests++;
+    const body = route.request().postDataJSON() as {
+      messages: { role: string; content: string }[];
+    };
+    sent = body.messages.filter((message) => message.role === "user").at(-1)?.content ?? "";
+    await route.fulfill({
+      contentType: "text/event-stream",
+      body: `data: ${JSON.stringify({ choices: [{ delta: { content: "Starter received." }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`,
+    });
+  });
+  await page.reload();
+  await page.getByLabel("Repertoire colour").selectOption("black");
+  await page.getByRole("button", { name: question, exact: true }).click();
+  await expect(page.getByText("Starter received.", { exact: true })).toBeVisible();
+  expect(requests).toBe(1);
+  expect(sent).toContain(question);
+});
+
 test("F1 game review and move comparison run without an assistant key", async ({ page }) => {
   await openApp(page, { pgn: "1. e4 e5 *" });
   await fastEngine(page);

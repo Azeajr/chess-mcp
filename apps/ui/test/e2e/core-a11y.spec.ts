@@ -292,6 +292,10 @@ test("WP-006 AC-6 touch-emulated board dragging remains enabled without callouts
         },
       ],
     });
+    // Chessground consumes drag positions on animation frames, as real touch input does.
+    await touchPage.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await expect.poll(() => chess(touchPage, (api) => api.currentPath())).toEqual([0]);

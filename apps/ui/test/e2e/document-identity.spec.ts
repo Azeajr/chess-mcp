@@ -101,7 +101,7 @@ test("initial, import, edit, navigation, save, New, and failed-load identity lif
     }),
   );
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.getByRole("button", { name: /^(Save|Export PGN)$/ }).click();
   await download;
   expect(await chess(page, (api) => api.documentId())).toBe(firstImport);
 
