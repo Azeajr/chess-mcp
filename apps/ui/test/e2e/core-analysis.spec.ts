@@ -94,8 +94,8 @@ const commandStatus = (page: Page, command: string) =>
   }, command);
 
 async function openEngineSettings(page: Page) {
+  await page.getByRole("button", { name: "Engine settings", exact: true }).click();
   const settings = page.locator(".analysis-settings");
-  await settings.locator("summary").click();
   await expect(settings).toHaveAttribute("open", "");
   return settings;
 }
@@ -189,10 +189,11 @@ test("WP-016 AC-5 AC-9 keeps deep-analysis guidance inline and cloud privacy cop
   const after = await panel.boundingBox();
   expect(after?.height).toBe(before?.height);
 
+  const drawer = await page.getByRole("dialog", { name: "Settings" }).boundingBox();
   const disclosure = await settings.locator(".analysis-settings-body").boundingBox();
-  expect(disclosure?.x).toBeGreaterThanOrEqual((after?.x ?? 0) - 0.5);
+  expect(disclosure?.x).toBeGreaterThanOrEqual((drawer?.x ?? 0) - 0.5);
   expect((disclosure?.x ?? 0) + (disclosure?.width ?? 0)).toBeLessThanOrEqual(
-    (after?.x ?? 0) + (after?.width ?? 0) + 0.5,
+    (drawer?.x ?? 0) + (drawer?.width ?? 0) + 0.5,
   );
 
   const depth = settings.getByRole("spinbutton", { name: "Analysis depth" });
@@ -223,6 +224,7 @@ test("WP-016 AC-8 preserves the selected depth for direct engine commands", asyn
 
   const settings = await openEngineSettings(page);
   await settings.getByRole("spinbutton", { name: "Analysis depth" }).fill("23");
+  await page.getByRole("button", { name: "Close settings" }).click();
   await expect(page.locator(".analysis-depth-chip")).toHaveText("Depth 23");
 
   const audit = page.locator("details.rep-section", { hasText: "Prescribed-move audit" });

@@ -14,9 +14,9 @@ const settings: DialogFixture = {
   name: "Settings",
   dialog: (page) => page.getByRole("dialog", { name: "Settings" }),
   first: (page) => page.getByRole("button", { name: "Close settings" }),
-  opener: (page) => page.getByRole("button", { name: "Settings" }),
+  opener: (page) => page.getByRole("button", { name: "Settings", exact: true }),
   open: async (page) => {
-    const opener = page.getByRole("button", { name: "Settings" });
+    const opener = page.getByRole("button", { name: "Settings", exact: true });
     await opener.focus();
     await opener.click();
     return page.getByRole("dialog", { name: "Settings" });
@@ -43,10 +43,6 @@ const colorPicker: DialogFixture = {
     const opener = page.getByRole("button", { name: "Open PGN" });
     await opener.focus();
     await opener.click();
-    await page
-      .getByRole("dialog", { name: "Replace current repertoire?" })
-      .getByRole("button", { name: "Continue" })
-      .click();
     return page.getByRole("dialog", { name: "Which color is this repertoire for?" });
   },
 };

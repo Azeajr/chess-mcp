@@ -25,10 +25,11 @@ async function makeDocumentDirty(page: Page) {
 }
 
 test(
-  "WP-003 AC-1 AC-5 AC-8 guards a clean New without changing the document",
+  "WP-003 AC-1 AC-5 AC-8 guards dirty New without changing the document",
   { tag: "@smoke" },
   async ({ page }) => {
     await openApp(page);
+    await makeDocumentDirty(page);
     const before = await currentPgn(page);
     const newButton = page.getByRole("button", { name: "New" });
     await newButton.focus();
@@ -37,7 +38,7 @@ test(
     const dialog = documentCloseDialog(page);
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("rich-repertoire.pgn");
-    await expect(dialog.getByText("There are no unexported changes.")).toBeVisible();
+    await expect(dialog).toContainText("1 unexported change");
     await expect(page.locator(".app-main")).toHaveJSProperty("inert", true);
     expect(await basicAccessibilityViolations(dialog)).toEqual([]);
     expect(await currentPgn(page)).toBe(before);
@@ -52,8 +53,8 @@ test(
       ),
     ).toEqual(pathBefore);
 
-    const cancel = dialog.getByRole("button", { name: "Cancel" });
-    const continueButton = dialog.getByRole("button", { name: "Continue" });
+    const cancel = dialog.getByRole("button", { name: "Keep working" });
+    const continueButton = dialog.getByRole("button", { name: "Discard and start new" });
     await expect(cancel).toBeFocused();
     await page.keyboard.press("Shift+Tab");
     await expect(continueButton).toBeFocused();
@@ -134,6 +135,7 @@ test("WP-003 AC-4 guards Open PGN before the picker and preserves the colour pic
   page,
 }) => {
   await openApp(page);
+  await makeDocumentDirty(page);
   await page.evaluate(() => {
     let pickerCalls = 0;
     Object.defineProperty(window, "showOpenFilePicker", {
@@ -161,7 +163,7 @@ test("WP-003 AC-4 guards Open PGN before the picker and preserves the colour pic
       ),
     )
     .toBe(0);
-  await dialog.getByRole("button", { name: "Continue" }).click();
+  await dialog.getByRole("button", { name: "Discard and open PGN" }).click();
   await expect
     .poll(() =>
       page.evaluate(() =>
@@ -196,8 +198,7 @@ test("WP-003 AC-4 AC-7 guards Reopen and offers Open PGN after permission is den
 
   await page.getByRole("button", { name: "Reopen denied-repertoire.pgn" }).click();
   const dialog = documentCloseDialog(page);
-  await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Continue" }).click();
+  await expect(dialog).toHaveCount(0);
 
   const notice = page.locator(".file-notice");
   await expect(notice).toContainText(
@@ -217,10 +218,10 @@ test("WP-003 AC-6 names the downloaded file when save cannot re-link it", async 
   });
 
   const download = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.locator(".save-button").click();
   expect((await download).suggestedFilename()).toBe("rich-repertoire.pgn");
   await expect(page.locator(".file-notice")).toContainText(
-    "Downloaded rich-repertoire.pgn. This browser cannot re-link that file for future saves.",
+    "Downloaded rich-repertoire.pgn. Your working copy is saved in this browser; Export PGN creates a separate copy.",
   );
 });
 
@@ -233,19 +234,18 @@ test("WP-004 AC-1 AC-2 recovers a replaced document as a new identity", async ({
 
   await page.getByRole("button", { name: "New" }).click();
   const guard = documentCloseDialog(page);
-  await expect(guard.getByRole("button", { name: "Recover an earlier repertoire" })).toBeVisible();
-  await guard.getByRole("button", { name: "Continue" }).click();
   await expect(guard).toHaveCount(0);
   await expect.poll(() => currentPgn(page)).not.toBe(before);
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Recover a repertoire" }).click();
   const recover = page.getByRole("dialog", { name: "Recover a repertoire" });
   await expect(recover).toBeVisible();
 
   const row = recover.locator(".recover-item", { hasText: "rich-repertoire.pgn" });
   await expect(row).toHaveCount(1);
-  const metadata = (await row.locator("small").innerText()).split(" · ");
+  const [reason, ...metadata] = (await row.locator("small").innerText()).split(" · ");
+  expect(reason).toBe("Before replacing repertoire");
   expect(metadata).toHaveLength(4);
   expect(Number.isFinite(Date.parse(metadata[0]!))).toBe(true);
   expect(metadata[1]).toMatch(/^\d+(\.\d+)? (B|KB|MB)$/);

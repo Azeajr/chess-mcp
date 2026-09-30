@@ -165,6 +165,7 @@ export async function analyzeMainline(
 }
 
 export interface GapsOptions {
+  positionStart?: number;
   depth?: number;
   minSeverity?: Severity;
   maxPositions?: number;
@@ -219,7 +220,8 @@ export async function findRepertoireGaps(
 ): Promise<GapsResult> {
   const minSev: Severity = opts.minSeverity ?? "medium";
   const available = decisionNodes(tree, color);
-  const nodes = available.slice(0, opts.maxPositions ?? 20);
+  const start = Math.max(0, opts.positionStart ?? 0);
+  const nodes = available.slice(start, start + (opts.maxPositions ?? 20));
   const { keyMap } = buildKeyIndex(tree.game.moves);
   const scheduled = await mapBounded(
     nodes,

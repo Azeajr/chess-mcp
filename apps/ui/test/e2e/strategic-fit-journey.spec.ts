@@ -40,7 +40,6 @@ async function bootstrap(page: Page, name: string) {
 async function analyze(page: Page) {
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 30_000,
   });
@@ -60,9 +59,16 @@ test("a recorded resolution holds and says so", async ({ page }) => {
     .getByRole("button", { name: /^Review finding/ })
     .first()
     .click();
-  const save = dialog.getByRole("button", { name: "Save resolution" });
+  const save = dialog.getByRole("button", { name: "Keep intentionally", exact: true });
   await expect(save).toBeVisible();
+  const firstFinding = await dialog
+    .locator("[data-resolution-finding-id]")
+    .getAttribute("data-resolution-finding-id");
   await save.click();
+  await expect(dialog.locator("[data-resolution-finding-id]")).not.toHaveAttribute(
+    "data-resolution-finding-id",
+    firstFinding!,
+  );
 
   // Recording a resolution takes its finding out of review and produces a new report, and both used
   // to wipe the message the transition composed: the pane emptied to "No resolution selected" with
@@ -80,6 +86,11 @@ test("a recorded resolution holds and says so", async ({ page }) => {
     })
     .toBe(1);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
+  await dialog.getByRole("button", { name: "Undo decision", exact: true }).click();
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitMetadata().resolutions.length))
+    .toBe(0);
+  expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });
 
 test("saving an artifact says whether the file arrived", async ({ page }) => {
@@ -89,14 +100,10 @@ test("saving an artifact says whether the file arrived", async ({ page }) => {
   await transfer.evaluate((node: HTMLDetailsElement) => {
     node.open = true;
   });
-  await transfer.getByRole("button", { name: "Generate metadata JSON" }).click();
-
-  const save = transfer.getByRole("button", { name: "Save metadata JSON" });
-  await expect(save).toBeVisible();
-
   const download = page.waitForEvent("download");
-  await save.click();
+  await transfer.getByRole("button", { name: "Export metadata JSON" }).click();
   await download;
+  const save = transfer.getByRole("button", { name: "Download metadata JSON again" });
 
   // Pressing Save changed nothing on screen, so a browser that refused the download looked exactly
   // like one that took it.

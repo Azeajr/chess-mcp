@@ -27,14 +27,13 @@ async function completedWorkspace(page: Page, width = 1280, height = 800) {
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 20_000,
   });
   return dialog;
 }
 
-test("WP-032 AC-1 completed disclosures put the first finding inside a 1280x800 viewport", async ({
+test("WP-032 AC-1 completed disclosures put the evidence checklist inside a 1280x800 viewport", async ({
   page,
 }) => {
   test.slow();
@@ -46,7 +45,7 @@ test("WP-032 AC-1 completed disclosures put the first finding inside a 1280x800 
   );
 
   await dialog.locator("#strategic-fit-stage-findings").click();
-  const firstFinding = dialog.locator("[data-finding-id]").first();
+  const firstFinding = dialog.locator(".strategic-fit-evidence-checklist > summary");
   await expect(firstFinding).toBeVisible();
   const geometry = await firstFinding.evaluate((element) => {
     const rect = element.getBoundingClientRect();
@@ -72,8 +71,6 @@ test("WP-032 AC-2 active analysis keeps the full six-phase progress display", as
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
-
   const progress = dialog.locator(".strategic-fit-analysis-progress-card");
   await expect(progress).toHaveAttribute("data-progress-collapsed", "false");
   await expect(progress.locator(".strategic-fit-analysis-phase-list li")).toHaveCount(6);

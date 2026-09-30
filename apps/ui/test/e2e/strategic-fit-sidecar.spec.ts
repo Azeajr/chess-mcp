@@ -82,9 +82,8 @@ test("Strategic Fit sidecar UI previews, cancels, confirms, persists, and saves 
   });
   await portability(page);
 
-  await page.getByRole("button", { name: "Generate metadata JSON" }).click();
   const jsonDownloadEvent = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save metadata JSON" }).click();
+  await page.getByRole("button", { name: "Export metadata JSON" }).click();
   const jsonDownload = await jsonDownloadEvent;
   expect(jsonDownload.suggestedFilename()).toBe("sidecar-strategic-fit.json");
   const json = await downloadText(jsonDownload);
@@ -240,12 +239,8 @@ test("portable intent PGN saves through the canonical UI command and reparses wi
   await waitForMetadata(page);
   const before = await chess(page, (api) => ({ pgn: api.toPgn(), version: api.version() }));
   await portability(page);
-  await page.getByRole("button", { name: "Generate intent PGN" }).click();
-  await expect(page.getByRole("button", { name: "Save intent PGN" })).toBeVisible({
-    timeout: 20_000,
-  });
   const downloadEvent = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Save intent PGN" }).click();
+  await page.getByRole("button", { name: "Export intent PGN" }).click();
   const download = await downloadEvent;
   expect(download.suggestedFilename()).toBe("intent-strategic-fit-intent.pgn");
   const pgn = await downloadText(download);

@@ -2,7 +2,8 @@ export const STRATEGIC_FIT_ENTRY = {
   question: "Is your repertoire asking you to learn too many different plans?",
   summary:
     "Strategic Fit compares the ideas behind your lines and flags the ones that stand apart from the rest.",
-  reassurance: "Opening it does not analyze or change this repertoire.",
+  reassurance:
+    "Opening it starts a review once a profile is chosen; it never changes repertoire moves.",
   action: "Open Strategic Fit",
 } as const;
 

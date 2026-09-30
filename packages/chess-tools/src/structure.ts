@@ -646,12 +646,33 @@ export interface StructureMatch {
   center: string;
 }
 
+/** Accept accent/apostrophe variants and unambiguous prefixes, never guess ambiguous names. */
+export function resolveStructureName(query: string): string | undefined {
+  const fold = (value: string) =>
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/['’]/g, "")
+      .replace(/\s+structure$/, "")
+      .trim();
+  const key = fold(query);
+  if (!key) return undefined;
+  const exact = STRUCTURE_NAMES.find((name) => fold(name) === key);
+  if (exact) return exact;
+  const matches = STRUCTURE_NAMES.filter((name) => fold(name).startsWith(key));
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 export function searchStructures(
   leaves: { path: string[]; board: Board; fen: string }[],
   color: Color,
   q: StructureQuery,
 ): StructureMatch[] {
-  const want = q.structure?.toLowerCase();
+  const want =
+    q.structure === undefined
+      ? undefined
+      : (resolveStructureName(q.structure) ?? q.structure).toLowerCase();
   const out: StructureMatch[] = [];
   for (const leaf of leaves) {
     const cls = classifyStructure(leaf.board);

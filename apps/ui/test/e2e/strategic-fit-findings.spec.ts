@@ -775,7 +775,6 @@ async function bootstrap(
   const pathBefore = await chess(page, (api) => [...api.currentPath()]);
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
   await showStage(page, stage);
   return { dialog, before, pathBefore };
@@ -950,10 +949,10 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await showStage(page, "resolution");
   const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
   await expect(actions).toBeVisible();
-  await actions.getByRole("radio", { name: /Keep intentionally/ }).check();
+  await actions.getByText("Optional reason and note", { exact: true }).click();
   await actions.getByLabel("Why keep it (optional)").selectOption("objectively-strongest");
   await actions.getByLabel("Optional note").fill("Best practical choice for this repertoire.");
-  await actions.getByRole("button", { name: "Save resolution" }).click();
+  await actions.getByRole("button", { name: "Keep intentionally", exact: true }).click();
 
   await expect
     .poll(() =>
@@ -1024,9 +1023,9 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
     (api) => api.strategicFitLifecycle().current_result?.request_id ?? null,
   );
   await showStage(page, "resolution");
-  await actions.getByRole("radio", { name: /Defer/ }).check();
+  await actions.getByText("Optional reason and note", { exact: true }).click();
   await actions.getByLabel("Optional note").fill("Review after the next event.");
-  await actions.getByRole("button", { name: "Save resolution" }).click();
+  await actions.getByRole("button", { name: "Defer", exact: true }).click();
   await expect
     .poll(() =>
       chess(page, (api) => api.strategicFitLifecycle().current_result?.request_id ?? null),
@@ -1045,7 +1044,6 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const restoredDialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await restoredDialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restoredDialog.locator("[data-analysis-state='completed']")).toBeVisible();
   await showStage(page, "findings");
   const restoredQueue = restoredDialog
@@ -1065,7 +1063,9 @@ test("finding resolutions are reversible, persistent, count-aware, and automatic
   await expect(staleSemantic.locator("[data-resolution-blocked]")).toContainText(
     "semantic position referenced by this finding no longer belongs",
   );
-  await expect(staleSemantic.getByRole("button", { name: "Save resolution" })).toHaveCount(0);
+  await expect(
+    staleSemantic.getByRole("button", { name: "Keep intentionally", exact: true }),
+  ).toHaveCount(0);
   expect(await chess(page, (api) => api.strategicFitMetadata().resolutions)).toHaveLength(1);
 
   await chess(page, (api) => api.selectStrategicFitProfile("versatile"));
@@ -1127,8 +1127,7 @@ test("review completion blocks unreviewed findings, exports provenance, and reco
     await queue.locator(`[data-finding-id='${findingId}'] [data-finding-select]`).click();
     await showStage(page, "resolution");
     const actions = dialog.locator(`[data-resolution-finding-id='${findingId}']`);
-    await actions.getByRole("radio", { name: /Defer/ }).check();
-    await actions.getByRole("button", { name: "Save resolution" }).click();
+    await actions.getByRole("button", { name: "Defer", exact: true }).click();
     await expect
       .poll(() =>
         chess(page, (api) => api.strategicFitLifecycle().current_result?.request_id ?? null),
@@ -1260,7 +1259,6 @@ test("training items persist semantic references, keep findings visible, and exp
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const restored = page.getByRole("dialog", { name: "Strategic Fit" });
-  await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
   const restoredQueue = restored
     .locator("#strategic-fit-pane-findings")
@@ -1385,7 +1383,6 @@ test("cohort adjustments preview exact impact, persist metadata-only, reanalyze,
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const restored = page.getByRole("dialog", { name: "Strategic Fit" });
-  await restored.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(restored.locator("[data-analysis-state='completed']")).toBeVisible();
   const restoredQueue = restored
     .locator("#strategic-fit-pane-findings")
@@ -1698,14 +1695,10 @@ test("phone resolution controls are keyboard-operable, accessible, and touch-siz
   const actions = pane.locator("[data-resolution-finding-id='finding:01']");
   await expect(actions).toBeVisible();
 
-  const keep = actions.getByRole("radio", { name: /Keep intentionally/ });
-  await keep.focus();
-  await page.keyboard.press("ArrowDown");
-  const defer = actions.getByRole("radio", { name: /Defer/ });
-  await expect(defer).toBeChecked();
+  await actions.getByText("Optional reason and note", { exact: true }).click();
   await actions.getByLabel("Optional note").focus();
   await page.keyboard.type("Keyboard and phone review note.");
-  const save = actions.getByRole("button", { name: "Save resolution" });
+  const save = actions.getByRole("button", { name: "Defer", exact: true });
   await save.focus();
   await page.keyboard.press("Enter");
   await expect
@@ -1751,8 +1744,7 @@ test("phone can complete the full review journey with the keyboard only and retu
   await expect(dialog.getByRole("button", { name: "Use Balanced profile" })).toBeFocused();
   await page.keyboard.press("Enter");
 
-  const analyze = dialog.getByRole("button", { name: "Analyze strategic fit" });
-  await expect(analyze).toBeFocused();
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
   const settledBefore = await chess(page, (api) => ({
     pgn: api.toPgn(),
     version: api.version(),
@@ -1760,9 +1752,6 @@ test("phone can complete the full review journey with the keyboard only and retu
     preview: JSON.stringify(api.preview()),
     metadata: JSON.stringify(api.strategicFitMetadata()),
   }));
-  await page.keyboard.press("Enter");
-  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
-
   const overviewTab = dialog.getByRole("tab", { name: "Assessment" });
   for (
     let index = 0;
@@ -2449,7 +2438,6 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
 
   await showStage(page, "resolution");
   const actions = dialog.locator("[data-resolution-finding-id='finding:01']");
-  await actions.getByRole("radio", { name: /Defer/ }).check();
   await wp035Record(page, journey, "decision-chosen", "review-decision", "evidence");
 
   const requestId = () =>
@@ -2458,7 +2446,7 @@ test("WP-035 review journey reaches a decision and never enters redesign", async
       (api) => (api.strategicFitLifecycle() as Wp035Lifecycle).current_result?.request_id ?? null,
     );
   const beforeRequest = await requestId();
-  await actions.getByRole("button", { name: "Save resolution" }).click();
+  await actions.getByRole("button", { name: "Defer", exact: true }).click();
   await expect.poll(requestId).not.toBe(beforeRequest);
   await showStage(page, "findings");
   await showFirstQueuePage(queue);

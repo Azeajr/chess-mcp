@@ -1,4 +1,4 @@
-import { For, Show, onMount } from "solid-js";
+import { For, Show, createEffect, onCleanup, onMount, untrack } from "solid-js";
 import {
   advanceStrategicFitDrillSession,
   playStrategicFitDrill,
@@ -19,7 +19,11 @@ interface RunnerDrill {
 
 const seconds = (ms: number) => Math.round(ms / 100) / 10;
 
-export default function DrillRunner(props: { trainingId: string; drills: readonly RunnerDrill[] }) {
+export default function DrillRunner(props: {
+  trainingId: string;
+  drills: readonly RunnerDrill[];
+  onComplete?: () => void;
+}) {
   const session = () => strategicFitDrillSession(props.trainingId);
   const index = () => session()?.index ?? 0;
   const outcomes = () => session()?.outcomes ?? [];
@@ -31,6 +35,24 @@ export default function DrillRunner(props: { trainingId: string; drills: readonl
 
   onMount(() => {
     if (answered() === undefined) refreshStrategicFitDrillClock(props.trainingId);
+  });
+
+  createEffect(() => {
+    if (finished()) {
+      untrack(() => {
+        props.onComplete?.();
+      });
+      return;
+    }
+    if (!answered()?.recalled) return;
+    const id = props.trainingId;
+    const at = index();
+    const timer = setTimeout(() => {
+      if (strategicFitDrillSession(id)?.index === at) advanceStrategicFitDrillSession(id);
+    }, 800);
+    onCleanup(() => {
+      clearTimeout(timer);
+    });
   });
 
   const play = (orig: string, dest: string) => {
@@ -112,15 +134,17 @@ export default function DrillRunner(props: { trainingId: string; drills: readonl
                         Recalled {drill().expected_san} in {seconds(outcome().response_time_ms)}s.
                       </Show>
                     </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        advanceStrategicFitDrillSession(props.trainingId);
-                      }}
-                      data-drill-advance="true"
-                    >
-                      {index() + 1 < props.drills.length ? "Next position" : "Finish"}
-                    </button>
+                    <Show when={!outcome().recalled}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          advanceStrategicFitDrillSession(props.trainingId);
+                        }}
+                        data-drill-advance="true"
+                      >
+                        {index() + 1 < props.drills.length ? "Next position" : "Finish"}
+                      </button>
+                    </Show>
                   </div>
                 )}
               </Show>

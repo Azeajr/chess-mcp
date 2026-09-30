@@ -100,15 +100,13 @@ test.beforeEach(async ({ page }) => {
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
 });
 
-test("WP-023 AC-1 AC-2 AC-3 AC-4 the entry card leads with the problem and opens nothing", async ({
-  page,
-}) => {
+test("WP-023 entry explains the problem and starts a non-mutating review", async ({ page }) => {
   const card = page.locator(".strategic-fit-entry");
   const title = card.locator(".strategic-fit-entry-title");
 
   await expect(title).toHaveText(/\?$/);
   await expect(title).not.toHaveText("Strategic Fit");
-  await expect(card).toContainText("does not analyze or change this repertoire");
+  await expect(card).toContainText("never changes repertoire moves");
 
   const opener = card.getByRole("button", { name: "Open Strategic Fit" });
   await expect(opener).toBeVisible();
@@ -116,12 +114,12 @@ test("WP-023 AC-1 AC-2 AC-3 AC-4 the entry card leads with the problem and opens
   expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
   await opener.click();
   await expect(page.getByRole("dialog", { name: "Strategic Fit" })).toBeVisible();
-  expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status))
+    .toBe("completed");
 });
 
-test("desktop shell opens and closes without analysis, mutation, or state loss", async ({
-  page,
-}) => {
+test("desktop shell auto-analyzes and closes without mutation or state loss", async ({ page }) => {
   await chess(page, (api) => {
     api.loadPgn("1. e4 e5 2. Nf3 Nc6 (2... Nf6) 3. Bb5 *", "strategic-fit.pgn");
     api.applyEdit("add", ["e4", "e5", "Nf3", "Nc6", "Bb5"], { addMoves: ["a6"] });
@@ -140,9 +138,7 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
   await opener.click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   await expect(dialog).toBeVisible();
-  await expect(
-    dialog.locator("[data-analysis-state='idle']").getByText("Analysis not started"),
-  ).toBeVisible();
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
   await expect(dialog.locator(".strategic-fit-workspace-pane")).toHaveCount(3);
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByRole("heading", { name: "Your repertoire" })).toBeVisible();
@@ -153,17 +149,17 @@ test("desktop shell opens and closes without analysis, mutation, or state loss",
     await dialog.locator(`#strategic-fit-stage-${stage}`).click();
     await expect(dialog.getByRole("heading", { name: heading })).toBeVisible();
   }
-  await expect(dialog.locator("[data-region-state='empty']")).toHaveCount(3);
   expect(await snapshot(page)).toEqual(before);
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
-  expect(await workerStarts(page)).toEqual(workersBefore);
+  const workersAfter = await workerStarts(page);
+  expect(workersAfter.length).toBeGreaterThan(workersBefore.length);
 
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(opener).toBeFocused();
   expect(await snapshot(page)).toEqual(before);
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
-  expect(await workerStarts(page)).toEqual(workersBefore);
+  expect(await workerStarts(page)).toEqual(workersAfter);
 });
 
 test("focus is trapped in both directions and Escape restores the exact opener", async ({
@@ -174,6 +170,7 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const close = dialog.getByRole("button", { name: "Return to repertoire" });
   const overview = dialog.locator("#strategic-fit-pane-overview");
+  await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible();
 
   await expect(close).toBeFocused();
   await page.keyboard.press("Shift+Tab");
@@ -185,7 +182,7 @@ test("focus is trapped in both directions and Escape restores the exact opener",
   await page.keyboard.press("Tab");
   await expect(close).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeFocused();
+  await expect(dialog.getByRole("button", { name: "Re-analyze strategic fit" })).toBeFocused();
   for (const [label, stage] of [
     ["Assessment", "overview"],
     ["Review", "findings"],
@@ -194,7 +191,7 @@ test("focus is trapped in both directions and Escape restores the exact opener",
     await page.keyboard.press("Tab");
     const stageControl = dialog.locator(`#strategic-fit-stage-${stage}`);
     await expect(stageControl).toBeFocused();
-    await expect(stageControl).toHaveAccessibleName(label);
+    await expect(stageControl).toHaveAccessibleName(new RegExp(`^${label}`));
     await expect(stageControl).toHaveAttribute("id", `strategic-fit-stage-${stage}`);
   }
   await page.keyboard.press("Tab");
@@ -224,7 +221,7 @@ test("phone shell exposes the three task stages one at a time", async ({ page })
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
   const stages = dialog.getByRole("tab");
   await expect(stages).toHaveCount(3);
-  await expect(stages).toHaveText(["Assessment", "Review", "Branch"]);
+  await expect(stages).toHaveText(["Assessment", /^Review/, "Branch"]);
   await expect(stages.filter({ hasText: "Assessment" })).toHaveAttribute("aria-selected", "true");
   await expect(dialog.locator("#strategic-fit-pane-overview")).toBeVisible();
   await expect(dialog.locator("#strategic-fit-pane-findings")).toBeHidden();
@@ -247,6 +244,9 @@ test("phone shell exposes the three task stages one at a time", async ({ page })
 
 test("shell regions render explicit empty, loading, and error states", async ({ page }) => {
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status))
+    .toBe("completed");
   await chess(page, (api) => {
     api.setStrategicFitWorkspaceRegionState("overview", {
       status: "loading",

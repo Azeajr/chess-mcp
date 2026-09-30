@@ -1,5 +1,5 @@
 import { createSignal } from "solid-js";
-import { actions, fileName } from "./game";
+import { actions, dirty, fileName } from "./game";
 import type { Color } from "./game";
 import { idbGet, idbSet, idbDel } from "./idb";
 import { captureSnapshot } from "./persist";
@@ -50,6 +50,20 @@ interface FileNotice {
 const [fileNotice, setFileNotice] = createSignal<FileNotice | null>(null);
 export { fileNotice };
 
+let explainedDownload = false;
+function transientNotice(message: string) {
+  const notice = { message };
+  setFileNotice(notice);
+  setTimeout(() => {
+    if (fileNotice() === notice) setFileNotice(null);
+  }, 6000);
+}
+
+export const fileSaveLabel = () =>
+  typeof window !== "undefined" && !(window as PickerWindow).showSaveFilePicker
+    ? "Export PGN"
+    : "Save";
+
 export function dismissFileNotice() {
   setFileNotice(null);
 }
@@ -76,7 +90,11 @@ export function resolvePendingLoad(color: Color) {
     return;
   }
   actions.setColor(color);
+  clearHandle();
   if (p.sourceHandle) remember(p.sourceHandle);
+  transientNotice(
+    `Loaded as ${color === "white" ? "White" : "Black"}. Change using Repertoire colour.`,
+  );
   setLoadError(null);
   setPendingLoad(null);
 }
@@ -114,6 +132,21 @@ export function requestDocumentClose(
 ) {
   if (pendingDocumentClose()) return;
   setDocumentCloseError(null);
+  if (!dirty()) {
+    // Capture starts synchronously; keep the picker in the initiating user gesture.
+    void captureSnapshot("before-replace");
+    const failed = (error: unknown) => {
+      setFileNotice({
+        message: `Could not continue: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    };
+    try {
+      void Promise.resolve(resume()).catch(failed);
+    } catch (error) {
+      failed(error);
+    }
+    return;
+  }
   setPendingDocumentClose({ intent, resume });
 }
 
@@ -149,6 +182,8 @@ async function loadFromHandle(h: FilePickerHandle) {
     detectedColor: GameTree.detectColorFromPgn(pgn),
     sourceHandle: h,
   });
+  const detected = pendingLoad()?.detectedColor;
+  if (detected) resolvePendingLoad(detected);
 }
 
 function wasCancelled(error: unknown) {
@@ -179,6 +214,8 @@ async function beginOpenFile() {
     if (f) {
       const pgn = await f.text();
       setPendingLoad({ pgn, name: f.name, detectedColor: GameTree.detectColorFromPgn(pgn) });
+      const detected = pendingLoad()?.detectedColor;
+      if (detected) resolvePendingLoad(detected);
     }
   };
   input.click();
@@ -224,9 +261,12 @@ export async function saveFile(): Promise<SaveFileResult> {
     URL.revokeObjectURL(a.href);
     actions.markSaved();
     announce(`Saved ${downloadedFileName}.`);
-    setFileNotice({
-      message: `Downloaded ${downloadedFileName}. This browser cannot re-link that file for future saves.`,
-    });
+    if (!explainedDownload) {
+      explainedDownload = true;
+      transientNotice(
+        `Downloaded ${downloadedFileName}. Your working copy is saved in this browser; Export PGN creates a separate copy.`,
+      );
+    }
     return { via: "download", fileName: downloadedFileName };
   } catch (error) {
     if (wasCancelled(error)) return { via: "cancelled" };
@@ -266,6 +306,8 @@ export async function restoreLastFile() {
 export async function reopenLast() {
   const h = (await idbGet<FilePickerHandle>(HANDLE_KEY)) ?? reopenHandleForTesting;
   if (!h) return;
+  // This callback intentionally reads current document state only when the user resumes opening.
+  // eslint-disable-next-line solid/reactivity
   requestDocumentClose("reopen", async () => {
     let perm = await h.queryPermission?.({ mode: "readwrite" });
     if (perm !== "granted") perm = await h.requestPermission?.({ mode: "readwrite" });

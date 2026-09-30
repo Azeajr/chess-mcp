@@ -1,5 +1,6 @@
 import {
   STRUCTURE_NAMES,
+  resolveStructureName,
   annotateRepertoire,
   auditRepertoireMoves,
   buildRepertoireGraph,
@@ -133,6 +134,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
       {
         depth: requestedDepth(args, context),
         min_severity: args.min_severity as never,
+        position_start: args.position_start as number | undefined,
         max_positions: args.max_positions as number | undefined,
         limit: args.limit as number | undefined,
       },
@@ -668,10 +670,7 @@ export const repertoireCommands: Record<RepertoireCommandName, BrowserCommandHan
         error: "missing_criteria",
         reason: "provide at least one of structure/center/themes/color_complex",
       };
-    if (
-      structure &&
-      !STRUCTURE_NAMES.some((candidate) => candidate.toLowerCase() === structure.toLowerCase())
-    )
+    if (structure && !resolveStructureName(structure))
       return {
         error: "unknown_structure",
         reason: `structure must be one of: ${STRUCTURE_NAMES.join(", ")}`,

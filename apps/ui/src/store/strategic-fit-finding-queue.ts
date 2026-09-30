@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { isDecidableFinding } from "../application/decidable-finding";
 import {
   STRATEGIC_FIT_MAX_PAGE_SIZE,
   sortStrategicFitFindings,
@@ -126,6 +127,8 @@ export function buildStrategicFitFindingQueueView(
   const intentFilter = state.intent?.filter ?? { kind: "all" as const };
   const filtered = state.findings.filter(
     (finding) =>
+      (isDecidableFinding(finding) ||
+        (state.intent !== null && intentFilter.kind !== "resolution")) &&
       matchesIntent(finding, intentFilter, resolutionState(finding)) &&
       (state.priority_filter === "all" ||
         (state.priority_kind === "replacement"

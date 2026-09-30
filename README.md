@@ -20,6 +20,18 @@ LAN. The PWA stores its working game in IndexedDB and opens and saves PGN throug
 Local engine analysis works offline. Chat requires an OpenRouter key; opening-explorer operations
 require a no-scope Lichess token.
 
+The Analysis panel offers Review game, Compare moves, public-game imports and history comparison
+without an assistant key. Explore in the Moves toolbar tries moves without changing the document;
+Keep line commits them as one undoable edit. Practice runs saved training targets or the latest
+only-move findings. Engine preferences live in Settings and survive reloads.
+
+Gaps lists low-severity unanswered replies as well as stronger threats, supports Add best fill,
+and continues in twelve-position pages against the original scan snapshot. New positions require
+a fresh scan. The shared `find_repertoire_gaps` tool accepts a zero-based `position_start` offset;
+keep the same repertoire revision and settings while paging. Scan results are marked out of date
+after edits and hidden when switching documents. On browsers without file handles, Export PGN
+downloads a copy; the working document remains autosaved in browser storage.
+
 ## Agent-driven UX review
 
 Coding agents can exercise real user journeys and inspect mobile screenshots with the repo-local

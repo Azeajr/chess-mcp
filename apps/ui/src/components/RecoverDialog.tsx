@@ -32,7 +32,12 @@ export default function RecoverDialog() {
     setSnapshots(entries);
     const selected = selectedId();
     if (!selected || !entries.some((entry) => entry.id === selected && entry.readable)) {
-      setSelectedId(entries.find((entry) => entry.readable)?.id ?? null);
+      setSelectedId(
+        (
+          entries.find((entry) => entry.readable && entry.reason === "before-replace") ??
+          entries.find((entry) => entry.readable)
+        )?.id ?? null,
+      );
     }
   }
 
@@ -89,7 +94,12 @@ export default function RecoverDialog() {
                       <span>
                         <strong>{snapshotName(snapshot)}</strong>
                         <small>
-                          {new Date(snapshot.savedAt).toLocaleString()} ·{" "}
+                          {snapshot.reason === "before-replace"
+                            ? "Before replacing repertoire"
+                            : snapshot.reason === "manual"
+                              ? "Before restore"
+                              : "Autosave"}{" "}
+                          · {new Date(snapshot.savedAt).toLocaleString()} ·{" "}
                           {snapshotSize(snapshot.byteSize)} · {snapshot.moveCount} moves ·{" "}
                           {snapshot.lineCount} lines
                         </small>

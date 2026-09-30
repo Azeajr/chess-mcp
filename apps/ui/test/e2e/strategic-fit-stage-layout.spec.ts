@@ -74,7 +74,7 @@ test("WP-033 AC-2 decision controls render exactly once inline at every width", 
 }) => {
   test.slow();
   const dialog = await openWorkspace(page, { withFindings: true });
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
+
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 20_000,
   });

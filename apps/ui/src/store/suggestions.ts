@@ -1,7 +1,9 @@
 import { createSignal } from "solid-js";
 import type { Node, PgnNodeData } from "chessops/pgn";
 import { validateLine, type Path } from "@chess-mcp/chess-tools";
-import { fen, currentPath, currentTree, actions, version } from "./game";
+import { fen, currentPath, currentTree, actions, version, documentId } from "./game";
+import { recordMutation } from "./history";
+import { announce } from "./announce";
 import type { Arrow } from "./analysis";
 import { assertTestOnly } from "./test-seam";
 
@@ -15,6 +17,8 @@ interface Suggestion {
 }
 
 interface PreviewLine {
+  revision: number;
+  document: string;
   id: string;
   fromPath: Path;
   sans: string[];
@@ -201,6 +205,38 @@ export function clearSuggestions() {
 }
 
 const [preview, setPreview] = createSignal<PreviewLine | null>(null);
+export function acceptAllSuggestions() {
+  const ids = suggestions().map((suggestion) => suggestion.id);
+  if (!ids.length) return;
+  const edits = ids.map((id) => stagedEdit(id));
+  const revision = version();
+  if (edits.some((edit) => edit?.status !== "pending" || edit.revision !== revision)) {
+    announce("Suggestions are out of date. Ask for fresh suggestions.", { assertive: true });
+    return;
+  }
+  let tree = currentTree();
+  for (const edit of edits) {
+    if (!edit) return;
+    const result = tree.edit(edit.action, edit.path, {
+      addMoves: edit.addMoves,
+      promoteMove: edit.promoteMove,
+    });
+    if (!result.tree) {
+      announce("Could not apply all suggestions.", { assertive: true });
+      return;
+    }
+    tree = result.tree;
+  }
+  const result = recordMutation("acceptStagedEdit", () =>
+    actions.applyStrategicFitSnapshot(tree, currentPath(), revision),
+  );
+  if (!result.ok) return;
+  setStagedEdits((all) =>
+    all.map((edit) => (ids.includes(edit.id) ? { ...edit, status: "accepted" } : edit)),
+  );
+  setSuggestions([]);
+  setPreview(null);
+}
 export { preview };
 
 export function stagePreview(id: string) {
@@ -211,8 +247,23 @@ export function stagePreview(id: string) {
   const edit = stagedEdit(id);
   const s = suggestions().find((x) => x.id === id);
   if (edit?.previewPath && edit.previewSans)
-    setPreview({ id, fromPath: edit.previewPath, sans: edit.previewSans, firstUci: edit.firstUci });
-  else if (s) setPreview({ id: s.id, fromPath: s.fromPath, sans: s.sans, firstUci: s.firstUci });
+    setPreview({
+      id,
+      fromPath: edit.previewPath,
+      sans: edit.previewSans,
+      firstUci: edit.firstUci,
+      revision: edit.revision,
+      document: documentId(),
+    });
+  else if (s)
+    setPreview({
+      id: s.id,
+      fromPath: s.fromPath,
+      sans: s.sans,
+      firstUci: s.firstUci,
+      revision: version(),
+      document: documentId(),
+    });
 }
 
 export function clearPreview() {
@@ -223,7 +274,14 @@ export function stagePreviewLine(fromPath: Path, sans: string[]) {
   const startFen = currentTree().fenAt(fromPath);
   const chk = validateLine(startFen, sans);
   if (!chk.ok) return { ok: false as const };
-  setPreview({ id: `t${nextId++}`, fromPath, sans: chk.canonical, firstUci: chk.firstUci });
+  setPreview({
+    id: `t${nextId++}`,
+    fromPath,
+    sans: chk.canonical,
+    firstUci: chk.firstUci,
+    revision: version(),
+    document: documentId(),
+  });
   return { ok: true as const };
 }
 
@@ -232,6 +290,10 @@ export function acceptPreview() {
   if (!p) return;
   setPreview(null);
   const staged = stagedEdit(p.id);
+  if (p.revision !== version() || p.document !== documentId()) {
+    announce("This preview is out of date. Preview the line again.", { assertive: true });
+    return;
+  }
   if (staged) acceptStagedEdit(p.id);
   else actions.appendLine(p.fromPath, p.sans);
   setSuggestions((prev) => prev.filter((x) => x.id !== p.id));

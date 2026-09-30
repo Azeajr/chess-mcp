@@ -56,7 +56,7 @@ test("analysis depth stays globally adjustable with persistent deep-analysis gui
   page,
 }) => {
   const settings = page.locator(".analysis-settings");
-  await settings.locator("summary").click();
+  await page.getByRole("button", { name: "Engine settings", exact: true }).click();
   const depth = settings.getByRole("spinbutton", { name: "Analysis depth" });
   const slider = settings.getByRole("slider", { name: "Analysis depth slider" });
   await expect(depth).toHaveValue("20");
@@ -83,7 +83,7 @@ test("suggestions do not mutate until accepted and can be rejected", async ({ pa
   await page.getByRole("button", { name: "Reject" }).click();
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   await chess(page, (api) => api.addSuggestion(["Nf3"], "Develop"));
-  await page.getByRole("button", { name: "Accept" }).click();
+  await page.getByRole("button", { name: "Accept", exact: true }).click();
   expect(await chess(page, (api) => api.toPgn())).toContain("Nf3");
 });
 

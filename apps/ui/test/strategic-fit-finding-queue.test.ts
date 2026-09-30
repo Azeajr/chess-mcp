@@ -302,7 +302,7 @@ test("overview classification, resolution, and insufficient-evidence intents are
     )
       .filtered_findings.map((item) => item.finding_id)
       .sort(),
-    ["finding:forced", "finding:intentional", "finding:uncertain"],
+    ["finding:forced", "finding:intentional"],
   );
   assert.deepEqual(
     buildStrategicFitFindingQueueView(
@@ -310,7 +310,7 @@ test("overview classification, resolution, and insufficient-evidence intents are
         intent: intent({ kind: "evidence", evidence: "insufficient" }),
       }),
     ).findings.map((item) => item.finding_id),
-    ["finding:uncertain"],
+    ["finding:uncertain"], // Explicit evidence navigation still exposes informational findings.
   );
 });
 

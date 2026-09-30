@@ -7,6 +7,7 @@ import {
   scanError,
   scanCompleted,
   scanScope,
+  gapsStale,
   GAP_SCAN_MAX_POSITIONS,
   scanGaps,
   cancelScan,
@@ -43,19 +44,34 @@ import {
   inspecting,
   inspectError,
 } from "../store/repertoire";
-import type { ExtendedBridge, PruneSuggestion } from "@chess-mcp/chess-tools";
+import {
+  STRUCTURE_NAMES,
+  onlyMoveDeckCsv,
+  type OnlyMoveFinding,
+  type ExtendedBridge,
+  type PruneSuggestion,
+} from "@chess-mcp/chess-tools";
+import { preference } from "../store/preferences";
 import { stagePreviewLine, preview, acceptPreview, clearPreview } from "../store/suggestions";
-import { actions, currentTree, currentPath, fen, color } from "../store/game";
+import { actions, currentTree, currentPath, fen, color, documentId } from "../store/game";
 import {
   commandStates,
   executeCommand,
   cancelCommand,
+  commandIsStale,
+  rerunCommand,
   type DirectCommand,
 } from "../store/commands";
-import { artifactSaveMessage, saveArtifact, type ArtifactSaveResult } from "../store/artifacts";
+import {
+  createArtifact,
+  artifactSaveMessage,
+  saveArtifact,
+  type ArtifactSaveResult,
+} from "../store/artifacts";
 import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
 import { analysisDepth } from "../store/engine-settings";
-import { showTechnicalDetails } from "../store/settings";
+import { showTechnicalDetails, setSettingsFocusTarget } from "../store/settings";
+import { setSettingsOpen } from "../store/ui";
 import StrategicFitTransfer from "./StrategicFitTransfer";
 import { setStrategicFitWorkspaceOpen } from "../store/ui";
 import Button from "./primitives/Button";
@@ -82,9 +98,12 @@ const openSection = (control: Element) => {
 };
 
 export default function RepertoirePanel() {
-  const [mode, setMode] = createSignal<"low_memorization" | "sharp">("low_memorization");
-  const [structure, setStructure] = createSignal("");
-  const [opponent, setOpponent] = createSignal("");
+  const [storedMode, setMode] = preference("chess.extend.style", "low_memorization");
+  const mode = () => (storedMode() === "sharp" ? "sharp" : "low_memorization");
+  const [structure, setStructure] = preference("chess.structure", "");
+  const [opponent, setOpponent] = preference("chess.opponent", "");
+  const [opponents, setOpponents] = preference("chess.opponents", "");
+  const [inlineGap, setInlineGap] = createSignal<string | null>(null);
   const state = (command: DirectCommand) => commandStates()[command];
   const rows = (command: DirectCommand, key: string) =>
     (state(command).result?.[key] as Record<string, unknown>[] | undefined) ?? [];
@@ -121,7 +140,7 @@ export default function RepertoirePanel() {
     const count = resultCount(command);
     if (count === null) return null;
     const at = entry.completedAt;
-    return `${count} ${count === 1 ? "result" : "results"}${at ? ` · ${relativeTime(at)}` : ""}`;
+    return `${count} ${count === 1 ? "result" : "results"}${commandIsStale(command) ? " · Out of date — re-run" : at ? ` · ${relativeTime(at)}` : ""}`;
   };
   const prepSummary = (): string | null => {
     const result = state("prep_vs_opponent").result;
@@ -149,7 +168,7 @@ export default function RepertoirePanel() {
     const reason = state(command).result?.reason;
     return typeof reason === "string" ? reason : "";
   };
-  const [deckExporting, setDeckExporting] = createSignal(false);
+
   const [deckSaved, setDeckSaved] = createSignal<ArtifactSaveResult | null>(null);
 
   // An export finishes by handing the file straight to the browser, so a download that never
@@ -232,8 +251,8 @@ export default function RepertoirePanel() {
               void run;
               return;
             }
-            void run.then(() => {
-              const artifactId = state(command).result?.artifact_id;
+            void run.then((result) => {
+              const artifactId = result?.artifact_id;
               if (typeof artifactId !== "string") return;
               downloadExport(command, artifactId);
             });
@@ -261,6 +280,11 @@ export default function RepertoirePanel() {
   );
   const commandStatus = (command: DirectCommand) => (
     <>
+      <Show when={commandIsStale(command)}>
+        <p role="status">
+          Out of date — re-run <button onClick={() => void rerunCommand(command)}>Re-run</button>
+        </p>
+      </Show>
       <Show when={state(command).progress}>
         {(p) => (
           <div class="scan-progress">
@@ -289,6 +313,16 @@ export default function RepertoirePanel() {
               title={errorContent(code()).title}
               message={commandErrorDetail(command, code())}
             />
+            <Show when={code() === "explorer_auth_required"}>
+              <button
+                onClick={() => {
+                  setSettingsFocusTarget("lichess-token");
+                  setSettingsOpen(true);
+                }}
+              >
+                Set up explorer token
+              </button>
+            </Show>
             <Show when={showTechnicalDetails()}>
               <div class="result-code">{code()}</div>
             </Show>
@@ -325,8 +359,11 @@ export default function RepertoirePanel() {
     stagePreviewLine(atIdx, [p.rerouteMove]);
   };
   const onFill = (g: Gap, opt: FillOption) => {
-    actions.goto(g.path);
-    stagePreviewLine(g.path, opt.line);
+    const path = currentTree().indexPathOfSan(g.sanPath);
+    if (!path) return;
+    setInlineGap(gapKey(g));
+    actions.goto(path);
+    stagePreviewLine(path, opt.line);
   };
   const gapLine = (g: Gap | CoveredGap) => {
     try {
@@ -376,7 +413,7 @@ export default function RepertoirePanel() {
           {STRATEGIC_FIT_ENTRY.action}
         </Button>
       </section>
-      <Show when={preview()}>
+      <Show when={inlineGap() === null ? preview() : null}>
         {(active) => (
           <div
             class="rep-preview"
@@ -423,6 +460,7 @@ export default function RepertoirePanel() {
           <For each={rows("audit_repertoire_moves", "findings")}>
             {(finding) => (
               <InteractiveRow
+                disabled={!currentTree().indexPathOfSan(finding.path as string[])}
                 current={currentAtSan(finding.path as string[])}
                 onClick={() => {
                   navSan(finding.path as string[]);
@@ -457,6 +495,7 @@ export default function RepertoirePanel() {
           <For each={rows("find_only_moves", "findings")}>
             {(finding) => (
               <InteractiveRow
+                disabled={!currentTree().indexPathOfSan(finding.path as string[])}
                 current={currentAtSan(finding.path as string[])}
                 onClick={() => {
                   navSan(finding.path as string[]);
@@ -487,28 +526,20 @@ export default function RepertoirePanel() {
             <button
               class="fix-btn"
               data-export-deck
-              disabled={deckExporting()}
+              disabled={commandIsStale("find_only_moves")}
               onClick={() => {
-                setDeckExporting(true);
-                void executeCommand("find_only_moves", {
-                  max_positions: 60,
-                  export_deck: true,
-                  depth: analysisDepth(),
-                })
-                  .then(() => {
-                    const artifactId = (
-                      state("find_only_moves").result?.deck as Record<string, unknown> | undefined
-                    )?.artifact_id;
-                    // The deck export hands the CSV straight to the browser and said nothing
-                    // either way, exactly as the annotated export used to.
-                    if (typeof artifactId === "string") setDeckSaved(saveArtifact(artifactId));
-                  })
-                  .finally(() => {
-                    setDeckExporting(false);
-                  });
+                const artifact = createArtifact(
+                  "csv",
+                  onlyMoveDeckCsv(
+                    color(),
+                    rows("find_only_moves", "findings") as unknown as OnlyMoveFinding[],
+                  ),
+                  "only-move-drill.csv",
+                );
+                setDeckSaved(saveArtifact(artifact.artifact_id));
               }}
             >
-              {deckExporting() ? "Creating drill deck…" : "Create drill deck"}
+              Create drill deck
             </button>
           </Show>
           <ArtifactSaveStatus result={deckSaved()} />
@@ -528,16 +559,23 @@ export default function RepertoirePanel() {
           <div class="command-input">
             <input
               aria-label="Structure name"
+              list="structure-names"
               value={structure()}
               placeholder="e.g. Carlsbad"
-              onInput={(e) => setStructure(e.currentTarget.value)}
+              onInput={(e) => {
+                setStructure(e.currentTarget.value);
+              }}
             />
           </div>
           {commandStatus("find_structures")}
+          <datalist id="structure-names">
+            <For each={STRUCTURE_NAMES}>{(name) => <option value={name} />}</For>
+          </datalist>
           <For each={rows("find_structures", "matches")}>
             {(match) => (
               <InteractiveRow
                 current={currentAtSan(match.path as string[])}
+                disabled={!currentTree().indexPathOfSan(match.path as string[])}
                 onClick={() => {
                   navSan(match.path as string[]);
                 }}
@@ -564,19 +602,34 @@ export default function RepertoirePanel() {
             <Show when={collapsedSummary("prep_vs_opponent")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("prep_vs_opponent", "Prepare", () => ({
-              username: opponent(),
-            }))}
+            {commandButton("prep_vs_opponent", "Prepare", () => {
+              const username = opponent().trim();
+              if (username)
+                setOpponents(
+                  [...new Set([username, ...opponents().split("\n").filter(Boolean)])]
+                    .slice(0, 5)
+                    .join("\n"),
+                );
+              return { username };
+            })}
           </summary>
           <div class="command-input">
             <input
               aria-label="Opponent username"
+              list="opponent-history"
               value={opponent()}
               placeholder="Lichess username"
-              onInput={(e) => setOpponent(e.currentTarget.value)}
+              onInput={(e) => {
+                setOpponent(e.currentTarget.value);
+              }}
             />
           </div>
           {commandStatus("prep_vs_opponent")}
+          <datalist id="opponent-history">
+            <For each={opponents().split("\n").filter(Boolean)}>
+              {(name) => <option value={name} />}
+            </For>
+          </datalist>
           {/*
             The payload carries games_total, games_matched_color and coverage_pct; the section
             rendered only `lines`, so an opponent whose games could not be fetched and an opponent
@@ -666,6 +719,25 @@ export default function RepertoirePanel() {
             a verdict on the whole tree.
           */}
           <div class="scope-note">{GAPS_SCOPE.note(GAP_SCAN_MAX_POSITIONS)}</div>
+          <Show when={gapsStale()}>
+            <p>
+              Repertoire changed — this sweep covers the original snapshot. Filled replies are
+              hidden; re-scan to include newly added positions.
+            </p>
+          </Show>
+          <Show
+            when={scanCompleted() && (scanScope()?.scanned ?? 0) < (scanScope()?.available ?? 0)}
+          >
+            <button disabled={scanning()} onClick={() => void scanGaps(true)}>
+              Scan next 12
+            </button>
+          </Show>
+          <Show when={gaps().some((gap) => gap.severity === "low")}>
+            <p>
+              Low-severity replies are playable candidates not yet prepared; they are included
+              below.
+            </p>
+          </Show>
           <Show when={progress()}>
             {(p) => (
               <div class="scan-progress">
@@ -774,12 +846,54 @@ export default function RepertoirePanel() {
                   </InteractiveRow>
                   <button
                     class="fix-btn fill-btn"
+                    disabled={gapState() === "loading"}
                     onClick={() => {
                       void fillGap(g);
                     }}
                   >
-                    Fill this
+                    Choose fill…
                   </button>
+                  <button
+                    class="fix-btn"
+                    disabled={gapState() === "loading"}
+                    onClick={() => {
+                      void fillGap(g).then((fill) => {
+                        if (fill?.document !== documentId() || fill.color !== color()) return;
+                        actions.applyEdit(
+                          "add",
+                          g.sanPath,
+                          { addMoves: fill.bestEval.line },
+                          fill.revision,
+                        );
+                        setInlineGap(null);
+                      });
+                    }}
+                  >
+                    Add best fill
+                  </button>
+                  <Show when={inlineGap() === gapKey(g) ? preview() : null}>
+                    {(active) => (
+                      <div class="rep-preview">
+                        <p>{numbered(active().sans, active().fromPath.length)}</p>
+                        <button
+                          onClick={() => {
+                            acceptPreview();
+                            setInlineGap(null);
+                          }}
+                        >
+                          Accept line
+                        </button>
+                        <button
+                          onClick={() => {
+                            clearPreview();
+                            setInlineGap(null);
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </Show>
                   <Show when={gapState() === "loading"}>
                     <div class="scan-progress fill-progress">finding fills…</div>
                   </Show>
@@ -1074,11 +1188,11 @@ export default function RepertoirePanel() {
             <button
               class="scan-btn"
               aria-label="Suggest an extension"
-              disabled={!usersTurn()}
+              disabled={compScanning()}
               onClick={(e) => {
                 e.preventDefault();
                 openSection(e.currentTarget);
-                void scanComplementary(mode());
+                if (usersTurn()) void scanComplementary(mode());
               }}
             >
               Suggest
@@ -1111,7 +1225,9 @@ export default function RepertoirePanel() {
               id="extend-mode"
               class="rep-mode"
               value={mode()}
-              onChange={(e) => setMode(e.currentTarget.value as "low_memorization" | "sharp")}
+              onChange={(e) => {
+                setMode(e.currentTarget.value);
+              }}
             >
               <option value="low_memorization">low-mem</option>
               <option value="sharp">sharp</option>
@@ -1128,20 +1244,33 @@ export default function RepertoirePanel() {
           </Show>
           <For each={complementary() ?? []}>
             {(m) => (
-              <InteractiveRow
-                onClick={() => stagePreviewLine(currentPath(), [m.move])}
-                title={m.pv}
-              >
-                <span class="san">{m.move}</span>
-                <span class="ev">{centipawnText(m.eval)}</span>
-                <span class="fit">
-                  {m.profile_match != null
-                    ? `fit ${m.profile_match}`
-                    : m.sharpness != null
-                      ? `sharp ${m.sharpness}`
-                      : ""}
-                </span>
-              </InteractiveRow>
+              <>
+                <InteractiveRow
+                  onClick={() => {
+                    setInlineGap(null);
+                    stagePreviewLine(currentPath(), [m.move]);
+                  }}
+                  title={m.pv}
+                >
+                  <span class="san">{m.move}</span>
+                  <span class="ev">{centipawnText(m.eval)}</span>
+                  <span class="fit">
+                    {m.profile_match != null
+                      ? `fit ${m.profile_match}`
+                      : m.sharpness != null
+                        ? `sharp ${m.sharpness}`
+                        : ""}
+                  </span>
+                </InteractiveRow>
+                <button
+                  onClick={() => {
+                    stagePreviewLine(currentPath(), [m.move]);
+                    acceptPreview();
+                  }}
+                >
+                  Add {m.move}
+                </button>
+              </>
             )}
           </For>
         </details>

@@ -8,6 +8,7 @@ import {
 import { executeBrowserCommand } from "../application/browser-commands/client";
 import { analysisDepth } from "./engine-settings";
 import { assertTestOnly } from "./test-seam";
+import { documentId, version, fen, color } from "./game";
 
 const MULTIPV = 3;
 const CP_THRESHOLD = 50;
@@ -197,12 +198,31 @@ interface ComplementaryMove {
   sharpness?: number;
 }
 
-const [complementary, setComplementary] = createSignal<ComplementaryMove[] | null>(null);
+const [rawComplementary, setComplementary] = createSignal<ComplementaryMove[] | null>(null);
+const [compSource, setCompSource] = createSignal<{
+  document: string;
+  revision: number;
+  fen: string;
+} | null>(null);
+const complementary = () => {
+  const source = compSource();
+  return source &&
+    (source.document !== documentId() || source.revision !== version() || source.fen !== fen())
+    ? null
+    : rawComplementary();
+};
 const [compScanning, setCompScanning] = createSignal(false);
 const [compError, setCompError] = createSignal<string | null>(null);
 export { complementary, compScanning, compError };
 
 export async function scanComplementary(mode: "low_memorization" | "sharp") {
+  const source = { document: documentId(), revision: version(), fen: fen() };
+  setCompSource(source);
+  setComplementary(null);
+  if ((fen().split(" ")[1] === "w" ? "white" : "black") !== color()) {
+    setCompError("It is the opponent's turn. Select your next move to extend this line.");
+    return;
+  }
   setCompError(null);
   setCompScanning(true);
   try {
@@ -213,6 +233,8 @@ export async function scanComplementary(mode: "low_memorization" | "sharp") {
       suggestions?: ComplementaryMove[];
       error?: string;
     };
+    if (source.document !== documentId() || source.revision !== version() || source.fen !== fen())
+      return;
     if (r.error) {
       setCompError(r.error === "engine_unavailable" ? "engine offline" : r.error);
       setComplementary(null);

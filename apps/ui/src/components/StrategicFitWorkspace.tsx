@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import Status from "./primitives/Status";
+import { isDecidableFinding } from "../application/decidable-finding";
 import ProfileSetup from "./strategic-fit/ProfileSetup";
 import AnalysisLifecycle from "./strategic-fit/AnalysisLifecycle";
 import { STRATEGIC_FIT_PROFILE_LABELS } from "../content/strategicFit";
@@ -33,7 +34,8 @@ import {
   displayStrategicFitFindingResolution,
   strategicFitFindingResolutionReview,
   strategicFitLastResolutionAction,
-  strategicFitFindingResolutionUnresolvedCount,
+  canUndoLastResolution,
+  undoLastResolution,
   synchronizeStrategicFitFindingResolutionReview,
 } from "../store/strategic-fit-finding-resolutions";
 import {
@@ -48,6 +50,7 @@ import {
   setStrategicFitPrintExportMode,
   setStrategicFitSettingsAnnouncement,
   setStrategicFitWorkspaceOpen,
+  setStrategicFitBoardReturn,
   setStrategicFitWorkspaceStage,
   strategicFitFindingQueueFilterKey,
   strategicFitFindingQueueIntent,
@@ -82,6 +85,13 @@ export default function StrategicFitWorkspace() {
   };
   const profileReady = () => strategicFitMetadataStatus() === "ready";
   const setupRequired = () => profileReady() && strategicFitProfileSetupRequired();
+  let startedOnOpen = false;
+  createEffect(() => {
+    if (startedOnOpen || !profileReady() || setupRequired()) return;
+    startedOnOpen = true;
+    const status = strategicFitLifecycle().status;
+    if (status === "idle" || status === "stale") void analyzeStrategicFit();
+  });
   const profileSummary = () => {
     const profile = strategicFitProfile();
     return STRATEGIC_FIT_PROFILE_LABELS[profile.mode];
@@ -106,7 +116,15 @@ export default function StrategicFitWorkspace() {
   const unresolvedCount = () => {
     const lifecycle = strategicFitLifecycle();
     const result = lifecycle.status === "completed" ? lifecycle.current_result : null;
-    return result ? strategicFitFindingResolutionUnresolvedCount(result.result) : null;
+    return result
+      ? strategicFitFindingQueue
+          .snapshot()
+          .findings.filter(
+            (finding) =>
+              isDecidableFinding(finding) &&
+              displayStrategicFitFindingResolution(finding) === "unresolved",
+          ).length
+      : null;
   };
   const remainingUnresolved = () => {
     const selected = strategicFitFindingQueue.snapshot().selected_finding_id;
@@ -115,6 +133,7 @@ export default function StrategicFitWorkspace() {
       .filtered_findings.filter(
         (finding) =>
           finding.finding_id !== selected &&
+          isDecidableFinding(finding) &&
           displayStrategicFitFindingResolution(finding) === "unresolved",
       );
   };
@@ -551,9 +570,7 @@ export default function StrategicFitWorkspace() {
                               </div>
                               <StrategicOverview
                                 report={report().result}
-                                unresolvedFindingCount={strategicFitFindingResolutionUnresolvedCount(
-                                  report().result,
-                                )}
+                                unresolvedFindingCount={unresolvedCount() ?? 0}
                                 onReview={reviewOverviewItem}
                               />
                               <StrategicMap
@@ -760,7 +777,10 @@ export default function StrategicFitWorkspace() {
                                     role={action().state === "blocked" ? "alert" : "status"}
                                     data-resolution-last-action={action().state}
                                   >
-                                    {action().message}
+                                    {action().message}{" "}
+                                    <Show when={canUndoLastResolution()}>
+                                      <button onClick={undoLastResolution}>Undo decision</button>
+                                    </Show>
                                   </p>
                                 )}
                               </Show>
@@ -786,6 +806,7 @@ export default function StrategicFitWorkspace() {
                                   );
                                   if (target === null) return false;
                                   actions.goto(target);
+                                  setStrategicFitBoardReturn(documentId());
                                   close();
                                   requestAnimationFrame(() => {
                                     document
@@ -815,6 +836,11 @@ export default function StrategicFitWorkspace() {
                                       titleId="strategic-fit-inline-actions-title"
                                     />
                                     <ResolutionActions
+                                      onResolved={() => {
+                                        const next = remainingUnresolved()[0];
+                                        if (next) selectStrategicFitFinding(next.finding_id, true);
+                                        else setStrategicFitWorkspaceStage("findings");
+                                      }}
                                       completed={resolution().completed}
                                       reportId={resolution().reportId}
                                       finding={resolution().finding}

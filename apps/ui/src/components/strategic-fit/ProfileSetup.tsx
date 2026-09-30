@@ -149,8 +149,8 @@ export default function ProfileSetup(props: { onComplete?: () => void }) {
 
         <div class="strategic-fit-profile-setup-footer">
           <p>
-            This saves a review preference only. It will not edit the repertoire or start the
-            review.
+            This saves your review preference and starts the engine-free review. It will not edit
+            the repertoire.
           </p>
           <p data-profile-scope-note>
             Preferences steer how far apart lines are judged. Branches without enough moves to

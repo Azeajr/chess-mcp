@@ -121,6 +121,7 @@ import {
   strategicFitResolutionProofSnapshot,
 } from "./store/strategic-fit-resolution-proof";
 import "./styles.css";
+import "./workflow-controls.css";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");

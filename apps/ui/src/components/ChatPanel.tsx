@@ -15,7 +15,8 @@ import { CHAT_CONTROLS, CHAT_STARTERS } from "../content/chat";
 import ChatContextChip from "./ChatContextChip";
 import { hasApiKey, chatMode, setChatMode, setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
-import { actions } from "../store/game";
+import { actions, color } from "../store/game";
+import { isSingleGame } from "./DirectAnalysis";
 import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
 import { resultLabel, taskLabel } from "../content/tools";
@@ -113,13 +114,21 @@ export default function ChatPanel() {
           <Show when={empty()}>
             <div class="chat-starters" data-chat-starters>
               <p class="chat-starters-title">Ask about this position</p>
-              <For each={CHAT_STARTERS}>
+              <For
+                each={[
+                  ...CHAT_STARTERS.map((starter) =>
+                    starter.replace("White", color() === "white" ? "White" : "Black"),
+                  ),
+                  ...(isSingleGame() ? ["Review this game"] : []),
+                ]}
+              >
                 {(starter) => (
                   <button
                     type="button"
                     class="chat-starter"
                     onClick={() => {
-                      setInput(starter);
+                      if (hasApiKey()) void send(starter);
+                      else setInput(starter);
                     }}
                   >
                     {starter}
