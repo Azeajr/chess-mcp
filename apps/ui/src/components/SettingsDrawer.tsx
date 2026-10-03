@@ -15,12 +15,15 @@ import {
   setShowTechnicalDetails,
 } from "../store/settings";
 import Field from "./primitives/Field";
+import AnalysisSettings from "./AnalysisSettings";
+import { chatMode, setChatMode } from "../store/settings";
+import { CHAT_MODES, type ChatMode } from "../llm/workflows";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
 
 export default function SettingsDrawer() {
   const focusSelector = () => {
     const target = settingsFocusTarget();
-    return target ? `input[data-settings-field='${target}']` : undefined;
+    return target ? `[data-settings-field='${target}']` : undefined;
   };
   return (
     <Show when={settingsOpen()}>
@@ -44,6 +47,20 @@ export default function SettingsDrawer() {
           ✕
         </button>
 
+        <section data-settings-field="engine" tabindex="-1">
+          <h2>Engine</h2>
+          <AnalysisSettings />
+        </section>
+        <Field class="field" label="Chat workflow">
+          <select
+            value={chatMode()}
+            onChange={(event) => {
+              setChatMode(event.currentTarget.value as ChatMode);
+            }}
+          >
+            <For each={CHAT_MODES}>{(mode) => <option value={mode.id}>{mode.label}</option>}</For>
+          </select>
+        </Field>
         <Field class="field" label="OpenRouter API key">
           <input
             data-settings-field="api-key"

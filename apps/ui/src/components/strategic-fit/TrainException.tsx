@@ -62,7 +62,12 @@ export default function TrainException(props: {
   );
 
   const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
-  const create = () => setResult(createStrategicFitTrainingItem(input()));
+  const create = () => {
+    const created = createStrategicFitTrainingItem(input());
+    if (created.state !== "blocked" && created.record)
+      startStrategicFitDrillSession(created.record.training_id);
+    setResult(created);
+  };
   const savePersisted = () => {
     const exported = exportStrategicFitTrainingItem(input());
     setResult(exported);

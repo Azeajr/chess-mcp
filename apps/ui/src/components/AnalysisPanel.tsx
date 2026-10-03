@@ -6,12 +6,17 @@ import {
   acceptSuggestion,
   rejectSuggestion,
   clearSuggestions,
+  acceptAllSuggestions,
 } from "../store/suggestions";
-import { actions, currentTree } from "../store/game";
+import { actions, currentTree, currentPath, exploration, setExploreMode } from "../store/game";
+import { stagePreviewLine } from "../store/suggestions";
+import DirectAnalysis from "./DirectAnalysis";
+import { setSettingsFocusTarget } from "../store/settings";
+import { setSettingsOpen } from "../store/ui";
 import { lastNavigationSource, setLastNavigationSource } from "../store/ui";
 import { analysisDepth } from "../store/engine-settings";
 import { ANALYSIS_CONTENT } from "../content/analysis";
-import AnalysisSettings from "./AnalysisSettings";
+
 import ArrowLegend from "./ArrowLegend";
 import PanelHeader from "./primitives/PanelHeader";
 import Progress from "./primitives/Progress";
@@ -44,8 +49,16 @@ export default function AnalysisPanel() {
             Depth {analysisDepth()}
           </span>
         </span>
-        <AnalysisSettings />
+        <button
+          onClick={() => {
+            setSettingsFocusTarget("engine");
+            setSettingsOpen(true);
+          }}
+        >
+          Engine settings
+        </button>
       </PanelHeader>
+      <DirectAnalysis />
       <Show when={inFlight()}>
         <Progress class="analysis-progress" label={ANALYSIS_CONTENT.progress} />
       </Show>
@@ -55,7 +68,12 @@ export default function AnalysisPanel() {
           <div class={`analysis-empty analysis-empty-${state()}`}>
             <p>{ANALYSIS_CONTENT.empty[state()]}</p>
             <Show when={state() === "off"}>
-              <button type="button" onClick={() => setEvalEnabled(true)}>
+              <button
+                type="button"
+                onClick={() => {
+                  setEvalEnabled(true);
+                }}
+              >
                 {ANALYSIS_CONTENT.actions.enable}
               </button>
             </Show>
@@ -75,6 +93,26 @@ export default function AnalysisPanel() {
                 <span class="fit-expert"> ({ANALYSIS_CONTENT.arrows.fit[l.fit].expert})</span>
               </Status>
               <span class="san">{l.san}</span>
+              <button
+                disabled={!!exploration()}
+                onClick={() => stagePreviewLine(currentPath(), [l.san])}
+              >
+                Preview {l.san}
+              </button>
+              <button
+                disabled={!!exploration()}
+                onClick={() => actions.appendLine(currentPath(), [l.san])}
+              >
+                Add {l.san}
+              </button>
+              <button
+                onClick={() => {
+                  setExploreMode(true);
+                  actions.play(l.uci.slice(0, 2), l.uci.slice(2, 4), l.uci.slice(4) || undefined);
+                }}
+              >
+                Play {l.san}
+              </button>
               <span
                 class={`weight w-${l.weight}`}
                 role="img"
@@ -94,6 +132,7 @@ export default function AnalysisPanel() {
       <Show when={suggestions().length}>
         <div class="suggestions">
           <PanelHeader title="Suggested (from chat)">
+            <button onClick={acceptAllSuggestions}>Accept all</button>
             <button
               class="reject"
               aria-label="Clear all chat suggestions"

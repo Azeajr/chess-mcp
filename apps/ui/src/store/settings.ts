@@ -88,7 +88,7 @@ export function setShowTechnicalDetails(v: boolean) {
   localStorage.setItem(KEY_TECHNICAL, String(v));
 }
 
-export type SettingsFocusTarget = "lichess-token" | "api-key" | null;
+export type SettingsFocusTarget = "lichess-token" | "api-key" | "engine" | null;
 const [settingsFocusTarget, setSettingsFocusTargetRaw] = createSignal<SettingsFocusTarget>(null);
 export { settingsFocusTarget };
 export function setSettingsFocusTarget(target: SettingsFocusTarget) {

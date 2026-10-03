@@ -88,6 +88,7 @@ export function gapScanOperation(
   args: {
     depth?: number;
     min_severity?: "low" | "medium" | "high";
+    position_start?: number;
     max_positions?: number;
     limit?: number;
   },
@@ -101,6 +102,7 @@ export function gapScanOperation(
     {
       depth: args.depth ?? toolDefault("find_repertoire_gaps", "depth", 20),
       minSeverity: args.min_severity,
+      positionStart: args.position_start,
       maxPositions: args.max_positions,
       limit: args.limit ?? toolDefault("find_repertoire_gaps", "limit", 20),
       popularity,

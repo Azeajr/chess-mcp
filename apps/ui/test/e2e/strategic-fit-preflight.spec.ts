@@ -265,7 +265,6 @@ test("six frozen phases expose current, completed, pending, cancelled, and reduc
   await bootstrap(page);
   await loadProfile(page, DEEP_MULTI_ROUTE, "phase-progress.pgn");
   const dialog = await openWorkspace(page);
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
 
   const phases = dialog.locator("[data-phase]");
   await expect(phases).toHaveCount(6);

@@ -15,7 +15,7 @@ const updateDepth = (depth: number) => {
 
 export default function AnalysisSettings() {
   return (
-    <details class="analysis-settings">
+    <details class="analysis-settings" open>
       <summary>{ANALYSIS_CONTENT.settings.summary}</summary>
       <div class="analysis-settings-body">
         <label class="analysis-setting analysis-evaluation-setting">

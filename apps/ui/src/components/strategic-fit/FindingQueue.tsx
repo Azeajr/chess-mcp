@@ -19,6 +19,10 @@ import {
 import { selectStrategicFitFinding } from "./finding-navigation";
 import FindingCard from "./FindingCard";
 import RegionState from "../primitives/RegionState";
+import { isDecidableFinding } from "../../application/decidable-finding";
+import { actions, currentTree, documentId } from "../../store/game";
+import { scanComplementary } from "../../store/repertoire";
+import { setStrategicFitWorkspaceOpen, setStrategicFitBoardReturn } from "../../store/ui";
 
 const SORT_LABELS: Readonly<Record<StrategicFitFindingSort, string>> = {
   "replacement-priority": "Replacement priority",
@@ -100,6 +104,67 @@ export default function FindingQueue(props: {
       data-queue-report-id={state().report_id ?? ""}
       data-queue-status={state().status}
     >
+      <Show when={state().findings.some((finding) => !isDecidableFinding(finding))}>
+        <details class="strategic-fit-evidence-checklist">
+          <summary>
+            {
+              state().findings.filter(
+                (finding) =>
+                  !isDecidableFinding(finding) &&
+                  finding.classification !== "transpositional-equivalence",
+              ).length
+            }{" "}
+            lines need more evidence · transpositions are information
+          </summary>
+          <For each={state().findings.filter((finding) => !isDecidableFinding(finding))}>
+            {(finding) => (
+              <div>
+                <p>{finding.plain_language_category}</p>
+                <button
+                  onClick={() => {
+                    selectStrategicFitFinding(finding.finding_id, true);
+                  }}
+                >
+                  Review evidence
+                </button>
+                <For each={finding.references.source_san_paths}>
+                  {(path) => (
+                    <p>
+                      {path.join(" ") || "Start"}{" "}
+                      <button
+                        disabled={!currentTree().indexPathOfSan([...path])}
+                        onClick={() => {
+                          const target = currentTree().indexPathOfSan([...path]);
+                          if (!target) return;
+                          actions.goto(target);
+                          setStrategicFitBoardReturn(documentId());
+                          setStrategicFitWorkspaceOpen(false);
+                          if (finding.classification !== "transpositional-equivalence") {
+                            void scanComplementary("low_memorization");
+                            requestAnimationFrame(() => {
+                              const section = document
+                                .querySelector("#extend-mode")
+                                ?.closest("details");
+                              if (section) {
+                                section.open = true;
+                                section.scrollIntoView({ block: "nearest" });
+                              }
+                            });
+                          }
+                        }}
+                      >
+                        {finding.classification === "transpositional-equivalence"
+                          ? "Show on board"
+                          : "Extend on board"}
+                      </button>
+                    </p>
+                  )}
+                </For>
+              </div>
+            )}
+          </For>
+        </details>
+      </Show>
       <Show when={state().status === "loading"}>
         <RegionState
           status="loading"

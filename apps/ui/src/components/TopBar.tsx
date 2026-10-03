@@ -1,18 +1,24 @@
 import { Show } from "solid-js";
-import { actions, color, dirty, fileName } from "../store/game";
+import { actions, color, dirty, fileName, documentId } from "../store/game";
 import {
   clearHandle,
   dismissFileNotice,
   fileNotice,
+  fileSaveLabel,
   openFile,
   reopenLast,
   requestDocumentClose,
   saveFile,
   storedFileName,
 } from "../store/files";
-import { setSettingsOpen } from "../store/ui";
+import {
+  setSettingsOpen,
+  strategicFitBoardReturn,
+  setStrategicFitWorkspaceOpen,
+} from "../store/ui";
 import DocumentStatus from "./DocumentStatus";
 import DocumentMenu from "./DocumentMenu";
+import { exploration, keepExploration, discardExploration } from "../store/game";
 
 export default function TopBar() {
   return (
@@ -41,6 +47,9 @@ export default function TopBar() {
         )}
       </Show>
       <div class="topbar-actions">
+        <Show when={strategicFitBoardReturn() === documentId()}>
+          <button onClick={() => setStrategicFitWorkspaceOpen(true)}>Back to Strategic Fit</button>
+        </Show>
         <button data-topbar-duplicate onClick={openFile}>
           Open PGN
         </button>
@@ -61,7 +70,7 @@ export default function TopBar() {
           class={`save-button${dirty() ? " ui-button-primary" : ""}`}
           onClick={() => void saveFile()}
         >
-          Save
+          {fileSaveLabel()}
         </button>
         <button
           data-topbar-duplicate
@@ -98,6 +107,18 @@ export default function TopBar() {
         </span>
         <button onClick={() => setSettingsOpen(true)}>Settings</button>
       </div>
+      <Show when={exploration()}>
+        {(draft) => (
+          <div class="file-notice" role="status">
+            <span>
+              Exploring: {draft().tree.sanPathAt(draft().path).slice(draft().from.length).join(" ")}{" "}
+              · not saved
+            </span>
+            <button onClick={keepExploration}>Keep line</button>
+            <button onClick={discardExploration}>Discard</button>
+          </div>
+        )}
+      </Show>
     </div>
   );
 }

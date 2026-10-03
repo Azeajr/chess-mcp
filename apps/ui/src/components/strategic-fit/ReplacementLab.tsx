@@ -305,7 +305,7 @@ export default function ReplacementLab() {
 
           <Show when={state().actionability?.actionable === true}>
             <section class="replacement-lab-pivot" aria-labelledby="replacement-lab-pivot-title">
-              <h3 id="replacement-lab-pivot-title">1. Confirm causal pivot</h3>
+              <h3 id="replacement-lab-pivot-title">1. Causal pivot</h3>
               <p>Select semantic repertoire decision. SAN paths remain navigation-only.</p>
               <Show
                 when={pivotOptions().length > 0}
@@ -318,7 +318,7 @@ export default function ReplacementLab() {
               >
                 <fieldset disabled={state().status === "running"}>
                   <legend>
-                    {pivotOptions().length === 1 ? "Confirm pivot" : "Select one supported pivot"}
+                    {pivotOptions().length === 1 ? "Selected pivot" : "Select one supported pivot"}
                   </legend>
                   <For each={pivotOptions()}>
                     {(pivot) => (
@@ -341,15 +341,17 @@ export default function ReplacementLab() {
                     )}
                   </For>
                 </fieldset>
-                <button
-                  type="button"
-                  disabled={
-                    state().selected_pivot_decision_id === null || state().status === "running"
-                  }
-                  onClick={() => replacementLab.confirmPivot()}
-                >
-                  {state().pivot_confirmed ? "Pivot confirmed" : "Confirm semantic pivot"}
-                </button>
+                <Show when={!state().pivot_confirmed}>
+                  <button
+                    type="button"
+                    disabled={
+                      state().selected_pivot_decision_id === null || state().status === "running"
+                    }
+                    onClick={() => replacementLab.confirmPivot()}
+                  >
+                    Confirm semantic pivot
+                  </button>
+                </Show>
               </Show>
             </section>
 
@@ -435,7 +437,10 @@ export default function ReplacementLab() {
                   disabled={!canGenerate()}
                   onClick={() => void replacementLab.generate()}
                 >
-                  Generate and stage previews
+                  Generate and stage previews from{" "}
+                  {pivotOptions().find(
+                    (pivot) => pivot.decision_id === state().selected_pivot_decision_id,
+                  )?.san ?? "selected pivot"}
                 </button>
                 <Show when={state().status === "running"}>
                   <button type="button" onClick={() => replacementLab.cancel()}>

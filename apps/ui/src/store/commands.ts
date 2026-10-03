@@ -13,6 +13,7 @@ import {
   updateOperation,
 } from "./operations";
 import { assertTestOnly } from "./test-seam";
+import { color, documentId, version } from "./game";
 
 export function executeDirectBrowserCommand(
   command: BrowserCommandName,
@@ -24,6 +25,17 @@ export function executeDirectBrowserCommand(
 }
 
 export type DirectCommand =
+  | "analyze_game"
+  | "get_game_summary"
+  | "compare_moves"
+  | "evaluate_position"
+  | "lichess_games"
+  | "chesscom_games"
+  | "batch_review"
+  | "repertoire_vs_history"
+  | "tablebase_lookup"
+  | "position_popularity"
+  | "export_annotated_pgn"
   | "audit_repertoire_moves"
   | "find_only_moves"
   | "find_structures"
@@ -33,6 +45,10 @@ export type DirectCommand =
   | "prep_vs_opponent";
 
 export interface CommandState {
+  documentId?: string;
+  revision?: number;
+  color?: string;
+  args?: Record<string, unknown>;
   status: Exclude<ExecutionStatus, "queued">;
   result?: Record<string, unknown>;
   error?: string;
@@ -41,7 +57,18 @@ export interface CommandState {
 }
 
 const initial = (): CommandState => ({ status: "idle" });
-const [commandStates, setCommandStates] = createSignal<Record<DirectCommand, CommandState>>({
+const [rawCommandStates, setCommandStates] = createSignal<Record<DirectCommand, CommandState>>({
+  analyze_game: initial(),
+  get_game_summary: initial(),
+  compare_moves: initial(),
+  evaluate_position: initial(),
+  lichess_games: initial(),
+  chesscom_games: initial(),
+  batch_review: initial(),
+  repertoire_vs_history: initial(),
+  tablebase_lookup: initial(),
+  position_popularity: initial(),
+  export_annotated_pgn: initial(),
   audit_repertoire_moves: initial(),
   find_only_moves: initial(),
   find_structures: initial(),
@@ -50,7 +77,22 @@ const [commandStates, setCommandStates] = createSignal<Record<DirectCommand, Com
   export_strategic_fit_intent_pgn: initial(),
   prep_vs_opponent: initial(),
 });
-export { commandStates };
+export const commandStates = () =>
+  Object.fromEntries(
+    Object.entries(rawCommandStates()).map(([key, state]) => [
+      key,
+      state.documentId && state.documentId !== documentId() ? initial() : state,
+    ]),
+  ) as Record<DirectCommand, CommandState>;
+export const commandIsStale = (command: DirectCommand) => {
+  const state = commandStates()[command];
+  return (
+    (state.revision !== undefined && state.revision !== version()) ||
+    (state.color !== undefined && state.color !== color())
+  );
+};
+export const rerunCommand = (command: DirectCommand) =>
+  executeCommand(command, commandStates()[command].args ?? {});
 
 const controllers = new Map<DirectCommand, AbortController>();
 
@@ -81,6 +123,17 @@ export function cancelCommand(command: DirectCommand) {
 }
 
 const COMMAND_LABELS: Record<DirectCommand, string> = {
+  analyze_game: "Game review",
+  get_game_summary: "Game summary",
+  compare_moves: "Compare moves",
+  evaluate_position: "Position evaluation",
+  lichess_games: "Import Lichess games",
+  chesscom_games: "Import Chess.com games",
+  batch_review: "Review imported games",
+  repertoire_vs_history: "Compare with my history",
+  tablebase_lookup: "Tablebase lookup",
+  position_popularity: "Position popularity",
+  export_annotated_pgn: "Annotated game export",
   audit_repertoire_moves: "Prescribed-move audit",
   find_only_moves: "Only-moves scan",
   find_structures: "Structure search",
@@ -115,9 +168,15 @@ export function recordDirectCommandForTesting(
 export async function executeCommand(command: DirectCommand, args: Record<string, unknown> = {}) {
   cancelCommandSilently(command);
   const controller = new AbortController();
+  const source = {
+    documentId: documentId(),
+    revision: version(),
+    color: color(),
+    args: { ...args },
+  };
   controllers.set(command, controller);
   lastCommandRequest = { command, args: { ...args } };
-  setCommandStates((all) => ({ ...all, [command]: { status: "running" } }));
+  setCommandStates((all) => ({ ...all, [command]: { ...source, status: "running" } }));
   const operationId = registerOperation({
     kind: `direct-command:${command}`,
     label: COMMAND_LABELS[command],
@@ -131,6 +190,7 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     const value = await executeDirectBrowserCommand(command, args, {
       signal: controller.signal,
       onProgress: (done, total, detail) => {
+        if (controllers.get(command) !== controller || controller.signal.aborted) return;
         updateOperation(operationId, { done, total, detail });
         setCommandStates((all) => ({
           ...all,
@@ -143,7 +203,6 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     });
     if (controller.signal.aborted) {
       settleOperationQuietly(operationId, "cancelled");
-      commandOperationIds.delete(command);
       return;
     }
     const result = value as Record<string, unknown>;
@@ -160,17 +219,24 @@ export async function executeCommand(command: DirectCommand, args: Record<string
       ...all,
       [command]: error
         ? {
+            ...source,
             status: executionOutcome(false, true),
             result,
             error,
             completedAt: Date.now(),
           }
-        : { status: executionOutcome(false), result, completedAt: Date.now() },
+        : { ...source, status: executionOutcome(false), result, completedAt: Date.now() },
     }));
+    if (
+      !error &&
+      source.documentId === documentId() &&
+      source.revision === version() &&
+      source.color === color()
+    )
+      return result;
   } catch (error) {
     if (controller.signal.aborted) {
       settleOperationQuietly(operationId, "cancelled");
-      commandOperationIds.delete(command);
       return;
     }
     const message = error instanceof Error ? error.message : String(error);
@@ -178,13 +244,17 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     setCommandStates((all) => ({
       ...all,
       [command]: {
+        ...source,
         status: "failed",
         error: message,
         completedAt: Date.now(),
       },
     }));
   } finally {
-    if (controllers.get(command) === controller) controllers.delete(command);
+    if (controllers.get(command) === controller) {
+      controllers.delete(command);
+      commandOperationIds.delete(command);
+    }
   }
 }
 

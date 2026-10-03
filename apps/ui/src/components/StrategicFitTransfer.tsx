@@ -72,9 +72,13 @@ export default function StrategicFitTransfer() {
         <button
           class="fix-btn"
           disabled={sidecarState().status === "running"}
-          onClick={() => void executeCommand("export_strategic_fit_metadata")}
+          onClick={() =>
+            void executeCommand("export_strategic_fit_metadata").then((result) => {
+              save(result?.artifact_id);
+            })
+          }
         >
-          Generate metadata JSON
+          Export metadata JSON
         </button>
         <Show when={sidecarState().result?.artifact_id}>
           {(id) => (
@@ -84,7 +88,7 @@ export default function StrategicFitTransfer() {
                 save(id());
               }}
             >
-              Save metadata JSON
+              Download metadata JSON again
             </button>
           )}
         </Show>
@@ -93,9 +97,13 @@ export default function StrategicFitTransfer() {
           fallback={
             <button
               class="fix-btn"
-              onClick={() => void executeCommand("export_strategic_fit_intent_pgn")}
+              onClick={() =>
+                void executeCommand("export_strategic_fit_intent_pgn").then((result) => {
+                  save(result?.artifact_id);
+                })
+              }
             >
-              Generate intent PGN
+              Export intent PGN
             </button>
           }
         >
@@ -116,7 +124,7 @@ export default function StrategicFitTransfer() {
                 save(id());
               }}
             >
-              Save intent PGN
+              Download intent PGN again
             </button>
           )}
         </Show>

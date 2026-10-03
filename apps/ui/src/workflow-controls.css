@@ -1,0 +1,47 @@
+/* Direct workflow controls share the existing tokens and remain usable in narrow panels. */
+.direct-analysis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+  min-width: 0;
+}
+.direct-analysis > details,
+.direct-analysis > .tool-result {
+  flex-basis: 100%;
+  min-width: 0;
+}
+.direct-analysis label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-block: var(--space-2);
+}
+.direct-analysis input,
+.direct-analysis select {
+  max-width: 100%;
+  min-width: 0;
+}
+.move-edit-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.document-save-popover {
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: var(--space-4);
+  color: var(--text);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+[data-settings-field="engine"] .analysis-settings-body {
+  position: static;
+  width: 100%;
+  box-shadow: none;
+}
+.analysis .line {
+  flex-wrap: wrap;
+}

@@ -24,6 +24,29 @@ const [changesSinceExport, setChangesSinceExport] = createSignal(0);
 const [fileName, setFileName] = createSignal<string | null>(null);
 const [documentId, setDocumentId] = createSignal<BrowserDocumentId>(createBrowserDocumentId());
 
+export const [exploreMode, setExploreMode] = createSignal(false);
+const [scratch, setScratch] = createSignal<{
+  tree: GameTree;
+  path: Path;
+  from: string[];
+  revision: number;
+  document: BrowserDocumentId;
+} | null>(null);
+export const exploration = () => {
+  const value = scratch();
+  return exploreMode() && value?.revision === version() && value.document === documentId()
+    ? value
+    : null;
+};
+export const discardExploration = () => setScratch(null);
+export function keepExploration() {
+  const value = exploration();
+  if (!value) return;
+  const moves = value.tree.sanPathAt(value.path).slice(value.from.length);
+  discardExploration();
+  return actions.applyEdit("add", value.from, { addMoves: moves }, value.revision);
+}
+
 const bump = () => setVersion((v) => v + 1);
 
 // The header counted mutations rather than comparing content, so undoing every change still read
@@ -60,11 +83,15 @@ function describePrunedBranch(
 
 export const fen = () => {
   version();
+  const draft = exploration();
+  if (draft) return draft.tree.fenAt(draft.path);
   return tree().fenAt(path());
 };
 
 export const dests = () => {
   version();
+  const draft = exploration();
+  if (draft) return draft.tree.destsAt(draft.path);
   return tree().destsAt(path());
 };
 
@@ -72,6 +99,8 @@ export const turnColor = (): Color => (fen().split(" ")[1] === "b" ? "black" : "
 
 export const lastMove = () => {
   version();
+  const draft = exploration();
+  if (draft) return draft.tree.lastMoveAt(draft.path);
   return tree().lastMoveAt(path());
 };
 
@@ -101,6 +130,8 @@ function replaceDocument(
   restoredRevision?: number,
 ) {
   batch(() => {
+    discardExploration();
+    setExploreMode(false);
     setTree(nextTree);
     setPath([]);
     setColor("white");
@@ -147,6 +178,19 @@ export const actions = {
   },
 
   play(orig: string, dest: string, promotion?: string) {
+    if (exploreMode()) {
+      const previous = exploration();
+      const draftTree = GameTree.fromPgn((previous?.tree ?? tree()).toPgn());
+      const result = draftTree.playMove(previous?.path ?? path(), orig, dest, promotion);
+      setScratch({
+        tree: draftTree,
+        path: result.path,
+        from: previous?.from ?? tree().sanPathAt(path()),
+        revision: version(),
+        document: documentId(),
+      });
+      return;
+    }
     // A move played on the board edits the document exactly as an assistant edit does, but it used
     // to skip the history entirely: every applyEdit path recorded a mutation and this one did not.
     // Undo was therefore a no-op for the one kind of change a person makes by hand, and a
@@ -164,10 +208,12 @@ export const actions = {
   },
 
   goto(p: Path) {
+    discardExploration();
     setPath(p);
   },
 
   setPath(p: Path) {
+    discardExploration();
     setPath(p);
   },
 
@@ -180,21 +226,22 @@ export const actions = {
     if (expectedRevision != null && expectedRevision !== version())
       return { ok: false, error: "stale_revision" };
     const prunedBranch = action === "prune" ? describePrunedBranch(sanPath) : undefined;
-    const applyEditToTree = (): { ok: true; revision: number } | { ok: false; error: string } => {
-      const result = tree().edit(action, sanPath, opts);
-      if (!result.tree) return { ok: false, error: result.error ?? "invalid_edit" };
-      setTree(result.tree);
-      const destination =
-        action === "add"
-          ? result.tree.indexPathOfSan([
-              ...(result.added?.from ?? sanPath),
-              ...(result.added?.moves ?? []),
-            ])
-          : result.tree.indexPathOfSan(action === "prune" ? sanPath.slice(0, -1) : sanPath);
-      if (destination) setPath(destination);
-      recordDocumentChange();
-      return { ok: true, revision: version() };
-    };
+    const applyEditToTree = (): { ok: true; revision: number } | { ok: false; error: string } =>
+      batch(() => {
+        const result = tree().edit(action, sanPath, opts);
+        if (!result.tree) return { ok: false, error: result.error ?? "invalid_edit" };
+        setTree(result.tree);
+        const destination =
+          action === "add"
+            ? result.tree.indexPathOfSan([
+                ...(result.added?.from ?? sanPath),
+                ...(result.added?.moves ?? []),
+              ])
+            : result.tree.indexPathOfSan(action === "prune" ? sanPath.slice(0, -1) : sanPath);
+        if (destination) setPath(destination);
+        recordDocumentChange();
+        return { ok: true, revision: version() };
+      });
     return recordMutation(
       action === "prune" ? "deleteLine" : "play",
       applyEditToTree,
@@ -243,6 +290,10 @@ export const actions = {
   },
 
   back() {
+    if (exploration()) {
+      discardExploration();
+      return;
+    }
     const p = path();
     if (p.length) setPath(p.slice(0, -1));
   },
@@ -264,12 +315,14 @@ export const actions = {
   },
 
   forward() {
+    discardExploration();
     const p = path();
     const node = tree().nodeAt(p);
     if (node.children.length) setPath([...p, 0]);
   },
 
   setColor(c: Color) {
+    discardExploration();
     setColor(c);
   },
 

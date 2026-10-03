@@ -80,7 +80,7 @@ async function bootstrap(page: Page, pgn: string, name: string, timeout = 60_000
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   await page.getByRole("button", { name: "Open Strategic Fit" }).click();
   const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
+
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({ timeout });
   await dialog.locator(".strategic-fit-advanced-report > summary").click();
   await dialog.locator("#strategic-fit-stage-findings").click();

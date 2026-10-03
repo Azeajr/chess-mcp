@@ -1,5 +1,6 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js";
 import Status from "./primitives/Status";
+import { isDecidableFinding } from "../application/decidable-finding";
 import ProfileSetup from "./strategic-fit/ProfileSetup";
 import AnalysisLifecycle from "./strategic-fit/AnalysisLifecycle";
 import { STRATEGIC_FIT_PROFILE_LABELS } from "../content/strategicFit";
@@ -32,8 +33,10 @@ import { strategicFitFindingQueue } from "../store/strategic-fit-finding-queue";
 import {
   displayStrategicFitFindingResolution,
   strategicFitFindingResolutionReview,
-  strategicFitLastResolutionAction,
   strategicFitFindingResolutionUnresolvedCount,
+  strategicFitLastResolutionAction,
+  canUndoLastResolution,
+  undoLastResolution,
   synchronizeStrategicFitFindingResolutionReview,
 } from "../store/strategic-fit-finding-resolutions";
 import {
@@ -48,6 +51,7 @@ import {
   setStrategicFitPrintExportMode,
   setStrategicFitSettingsAnnouncement,
   setStrategicFitWorkspaceOpen,
+  setStrategicFitBoardReturn,
   setStrategicFitWorkspaceStage,
   strategicFitFindingQueueFilterKey,
   strategicFitFindingQueueIntent,
@@ -82,6 +86,13 @@ export default function StrategicFitWorkspace() {
   };
   const profileReady = () => strategicFitMetadataStatus() === "ready";
   const setupRequired = () => profileReady() && strategicFitProfileSetupRequired();
+  let startedOnOpen = false;
+  createEffect(() => {
+    if (startedOnOpen || !profileReady() || setupRequired()) return;
+    startedOnOpen = true;
+    const status = strategicFitLifecycle().status;
+    if (status === "idle" || status === "stale") void analyzeStrategicFit();
+  });
   const profileSummary = () => {
     const profile = strategicFitProfile();
     return STRATEGIC_FIT_PROFILE_LABELS[profile.mode];
@@ -106,7 +117,15 @@ export default function StrategicFitWorkspace() {
   const unresolvedCount = () => {
     const lifecycle = strategicFitLifecycle();
     const result = lifecycle.status === "completed" ? lifecycle.current_result : null;
-    return result ? strategicFitFindingResolutionUnresolvedCount(result.result) : null;
+    return result
+      ? strategicFitFindingQueue
+          .snapshot()
+          .findings.filter(
+            (finding) =>
+              isDecidableFinding(finding) &&
+              displayStrategicFitFindingResolution(finding) === "unresolved",
+          ).length
+      : null;
   };
   const remainingUnresolved = () => {
     const selected = strategicFitFindingQueue.snapshot().selected_finding_id;
@@ -115,6 +134,7 @@ export default function StrategicFitWorkspace() {
       .filtered_findings.filter(
         (finding) =>
           finding.finding_id !== selected &&
+          isDecidableFinding(finding) &&
           displayStrategicFitFindingResolution(finding) === "unresolved",
       );
   };
@@ -477,6 +497,20 @@ export default function StrategicFitWorkspace() {
                     </For>
                   </nav>
 
+                  <Show when={lastResolutionAction()}>
+                    {(action) => (
+                      <p
+                        class="strategic-fit-resolution-feedback"
+                        role={action().state === "blocked" ? "alert" : "status"}
+                        data-resolution-last-action={action().state}
+                      >
+                        {action().message}{" "}
+                        <Show when={canUndoLastResolution()}>
+                          <button onClick={undoLastResolution}>Undo decision</button>
+                        </Show>
+                      </p>
+                    )}
+                  </Show>
                   <main
                     class="strategic-fit-workspace-body"
                     data-stage={strategicFitWorkspaceStage()}
@@ -604,242 +638,210 @@ export default function StrategicFitWorkspace() {
                       </Show>
                     </section>
 
-                    {/*
-                    WP-031 AC-1: with no comparable route there is nothing to show in these three
-                    panes but a wall of "Insufficient evidence" rows. One terminal state replaces
-                    them, naming the counts and what would change them. The overview pane and the
-                    preflight results above are untouched, so the payload stays visible.
-                  */}
-                    <Show
-                      when={strategicFitEvidenceState() !== "none"}
-                      fallback={
-                        <section
-                          id="strategic-fit-pane-findings"
-                          class="strategic-fit-workspace-pane strategic-fit-findings-pane"
-                          role={usesStageTabs() ? "tabpanel" : "region"}
-                          aria-labelledby={
-                            usesStageTabs()
-                              ? "strategic-fit-stage-findings"
-                              : "strategic-fit-pane-findings-title"
-                          }
-                          tabIndex={0}
-                        >
-                          <PanelHeader
-                            class="strategic-fit-pane-heading"
-                            kicker="Review queue"
-                            title="Findings"
-                            titleId="strategic-fit-pane-findings-title"
-                          />
-                          <Show when={insufficientEvidencePreflight()}>
-                            {(preflight) => (
-                              <InsufficientEvidence
-                                preflight={preflight()}
-                                comparablePly={strategicFitComparablePlyThreshold()}
-                                onAnalyzeAgain={() => {
-                                  void analyzeStrategicFit();
-                                }}
-                              />
-                            )}
-                          </Show>
-                        </section>
+                    {/* Keep the short-line checklist reachable even when no routes are comparable. */}
+                    <section
+                      id="strategic-fit-pane-findings"
+                      class="strategic-fit-workspace-pane strategic-fit-findings-pane"
+                      role={usesStageTabs() ? "tabpanel" : "region"}
+                      aria-labelledby={
+                        usesStageTabs()
+                          ? "strategic-fit-stage-findings"
+                          : "strategic-fit-pane-findings-title"
                       }
+                      data-queue-filter={(() => {
+                        const queueIntent = currentQueueIntent();
+                        return queueIntent
+                          ? strategicFitFindingQueueFilterKey(queueIntent.filter)
+                          : "none";
+                      })()}
+                      tabIndex={0}
                     >
-                      <section
-                        id="strategic-fit-pane-findings"
-                        class="strategic-fit-workspace-pane strategic-fit-findings-pane"
-                        role={usesStageTabs() ? "tabpanel" : "region"}
-                        aria-labelledby={
-                          usesStageTabs()
-                            ? "strategic-fit-stage-findings"
-                            : "strategic-fit-pane-findings-title"
+                      <PanelHeader
+                        class="strategic-fit-pane-heading"
+                        kicker="Review"
+                        title="What deserves attention"
+                        titleId="strategic-fit-pane-findings-title"
+                      />
+                      <Show
+                        when={
+                          strategicFitEvidenceState() === "none" && insufficientEvidencePreflight()
                         }
-                        data-queue-filter={(() => {
-                          const queueIntent = currentQueueIntent();
-                          return queueIntent
-                            ? strategicFitFindingQueueFilterKey(queueIntent.filter)
-                            : "none";
-                        })()}
-                        tabIndex={0}
                       >
-                        <PanelHeader
-                          class="strategic-fit-pane-heading"
-                          kicker="Review"
-                          title="What deserves attention"
-                          titleId="strategic-fit-pane-findings-title"
-                        />
-                        <Show
-                          when={currentFindings()}
-                          fallback={
-                            <RegionState
-                              region="findings"
-                              state={strategicFitWorkspaceRegions().findings}
-                            />
-                          }
-                        >
-                          {(report) => (
-                            <FindingQueue
-                              report={report()}
-                              intent={currentQueueIntent()}
-                              resolutionState={displayStrategicFitFindingResolution}
-                              changedEvidenceSemanticIds={
-                                strategicFitLifecycle().current_result?.reanalysis
-                                  ?.changed_evidence_semantic_finding_ids ?? []
-                              }
-                              cohortName={(finding) =>
-                                strategicFitCohortDisplayName(
-                                  finding.evidence.cohort_id,
-                                  finding.evidence.cohort_id,
-                                )
-                              }
-                            />
-                          )}
-                        </Show>
-                      </section>
+                        {(preflight) => (
+                          <InsufficientEvidence
+                            preflight={preflight()}
+                            comparablePly={strategicFitComparablePlyThreshold()}
+                            onAnalyzeAgain={() => void analyzeStrategicFit()}
+                          />
+                        )}
+                      </Show>
+                      <Show
+                        when={currentFindings()}
+                        fallback={
+                          <RegionState
+                            region="findings"
+                            state={strategicFitWorkspaceRegions().findings}
+                          />
+                        }
+                      >
+                        {(report) => (
+                          <FindingQueue
+                            report={report()}
+                            intent={currentQueueIntent()}
+                            resolutionState={displayStrategicFitFindingResolution}
+                            changedEvidenceSemanticIds={
+                              strategicFitLifecycle().current_result?.reanalysis
+                                ?.changed_evidence_semantic_finding_ids ?? []
+                            }
+                            cohortName={(finding) =>
+                              strategicFitCohortDisplayName(
+                                finding.evidence.cohort_id,
+                                finding.evidence.cohort_id,
+                              )
+                            }
+                          />
+                        )}
+                      </Show>
+                    </section>
 
-                      <section
-                        id="strategic-fit-pane-evidence"
-                        class="strategic-fit-workspace-pane strategic-fit-evidence-pane"
-                        role={usesStageTabs() ? "tabpanel" : "region"}
-                        aria-labelledby={
-                          usesStageTabs()
-                            ? "strategic-fit-stage-evidence"
-                            : "strategic-fit-pane-evidence-title"
+                    <section
+                      id="strategic-fit-pane-evidence"
+                      class="strategic-fit-workspace-pane strategic-fit-evidence-pane"
+                      role={usesStageTabs() ? "tabpanel" : "region"}
+                      aria-labelledby={
+                        usesStageTabs()
+                          ? "strategic-fit-stage-evidence"
+                          : "strategic-fit-pane-evidence-title"
+                      }
+                      tabIndex={0}
+                    >
+                      <PanelHeader
+                        class="strategic-fit-pane-heading"
+                        kicker={currentEvidence() ? "Understand" : "Branch review"}
+                        title={
+                          currentEvidence() ? "Understand this branch" : "Evidence / comparison"
                         }
-                        tabIndex={0}
+                        titleId="strategic-fit-pane-evidence-title"
                       >
-                        <PanelHeader
-                          class="strategic-fit-pane-heading"
-                          kicker={currentEvidence() ? "Understand" : "Branch review"}
-                          title={
-                            currentEvidence() ? "Understand this branch" : "Evidence / comparison"
-                          }
-                          titleId="strategic-fit-pane-evidence-title"
-                        >
-                          <Show when={currentEvidence()}>
-                            <nav
-                              class="strategic-fit-detail-navigation"
-                              aria-label="Branch review navigation"
+                        <Show when={currentEvidence()}>
+                          <nav
+                            class="strategic-fit-detail-navigation"
+                            aria-label="Branch review navigation"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => setStrategicFitWorkspaceStage("findings")}
                             >
-                              <button
-                                type="button"
-                                onClick={() => setStrategicFitWorkspaceStage("findings")}
-                              >
-                                All results
-                              </button>
-                              <Show when={remainingUnresolved()[0]}>
-                                {(next) => (
-                                  <button
-                                    type="button"
-                                    data-evidence-next-finding
-                                    onClick={() => {
-                                      selectStrategicFitFinding(next().finding_id, true);
-                                    }}
-                                  >
-                                    Next result
-                                  </button>
-                                )}
-                              </Show>
-                            </nav>
-                          </Show>
-                        </PanelHeader>
-                        <Show
-                          when={currentEvidence()}
-                          fallback={
-                            <RegionState
-                              region="evidence"
-                              state={strategicFitWorkspaceRegions().evidence}
+                              All results
+                            </button>
+                            <Show when={remainingUnresolved()[0]}>
+                              {(next) => (
+                                <button
+                                  type="button"
+                                  data-evidence-next-finding
+                                  onClick={() => {
+                                    selectStrategicFitFinding(next().finding_id, true);
+                                  }}
+                                >
+                                  Next result
+                                </button>
+                              )}
+                            </Show>
+                          </nav>
+                        </Show>
+                      </PanelHeader>
+                      <Show
+                        when={currentEvidence()}
+                        fallback={
+                          <RegionState
+                            region="evidence"
+                            state={strategicFitWorkspaceRegions().evidence}
+                          />
+                        }
+                      >
+                        {(evidence) => (
+                          <>
+                            <EvidencePanel
+                              reportId={evidence().reportId}
+                              finding={evidence().finding}
+                              cohortName={evidence().cohortName}
+                              trajectories={evidence().trajectories}
+                              preflightIssues={evidence().preflightIssues}
+                              repertoireColor={evidence().repertoireColor}
+                              canNavigateToLine={(path) =>
+                                resolveCurrentEvidenceLine(
+                                  evidence().reportId,
+                                  evidence().finding.finding_id,
+                                  path,
+                                ) !== null
+                              }
+                              onGoToLine={(path) => {
+                                const target = resolveCurrentEvidenceLine(
+                                  evidence().reportId,
+                                  evidence().finding.finding_id,
+                                  path,
+                                );
+                                if (target === null) return false;
+                                actions.goto(target);
+                                setStrategicFitBoardReturn(documentId());
+                                close();
+                                requestAnimationFrame(() => {
+                                  document
+                                    .querySelector<HTMLElement>(".workspace")
+                                    ?.scrollTo({ top: 0, behavior: "auto" });
+                                });
+                                return true;
+                              }}
                             />
-                          }
-                        >
-                          {(evidence) => (
-                            <>
-                              <Show when={lastResolutionAction()}>
-                                {(action) => (
-                                  <p
-                                    class="strategic-fit-resolution-feedback"
-                                    role={action().state === "blocked" ? "alert" : "status"}
-                                    data-resolution-last-action={action().state}
-                                  >
-                                    {action().message}
-                                  </p>
-                                )}
-                              </Show>
-                              <EvidencePanel
-                                reportId={evidence().reportId}
-                                finding={evidence().finding}
-                                cohortName={evidence().cohortName}
-                                trajectories={evidence().trajectories}
-                                preflightIssues={evidence().preflightIssues}
-                                repertoireColor={evidence().repertoireColor}
-                                canNavigateToLine={(path) =>
-                                  resolveCurrentEvidenceLine(
-                                    evidence().reportId,
-                                    evidence().finding.finding_id,
-                                    path,
-                                  ) !== null
-                                }
-                                onGoToLine={(path) => {
-                                  const target = resolveCurrentEvidenceLine(
-                                    evidence().reportId,
-                                    evidence().finding.finding_id,
-                                    path,
-                                  );
-                                  if (target === null) return false;
-                                  actions.goto(target);
-                                  close();
-                                  requestAnimationFrame(() => {
-                                    document
-                                      .querySelector<HTMLElement>(".workspace")
-                                      ?.scrollTo({ top: 0, behavior: "auto" });
-                                  });
-                                  return true;
-                                }}
-                              />
-                              <Show
-                                when={
-                                  buildStrategicFindingStory(evidence().finding).kind !== "gap" &&
-                                  evidence().finding.classification !==
-                                    "transpositional-equivalence" &&
-                                  currentResolution()
-                                }
-                              >
-                                {(resolution) => (
-                                  <section
-                                    id="strategic-fit-inline-actions"
-                                    class="strategic-fit-inline-actions"
-                                    aria-labelledby="strategic-fit-inline-actions-title"
-                                  >
-                                    <PanelHeader
-                                      kicker="Decide"
-                                      title="What do you want to do?"
-                                      titleId="strategic-fit-inline-actions-title"
-                                    />
-                                    <ResolutionActions
-                                      completed={resolution().completed}
-                                      reportId={resolution().reportId}
-                                      finding={resolution().finding}
-                                    />
-                                    <TrainException
+                            <Show
+                              when={
+                                buildStrategicFindingStory(evidence().finding).kind !== "gap" &&
+                                evidence().finding.classification !==
+                                  "transpositional-equivalence" &&
+                                currentResolution()
+                              }
+                            >
+                              {(resolution) => (
+                                <section
+                                  id="strategic-fit-inline-actions"
+                                  class="strategic-fit-inline-actions"
+                                  aria-labelledby="strategic-fit-inline-actions-title"
+                                >
+                                  <PanelHeader
+                                    kicker="Decide"
+                                    title="What do you want to do?"
+                                    titleId="strategic-fit-inline-actions-title"
+                                  />
+                                  <ResolutionActions
+                                    onResolved={() => {
+                                      const next = remainingUnresolved()[0];
+                                      if (next) selectStrategicFitFinding(next.finding_id, true);
+                                      else setStrategicFitWorkspaceStage("findings");
+                                    }}
+                                    completed={resolution().completed}
+                                    reportId={resolution().reportId}
+                                    finding={resolution().finding}
+                                  />
+                                  <TrainException
+                                    reportId={resolution().reportId}
+                                    report={resolution().report}
+                                    finding={resolution().finding}
+                                  />
+                                  <details class="strategic-fit-inline-adjustment">
+                                    <summary>Change how this branch is grouped</summary>
+                                    <CohortEditor
                                       reportId={resolution().reportId}
                                       report={resolution().report}
                                       finding={resolution().finding}
                                     />
-                                    <details class="strategic-fit-inline-adjustment">
-                                      <summary>Change how this branch is grouped</summary>
-                                      <CohortEditor
-                                        reportId={resolution().reportId}
-                                        report={resolution().report}
-                                        finding={resolution().finding}
-                                      />
-                                    </details>
-                                  </section>
-                                )}
-                              </Show>
-                            </>
-                          )}
-                        </Show>
-                      </section>
-                    </Show>
+                                  </details>
+                                </section>
+                              )}
+                            </Show>
+                          </>
+                        )}
+                      </Show>
+                    </section>
                   </main>
                 </>
               }

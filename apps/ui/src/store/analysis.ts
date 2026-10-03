@@ -1,7 +1,7 @@
 import { createSignal, createEffect, createRoot, onCleanup } from "solid-js";
 import { classifyUciMove, weightFor, type Fit, type Weight } from "@chess-mcp/chess-tools";
 import { ANALYSIS_ARROW_BRUSHES } from "../content/analysis";
-import { fen, currentTree, currentPath, color } from "./game";
+import { fen, currentTree, currentPath, color, exploration } from "./game";
 import { analyseLive } from "../engine/stockfish";
 import { analysisDepth } from "./engine-settings";
 import { announce } from "./announce";
@@ -21,6 +21,8 @@ export interface EngineLine {
   mate: number | null;
   depth: number;
 }
+
+import { preference } from "./preferences";
 
 export type AnalysisState = "off" | "starting" | "analysing" | "ready" | "offline";
 
@@ -52,7 +54,11 @@ const [engineLines, setLines] = createSignal<EngineLine[]>([]);
 const [engineArrows, setArrows] = createSignal<Arrow[]>([]);
 const [analysing, setAnalysing] = createSignal(false);
 const [engineOffline, setEngineOffline] = createSignal(false);
-const [evalEnabled, setEvalEnabled] = createSignal(false);
+const [evaluationPreference, setEvaluationPreference] = preference("chess.engine.enabled", "false");
+const evalEnabled = () => evaluationPreference() === "true";
+const setEvalEnabled = (enabled: boolean) => {
+  setEvaluationPreference(String(enabled));
+};
 const [analysisReload, setAnalysisReload] = createSignal(0);
 
 const analysisState = (): AnalysisState =>
@@ -104,8 +110,9 @@ function toArrow(l: EngineLine): Arrow {
 const disposeAnalysis = createRoot((dispose) => {
   createEffect(() => {
     const f = fen();
-    const tree = currentTree();
-    const path = currentPath();
+    const draft = exploration();
+    const tree = draft?.tree ?? currentTree();
+    const path = draft?.path ?? currentPath();
     const col = color();
     const enabled = evalEnabled();
     const depth = analysisDepth();
@@ -118,6 +125,9 @@ const disposeAnalysis = createRoot((dispose) => {
       return;
     }
 
+    // Rows are actionable now: never leave moves from the previous position clickable.
+    setLines([]);
+    setArrows([]);
     let cancelled = false;
     const t = setTimeout(() => {
       setAnalysing(true);

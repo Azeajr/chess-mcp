@@ -59,11 +59,8 @@ export default function ResolutionActions(props: {
   completed: StrategicFitCompletedResult;
   reportId: string;
   finding: StrategicFinding;
+  onResolved?: () => void;
 }) {
-  const [choice, setChoice] =
-    createSignal<
-      Exclude<StrategicFitReviewResolutionState, "automatically-resolved-by-another-edit">
-    >("keep-intentionally");
   const [intentionalReason, setIntentionalReason] = createSignal<IntentionalResolutionReason | "">(
     "",
   );
@@ -71,7 +68,7 @@ export default function ResolutionActions(props: {
 
   createEffect(() => {
     void props.finding.finding_id;
-    setChoice("keep-intentionally");
+
     setIntentionalReason("");
     setNote("");
   });
@@ -95,16 +92,16 @@ export default function ResolutionActions(props: {
   };
   const story = () => buildStrategicFindingStory(props.finding);
   const replacementAvailability = () => replacementLab.availability(props.completed, props.finding);
-  const save = (event: SubmitEvent) => {
-    event.preventDefault();
-    transitionStrategicFitFindingResolution({
+  const save = (state: (typeof ACTIONS)[number]["state"]) => {
+    const result = transitionStrategicFitFindingResolution({
       report_id: props.reportId,
       finding_id: props.finding.finding_id,
       semantic_finding_id: props.finding.semantic_finding_id,
-      state: choice(),
-      intentional_reason: choice() === "keep-intentionally" ? intentionalReason() || null : null,
+      state,
+      intentional_reason: state === "keep-intentionally" ? intentionalReason() || null : null,
       note: note(),
     });
+    if (result.state !== "blocked") props.onResolved?.();
   };
   const reopen = () =>
     reopenStrategicFitFinding({
@@ -178,49 +175,26 @@ export default function ResolutionActions(props: {
             </div>
           }
         >
-          <form onSubmit={save}>
+          <div>
             <fieldset>
               <legend>Choose what to do</legend>
-              <For each={ACTIONS.slice(0, 2)}>
+              <For each={ACTIONS}>
                 {(action) => (
-                  <label class="strategic-fit-resolution-choice">
-                    <input
-                      type="radio"
-                      name={`strategic-fit-resolution-${props.finding.finding_id}`}
-                      value={action.state}
-                      checked={choice() === action.state}
-                      onInput={() => setChoice(action.state)}
-                    />
-                    <span>
-                      <strong>{action.label}</strong>
-                      <small>{action.detail}</small>
-                    </span>
-                  </label>
+                  <button
+                    type="button"
+                    title={action.detail}
+                    onClick={() => {
+                      save(action.state);
+                    }}
+                  >
+                    {action.label}
+                  </button>
                 )}
               </For>
-              <details class="strategic-fit-resolution-other">
-                <summary>Other review outcomes</summary>
-                <For each={ACTIONS.slice(2)}>
-                  {(action) => (
-                    <label class="strategic-fit-resolution-choice">
-                      <input
-                        type="radio"
-                        name={`strategic-fit-resolution-${props.finding.finding_id}`}
-                        value={action.state}
-                        checked={choice() === action.state}
-                        onInput={() => setChoice(action.state)}
-                      />
-                      <span>
-                        <strong>{action.label}</strong>
-                        <small>{action.detail}</small>
-                      </span>
-                    </label>
-                  )}
-                </For>
-              </details>
             </fieldset>
+            <details>
+              <summary>Optional reason and note</summary>
 
-            <Show when={choice() === "keep-intentionally"}>
               {/* Was "Optional keep-intentionally reason" — the option's own id read back as a
                   field label. The question the field actually asks is why you are keeping it. */}
               <label class="strategic-fit-resolution-field">
@@ -239,24 +213,21 @@ export default function ResolutionActions(props: {
                   </For>
                 </select>
               </label>
-            </Show>
-
-            <label class="strategic-fit-resolution-field">
-              Optional note
-              <textarea
-                rows={3}
-                value={note()}
-                aria-describedby={`strategic-fit-resolution-note-help-${props.finding.finding_id}`}
-                onInput={(event) => setNote(event.currentTarget.value)}
-              />
-            </label>
-            <p id={`strategic-fit-resolution-note-help-${props.finding.finding_id}`}>
-              A custom keep-intentionally reason requires a note. Notes are saved only in document
-              metadata.
-            </p>
-
-            <button type="submit">Save resolution</button>
-          </form>
+              <label class="strategic-fit-resolution-field">
+                Optional note
+                <textarea
+                  rows={3}
+                  value={note()}
+                  aria-describedby={`strategic-fit-resolution-note-help-${props.finding.finding_id}`}
+                  onInput={(event) => setNote(event.currentTarget.value)}
+                />
+              </label>
+              <p id={`strategic-fit-resolution-note-help-${props.finding.finding_id}`}>
+                A custom keep-intentionally reason requires a note. Notes are saved only in document
+                metadata.
+              </p>
+            </details>
+          </div>
         </Show>
       </Show>
 

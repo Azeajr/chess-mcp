@@ -389,7 +389,9 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       ? "non-actionable"
       : pivot?.status === "alternatives-required"
         ? "pivot-required"
-        : "pivot-ready";
+        : pivot?.status === "selected"
+          ? "ready"
+          : "pivot-ready";
     setSnapshot({
       ...initialSnapshot(controls.engine_depth),
       open: true,
@@ -399,6 +401,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
       actionability,
       pivot_result: pivot,
       selected_pivot_decision_id: selected,
+      pivot_confirmed: pivot?.status === "selected",
       controls,
     });
     return actionability.actionable;
@@ -413,7 +416,7 @@ export function createReplacementLabState(boundary: ReplacementLabStateBoundary)
           ? [current.pivot_result.pivot, ...current.pivot_result.alternative_pivots]
           : [];
     if (!alternatives.some((pivot) => pivot.decision_id === decisionId)) return false;
-    if (current.selected_pivot_decision_id === decisionId && !current.pivot_confirmed) return true;
+    if (current.selected_pivot_decision_id === decisionId) return true;
     discardReview(current.review);
     discard(current.result);
     setSnapshot((previous) => ({

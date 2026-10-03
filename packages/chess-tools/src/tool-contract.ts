@@ -608,6 +608,7 @@ export const TOOL_CONTRACTS = [
         depth: integer(1, 30),
         min_severity: { type: "string", enum: ["low", "medium", "high"] },
         max_positions: integer(1, 60),
+        position_start: integer(0),
         limit: integer(1, 50),
         popularity: { type: "boolean" },
         popularity_db: { type: "string", enum: ["lichess", "masters"] },

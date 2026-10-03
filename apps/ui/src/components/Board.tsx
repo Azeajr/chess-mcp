@@ -17,6 +17,9 @@ export default function Board() {
   let motionPreference: MediaQueryList | undefined;
   const syncAnimationPreference = () =>
     cg?.set({ animation: { enabled: !motionPreference?.matches } });
+  // Header/document controls can move the board without resizing it. Chessground's
+  // ResizeObserver cannot see that translation; refresh before it maps a pointer to a square.
+  const refreshPointerBounds = () => cg?.state.dom.bounds.clear();
 
   onMount(() => {
     motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -40,6 +43,8 @@ export default function Board() {
       highlight: { lastMove: true, check: true },
     });
     motionPreference.addEventListener("change", syncAnimationPreference);
+    el.addEventListener("touchstart", refreshPointerBounds, { capture: true, passive: true });
+    el.addEventListener("mousedown", refreshPointerBounds, { capture: true, passive: true });
     const brushes = cg.state.drawable.brushes as Record<string, DrawBrush>;
     brushes.gold = {
       key: "gold",
@@ -94,6 +99,8 @@ export default function Board() {
 
   onCleanup(() => {
     motionPreference?.removeEventListener("change", syncAnimationPreference);
+    el.removeEventListener("touchstart", refreshPointerBounds, true);
+    el.removeEventListener("mousedown", refreshPointerBounds, true);
     cg?.destroy();
   });
 

@@ -15,9 +15,14 @@ const FOCUSABLE = [
 ].join(",");
 
 const insideCollapsedDetails = (element: HTMLElement) => {
-  const collapsed = element.closest("details:not([open])");
-  if (collapsed === null) return false;
-  return !(element.tagName === "SUMMARY" && element.parentElement === collapsed);
+  let ancestor = element.parentElement;
+  while (ancestor) {
+    if (ancestor.tagName === "DETAILS" && !ancestor.hasAttribute("open")) {
+      if (!(element.tagName === "SUMMARY" && element.parentElement === ancestor)) return true;
+    }
+    ancestor = ancestor.parentElement;
+  }
+  return false;
 };
 
 let lastPointerActivated: HTMLElement | null = null;

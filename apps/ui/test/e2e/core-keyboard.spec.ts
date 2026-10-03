@@ -720,7 +720,7 @@ test("WP-014 AC-8 the board cursor does not fire while a dialog is open", async 
   await focusBoardCursor(page);
   const before = await focusedSquare(page);
 
-  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   expect(await page.evaluate(() => document.activeElement?.getAttribute("role"))).not.toBe(
     "gridcell",

@@ -550,9 +550,37 @@ const [lastResolutionAction, setLastResolutionAction] = createSignal<{
   readonly state: StrategicFitFindingResolutionTransitionResult["state"];
   readonly message: string;
 } | null>(null);
+const [lastDecision, setLastDecision] = createSignal<{ document: string; semantic: string } | null>(
+  null,
+);
+export const canUndoLastResolution = () => {
+  const decision = lastDecision();
+  return (
+    decision?.document === documentId() &&
+    strategicFitLifecycle().status === "completed" &&
+    strategicFitFindingQueue
+      .snapshot()
+      .findings.some((finding) => finding.semantic_finding_id === decision.semantic)
+  );
+};
+export function undoLastResolution() {
+  if (!canUndoLastResolution()) return;
+  const queue = strategicFitFindingQueue.snapshot();
+  const finding = queue.findings.find(
+    (entry) => entry.semantic_finding_id === lastDecision()?.semantic,
+  );
+  if (!finding || !queue.report_id) return;
+  const result = reopenStrategicFitFinding({
+    report_id: queue.report_id,
+    finding_id: finding.finding_id,
+    semantic_finding_id: finding.semantic_finding_id,
+  });
+  if (result.state !== "blocked") setLastDecision(null);
+}
 export const strategicFitLastResolutionAction = lastResolutionAction;
 export const clearStrategicFitLastResolutionAction = () => {
   setLastResolutionAction(null);
+  setLastDecision(null);
 };
 
 const recordLastResolutionAction = (result: StrategicFitFindingResolutionTransitionResult) => {
@@ -562,6 +590,11 @@ const recordLastResolutionAction = (result: StrategicFitFindingResolutionTransit
 
 export const transitionStrategicFitFindingResolution = (
   input: StrategicFitFindingResolutionTransitionInput,
-) => recordLastResolutionAction(browserFindingResolutionState.transition(input));
+) => {
+  const result = recordLastResolutionAction(browserFindingResolutionState.transition(input));
+  if (result.state === "updated")
+    setLastDecision({ document: documentId(), semantic: input.semantic_finding_id });
+  return result;
+};
 export const reopenStrategicFitFinding = (input: StrategicFitFindingResolutionReopenInput) =>
   recordLastResolutionAction(browserFindingResolutionState.reopen(input));

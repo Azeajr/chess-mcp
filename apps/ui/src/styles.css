@@ -4355,6 +4355,11 @@ img,
 .strategic-fit-review-summary p {
   margin: 0.35rem 0;
 }
+.strategic-fit-review-summary button {
+  min-height: 44px;
+  background: var(--surface-control);
+  color: var(--text);
+}
 .strategic-fit-review-incomplete,
 .strategic-fit-review-feedback,
 .strategic-fit-review-provenance {
@@ -4452,6 +4457,7 @@ img,
 .strategic-fit-analysis-actions button.secondary {
   border-color: #69717d;
   background: #343840;
+  color: var(--text);
 }
 .strategic-fit-analysis-actions button:hover,
 .strategic-fit-analysis-actions button:focus-visible {
@@ -5513,7 +5519,9 @@ img,
   background: #223129;
   color: #d2ead9;
 }
-.strategic-fit-resolution-actions :is(button, select, textarea, .strategic-fit-resolution-choice) {
+.strategic-fit-resolution-actions
+  :is(button, select, textarea, summary, .strategic-fit-resolution-choice),
+.strategic-fit-resolution-feedback button {
   min-height: 44px;
 }
 
@@ -7931,7 +7939,7 @@ img,
 }
 .strategic-fit-assessment-all,
 .strategic-fit-assessment-clear button {
-  min-height: var(--control-height);
+  min-height: 44px;
   padding: 0.45rem 0.75rem;
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);

@@ -20,25 +20,18 @@ test("Save status is reachable by keyboard and describes browser storage separat
   page,
 }) => {
   await openApp(page, { width: 375, height: 629 });
-  const menu = page.getByRole("button", { name: "File", exact: true });
-  await menu.focus();
+  const status = page.getByRole("button", { name: "Save status", exact: true });
+  await status.focus();
   await page.keyboard.press("Enter");
-  const entry = page.getByRole("menuitem", { name: "Save status", exact: true });
-  await expect(page.getByRole("menuitem").first()).toBeFocused();
-  await page.keyboard.press("ArrowDown");
-  await expect(entry).toBeFocused();
-  await page.keyboard.press("Enter");
-  const dialog = page.getByRole("dialog", { name: "Save status" });
+  const dialog = page.locator("#document-save-status");
   await expect(dialog).toContainText("Stored in this browser");
   await expect(dialog).toContainText("No changes to export");
   await expect(dialog).toContainText("Use Save to export a PGN file");
   const minimum = await page.evaluate(() => (matchMedia("(pointer: coarse)").matches ? 44 : 24));
-  expect(
-    (await dialog.getByRole("button", { name: "Close save status" }).boundingBox())?.height,
-  ).toBeGreaterThanOrEqual(minimum);
+  expect((await status.boundingBox())?.height).toBeGreaterThanOrEqual(minimum);
   await page.keyboard.press("Escape");
-  await expect(dialog).toHaveCount(0);
-  await expect(menu).toBeFocused();
+  await expect(dialog).not.toBeVisible();
+  await expect(status).toBeFocused();
 });
 
 test("annotation expands its status, cancels, retries and downloads a branching copy", async ({

@@ -7,6 +7,9 @@ import { openFile } from "../store/files";
 import { mobileTab } from "../store/ui";
 import MoveButton, { MoveTreeItem } from "./primitives/MoveButton";
 import type { Path } from "@chess-mcp/chess-tools";
+import { canUndo, canRedo, undo, redo } from "../store/history";
+import { exploreMode, setExploreMode, discardExploration } from "../store/game";
+import Practice from "./Practice";
 
 const pathEq = (a: Path, b: Path) => a.length === b.length && a.every((v, i) => v === b[i]);
 const isPrefix = (prefix: Path, of: Path) =>
@@ -352,6 +355,42 @@ export default function MoveTree() {
 
   return (
     <div class="move-tree">
+      <div class="move-edit-actions">
+        <button
+          aria-pressed={exploreMode()}
+          onClick={() => {
+            discardExploration();
+            setExploreMode(!exploreMode());
+          }}
+        >
+          {exploreMode() ? "Explore on" : "Explore"}
+        </button>
+        <Practice />
+        <button disabled={!canUndo()} onClick={undo}>
+          Undo
+        </button>
+        <button disabled={!canRedo()} onClick={redo}>
+          Redo
+        </button>
+        <details>
+          <summary>Current move actions</summary>
+          <button
+            disabled={!currentPath().length}
+            onClick={() => actions.applyEdit("prune", currentTree().sanPathAt(currentPath()))}
+          >
+            Delete from here
+          </button>
+          <button
+            disabled={!currentPath().length || currentPath().at(-1) === 0}
+            onClick={() => {
+              const sans = currentTree().sanPathAt(currentPath());
+              actions.applyEdit("reorder", sans.slice(0, -1), { promoteMove: sans.at(-1) });
+            }}
+          >
+            Make mainline
+          </button>
+        </details>
+      </div>
       <div class="current-line" title="Current line" ref={currentLineElement}>
         <Show when={currentLine().length} fallback={<span class="moveno">Start position</span>}>
           <For each={currentLine()}>

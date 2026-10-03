@@ -45,6 +45,7 @@ export {
   passedPawns,
   searchStructures,
   STRUCTURE_NAMES,
+  resolveStructureName,
   THEME_NAMES,
 } from "./structure.js";
 export type { Themes, FitProfile, StructureQuery, StructureMatch, ThemeName } from "./structure.js";

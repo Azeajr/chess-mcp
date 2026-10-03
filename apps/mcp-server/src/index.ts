@@ -35,6 +35,7 @@ import {
   chesscomGames,
   searchStructures,
   STRUCTURE_NAMES,
+  resolveStructureName,
   annotateRepertoire,
   compareShortcutLines,
   checkShortcutCoverage,
@@ -500,6 +501,7 @@ server.registerTool(
     description: toolContract("find_repertoire_gaps").description,
     inputSchema: {
       repertoire_id: z.string(),
+      position_start: z.number().int().min(0).optional(),
       depth: z.number().int().min(1).max(30).optional(),
       min_severity: z.enum(["low", "medium", "high"]).optional(),
       max_positions: z.number().int().min(1).max(60).optional(),
@@ -512,6 +514,7 @@ server.registerTool(
     repertoire_id,
     depth,
     min_severity,
+    position_start,
     max_positions,
     limit,
     popularity,
@@ -527,6 +530,7 @@ server.registerTool(
         {
           depth,
           min_severity,
+          position_start,
           max_positions,
           limit,
         },
@@ -1312,7 +1316,7 @@ server.registerTool(
         error: "missing_criteria",
         reason: "provide at least one of structure/center/themes/color_complex",
       });
-    if (structure && !STRUCTURE_NAMES.some((n) => n.toLowerCase() === structure.toLowerCase()))
+    if (structure && !resolveStructureName(structure))
       return ok({
         error: "unknown_structure",
         reason: `structure must be one of: ${STRUCTURE_NAMES.join(", ")}`,

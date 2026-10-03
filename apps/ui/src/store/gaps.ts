@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
-import { type Severity, type Path } from "@chess-mcp/chess-tools";
+import type { GameTree, Severity, Path } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
+import { defaultBrowserCommandDependencies } from "../application/browser-commands/default-context";
 import { analysisDepth } from "./engine-settings";
 import {
   registerOperation,
@@ -10,6 +11,7 @@ import {
   type Operation,
 } from "./operations";
 import { assertTestOnly } from "./test-seam";
+import { currentTree, documentId, version, color } from "./game";
 
 export interface Gap {
   path: Path;
@@ -26,8 +28,8 @@ export interface CoveredGap {
 }
 
 const MAX_POSITIONS = 12;
-const MIN_SEVERITY: Severity = "medium";
-const LIMIT = 12;
+const MIN_SEVERITY: Severity = "low";
+const LIMIT = 50;
 
 /* The panel states this bound up front, the way the audit and only-move scans state their own. */
 export const GAP_SCAN_MAX_POSITIONS = MAX_POSITIONS;
@@ -44,11 +46,34 @@ export interface ScanScope {
   found: number;
 }
 
-const [gaps, setGaps] = createSignal<Gap[]>([]);
-const [covered, setCovered] = createSignal<CoveredGap[]>([]);
+const [rawGaps, setGaps] = createSignal<Gap[]>([]);
+const [rawCovered, setCovered] = createSignal<CoveredGap[]>([]);
+const [scanSource, setScanSource] = createSignal<{
+  document: string;
+  color: string;
+  revision: number;
+} | null>(null);
+let scanTree: GameTree | null = null;
+const sameSource = () =>
+  scanSource() === null ||
+  (scanSource()?.document === documentId() && scanSource()?.color === color());
+const gaps = () =>
+  sameSource()
+    ? rawGaps().flatMap((gap) => {
+        const path = currentTree().indexPathOfSan(gap.sanPath);
+        if (!path || currentTree().indexPathOfSan([...gap.sanPath, gap.uncoveredMove])) return [];
+        return [{ ...gap, path }];
+      })
+    : [];
+const covered = () =>
+  sameSource() && (!scanSource() || scanSource()?.revision === version()) ? rawCovered() : [];
 const [scanError, setScanError] = createSignal<string | null>(null);
-const [scanCompleted, setScanCompleted] = createSignal(false);
-const [scanScope, setScanScope] = createSignal<ScanScope | null>(null);
+const [rawScanCompleted, setScanCompleted] = createSignal(false);
+const [rawScanScope, setScanScope] = createSignal<ScanScope | null>(null);
+const scanCompleted = () => sameSource() && rawScanCompleted();
+const scanScope = () => (sameSource() ? rawScanScope() : null);
+export const gapsStale = () =>
+  scanCompleted() && scanSource() !== null && scanSource()?.revision !== version();
 export { gaps, covered, scanError, scanCompleted, scanScope };
 
 export function setScanErrorForTesting(message: string) {
@@ -85,16 +110,31 @@ export interface FillOption {
   fit: number;
 }
 export interface GapFill {
+  document: string;
+  revision: number;
+  color: string;
   bestEval: FillOption;
   bestFit: FillOption | null;
 }
 type FillState = "loading" | { error: string } | GapFill;
 
 export function gapKey(g: Gap): string {
-  return `${g.path.join(",")}|${g.uncoveredMove}`;
+  return `${g.sanPath.join(" ")}|${g.uncoveredMove}`;
 }
 
-const [fills, setFills] = createSignal<Record<string, FillState>>({});
+const [rawFills, setFills] = createSignal<Record<string, FillState>>({});
+const fills = () =>
+  Object.fromEntries(
+    Object.entries(rawFills()).filter(
+      ([, fill]) =>
+        sameSource() &&
+        (typeof fill === "string" ||
+          "error" in fill ||
+          (fill.document === documentId() &&
+            fill.revision === version() &&
+            fill.color === color())),
+    ),
+  );
 export { fills };
 
 let fillGen = 0;
@@ -103,6 +143,7 @@ export async function fillGap(g: Gap) {
   const key = gapKey(g);
   if (fills()[key] === "loading") return;
   const gen = fillGen;
+  const source = { document: documentId(), revision: version(), color: color() };
   setFills((p) => ({ ...p, [key]: "loading" }));
 
   try {
@@ -143,7 +184,17 @@ export async function fillGap(g: Gap) {
     const bestEval = toOption(bestEvalOption);
     const fit = res.options.find((option) => option.kind === "best_fit");
     const bestFit = fit ? toOption(fit) : null;
-    setFills((p) => ({ ...p, [key]: { bestEval, bestFit } }));
+    if (
+      source.document !== documentId() ||
+      source.revision !== version() ||
+      source.color !== color()
+    ) {
+      setFills((p) => ({ ...p, [key]: { error: "Repertoire changed. Choose fill again." } }));
+      return;
+    }
+    const fill = { ...source, bestEval, bestFit };
+    setFills((p) => ({ ...p, [key]: fill }));
+    return fill;
   } catch (e) {
     if (gen !== fillGen) return;
     setFills((p) => ({ ...p, [key]: { error: e instanceof Error ? e.message : String(e) } }));
@@ -162,14 +213,26 @@ export function cancelScan() {
   }
 }
 
-export async function scanGaps() {
+export async function scanGaps(continueScan = false) {
+  // Continue the original immutable sweep even after accepting a fill. New positions require a
+  // fresh scan; existing rows are re-resolved and answered replies hidden against the live tree.
+  const start = continueScan && sameSource() ? (scanScope()?.scanned ?? 0) : 0;
+  const previousGaps = start ? rawGaps() : [];
+  const previousCovered = start ? rawCovered() : [];
+  if (!start || !scanTree) {
+    scanTree = currentTree().clone();
+    setScanSource({ document: documentId(), color: color(), revision: version() });
+  }
+  const snapshot = scanTree;
+  const source = { document: documentId(), revision: version(), color: color() };
   cancelScan();
   const controller = new AbortController();
   scanController = controller;
 
   setScanError(null);
-  setGaps([]);
-  setCovered([]);
+  setGaps(previousGaps);
+  setCovered(previousCovered);
+  setScanCompleted(false);
   setScanScope(null);
   setFills({});
   fillGen++;
@@ -190,6 +253,7 @@ export async function scanGaps() {
       {
         depth: analysisDepth(),
         min_severity: MIN_SEVERITY,
+        position_start: start,
         max_positions: MAX_POSITIONS,
         limit: LIMIT,
       },
@@ -200,6 +264,7 @@ export async function scanGaps() {
             updateOperation(scanOperationId, { done, total: total ?? 0 });
         },
       },
+      { ...defaultBrowserCommandDependencies, currentTree: () => snapshot },
     )) as {
       error?: string;
       positions_scanned?: number;
@@ -216,18 +281,27 @@ export async function scanGaps() {
       covered_by_transposition?: { path: Path; uncovered_move: string; joins_path: string[] }[];
     };
     if (scanController !== controller || controller.signal.aborted) return;
+    if (
+      source.document !== documentId() ||
+      source.revision !== version() ||
+      source.color !== color()
+    ) {
+      setScanError("Repertoire changed during scan. Scan again.");
+      return;
+    }
     if (res.error) {
       setScanError(res.error === "engine_unavailable" ? "engine offline" : res.error);
       return;
     }
     setScanCompleted(true);
     setScanScope({
-      scanned: res.positions_scanned ?? 0,
+      scanned: start + (res.positions_scanned ?? 0),
       available: res.positions_available ?? 0,
-      found: res.gaps_found ?? res.gaps?.length ?? 0,
+      found: previousGaps.length + (res.gaps_found ?? res.gaps?.length ?? 0),
     });
-    setGaps(
-      (res.gaps ?? []).map((gap) => ({
+    setGaps([
+      ...previousGaps,
+      ...(res.gaps ?? []).map((gap) => ({
         path: gap.path,
         sanPath: gap.san_path,
         uncoveredMove: gap.uncovered_move,
@@ -235,14 +309,15 @@ export async function scanGaps() {
         mate: gap.mate,
         severity: gap.severity,
       })),
-    );
-    setCovered(
-      (res.covered_by_transposition ?? []).map((gap) => ({
+    ]);
+    setCovered([
+      ...previousCovered,
+      ...(res.covered_by_transposition ?? []).map((gap) => ({
         path: gap.path,
         uncoveredMove: gap.uncovered_move,
         joinsPath: gap.joins_path,
       })),
-    );
+    ]);
   } catch (error) {
     if (scanController === controller && !controller.signal.aborted)
       setScanError(error instanceof Error ? error.message : String(error));

@@ -1,11 +1,11 @@
 import { Show, createEffect, createMemo } from "solid-js";
-import { Portal } from "solid-js/web";
+
 import { changesSinceExport, dirty, fileName, version } from "../store/game";
 import { announce } from "../store/announce";
 import { lastAutosaveAt } from "../store/persist";
-import { documentStatusOpen, setDocumentStatusOpen } from "../store/ui";
-import Dialog from "./primitives/Dialog";
+
 import Button from "./primitives/Button";
+import { saveFile, fileSaveLabel } from "../store/files";
 
 const changeWord = (count: number) => (count === 1 ? "change" : "changes");
 
@@ -70,7 +70,13 @@ export default function DocumentStatus() {
   return (
     <>
       <Show when={hasStatus()}>
-        <div class="document-status" data-document-status={state()} title={detail()}>
+        <button
+          class="document-status"
+          data-document-status={state()}
+          title={detail()}
+          aria-label="Save status"
+          popovertarget="document-save-status"
+        >
           <span class="document-status-dot" aria-hidden="true" />
           <span class="document-status-text">{text()}</span>
           {/* Kept as a hidden value so the autosave clock stays machine-readable without spending
@@ -82,20 +88,18 @@ export default function DocumentStatus() {
               </span>
             )}
           </Show>
-        </div>
+        </button>
       </Show>
-      <Show when={documentStatusOpen()}>
-        <Portal>
-          <Dialog title="Save status" size="compact" onClose={() => setDocumentStatusOpen(false)}>
-            <p>{detail()}</p>
-            <p>
-              Browser storage keeps your working copy on this device. Use Save to export a PGN file
-              you can keep elsewhere.
-            </p>
-            <Button onClick={() => setDocumentStatusOpen(false)}>Close save status</Button>
-          </Dialog>
-        </Portal>
-      </Show>
+      <div id="document-save-status" popover="auto" class="document-save-popover">
+        <p>{detail()}</p>
+        <p>
+          Browser storage keeps your working copy on this device. Use Save to export a PGN file you
+          can keep elsewhere.
+        </p>
+        <Show when={dirty()}>
+          <Button onClick={() => void saveFile()}>{fileSaveLabel()}</Button>
+        </Show>
+      </div>
     </>
   );
 }

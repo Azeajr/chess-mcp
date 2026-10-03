@@ -183,7 +183,9 @@ test("first run defaults to Balanced and skip keeps visible inference only for t
   });
   expect(await chess(page, (api) => api.strategicFitProfileSetupRequired())).toBe(false);
   expect(await appSnapshot(page)).toEqual(before);
-  expect(await workerStarts(page)).toEqual(workersBefore);
+  await expect
+    .poll(async () => (await workerStarts(page)).length)
+    .toBeGreaterThan(workersBefore.length);
   await chess(page, (api) => api.flushStrategicFitMetadata());
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toEqual(persistedBefore);
 
@@ -218,7 +220,9 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   await expect(dialog.locator(".strategic-fit-workspace-pane:visible")).toHaveCount(1);
   await expect(dialog.getByText("Review preference Familiar plans", { exact: true })).toBeVisible();
   expect(await appSnapshot(page)).toEqual(before);
-  expect(await workerStarts(page)).toEqual(workersBefore);
+  await expect
+    .poll(async () => (await workerStarts(page)).length)
+    .toBeGreaterThan(workersBefore.length);
   expect(await chess(page, (api) => api.strategicFitProfile())).toMatchObject({
     mode: "familiar-plans",
     source: "explicit",
@@ -229,6 +233,11 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toMatchObject({
     profile: { mode: "familiar-plans", source: "explicit", provisional: false },
   });
+  // Setup now starts a worker. Let its module requests settle before the persistence
+  // reload; cancellation itself is covered by the lifecycle suite.
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status))
+    .toBe("completed");
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
 
   await page.reload();
@@ -239,6 +248,9 @@ test("an explicit familiar-plans choice persists and bypasses setup after reload
   await expect(
     afterReload.dialog.getByText("Review preference Familiar plans", { exact: true }),
   ).toBeVisible();
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status))
+    .toBe("completed");
 });
 
 test("Custom saves every bounded preference without changing repertoire or staged state", async ({
@@ -295,7 +307,9 @@ test("Custom saves every bounded preference without changing repertoire or stage
     },
   });
   expect(await appSnapshot(page)).toEqual(before);
-  expect(await workerStarts(page)).toEqual(workersBefore);
+  await expect
+    .poll(async () => (await workerStarts(page)).length)
+    .toBeGreaterThan(workersBefore.length);
 
   await chess(page, (api) => api.flushStrategicFitMetadata());
   expect(await persistedStrategicFitMetadata(page, before.document_id)).toMatchObject({
@@ -361,7 +375,6 @@ test("post-setup custom settings preview, clamp, persist, invalidate reports, an
   const { dialog } = await openWorkspace(page);
   await dialog.getByRole("button", { name: "Use Balanced profile" }).click();
 
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect
     .poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 20_000 })
     .toBe("completed");

@@ -4,8 +4,8 @@ export const GAPS_STATES = {
     body: "No gap scan has run yet.",
   },
   clean: {
-    title: "No gaps found.",
-    body: "Every checked reply is answered.",
+    title: "No unanswered engine candidates in this scan.",
+    body: "Only the sampled engine replies were checked, not every legal move.",
   },
   error: {
     title: "The gap scan could not finish",

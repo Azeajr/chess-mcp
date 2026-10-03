@@ -47,12 +47,11 @@ async function expectFocusRing(locator: Locator) {
 
 test("WP-006 AC-1 gives keyboard focus a global two-pixel accent ring", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });
-  const analysisSettings = page.locator(".analysis-settings");
   const samples = [
     page.getByRole("button", { name: "Open PGN" }),
-    page.getByRole("button", { name: "Save", exact: true }),
+    page.locator(".save-button"),
     page.locator(".topbar select"),
-    analysisSettings.locator("summary"),
+    page.getByRole("button", { name: "Engine settings", exact: true }),
     page.locator(".rep-section > summary").first(),
     page.locator(".rep-panel .scan-btn").first(),
     page.locator(".chat-mode"),
@@ -293,6 +292,10 @@ test("WP-006 AC-6 touch-emulated board dragging remains enabled without callouts
         },
       ],
     });
+    // Chessground consumes drag positions on animation frames, as real touch input does.
+    await touchPage.evaluate(
+      () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
   }
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await expect.poll(() => chess(touchPage, (api) => api.currentPath())).toEqual([0]);

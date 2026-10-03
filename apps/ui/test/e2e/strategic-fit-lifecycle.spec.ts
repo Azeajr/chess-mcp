@@ -161,7 +161,7 @@ const workerStarts = (page: Page) =>
   ]);
 
 test(
-  "opening workspace and completing setup remain idle until the explicit Analyze action",
+  "completing setup automatically starts a read-only assessment",
   { tag: "@smoke" },
   async ({ page }) => {
     await bootstrap(page);
@@ -171,15 +171,11 @@ test(
     const dialog = await openWorkspace(page);
 
     await dialog.getByRole("button", { name: "Skip for now" }).click();
-    await expect(dialog.getByRole("button", { name: "Analyze strategic fit" })).toBeVisible();
-    expect(await chess(page, (api) => api.strategicFitLifecycle().status)).toBe("idle");
-    expect(await workerStarts(page)).toEqual([]);
-    expect(await appSnapshot(page)).toEqual(before);
-
-    await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
     await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
       timeout: 15_000,
     });
+    expect(await appSnapshot(page)).toEqual(before);
+    expect((await workerStarts(page)).length).toBeGreaterThan(0);
     const beforeProfile = await chess(
       page,
       (api) => api.strategicFitLifecycle().current_result?.report_id,
@@ -211,7 +207,6 @@ test("real canonical analysis stays current through navigation and refreshes pro
   const before = await appSnapshot(page);
   const dialog = await openWorkspace(page);
 
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });
@@ -287,7 +282,6 @@ test("cancelling an active canonical command aborts its Worker and retains the l
   await bootstrap(page, "stall-second");
   await loadExplicitProfile(page);
   const dialog = await openWorkspace(page);
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });
@@ -338,7 +332,6 @@ test("worker failure is explicit and retry executes a fresh current-color snapsh
   await loadExplicitProfile(page);
   const dialog = await openWorkspace(page);
 
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='failed']")).toBeVisible();
   await expect(dialog.getByRole("alert")).toContainText("Synthetic worker failure");
   expect(await chess(page, (api) => api.strategicFitLifecycle().current_result)).toBeNull();
@@ -370,7 +363,6 @@ test("offline opening data completes as native degraded evidence rather than a f
   await loadExplicitProfile(page);
   const dialog = await openWorkspace(page);
 
-  await dialog.getByRole("button", { name: "Analyze strategic fit" }).click();
   await expect(dialog.locator("[data-analysis-state='completed']")).toBeVisible({
     timeout: 15_000,
   });

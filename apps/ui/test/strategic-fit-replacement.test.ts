@@ -477,11 +477,10 @@ test("open, pivot confirmation, source/depth controls, and close preserve the re
   const subject = stateFixture();
   const originalPgn = subject.snapshot.repertoire_pgn;
   assert.equal(subject.state.open(subject.completed, subject.currentFinding), true);
-  assert.equal(subject.state.snapshot().status, "pivot-ready");
+  assert.equal(subject.state.snapshot().status, "ready");
   assert.equal(subject.state.snapshot().selected_pivot_decision_id, "decision:pivot");
-  assert.equal(subject.state.snapshot().pivot_confirmed, false);
+  assert.equal(subject.state.snapshot().pivot_confirmed, true);
   assert.equal(subject.state.snapshot().identity?.repertoire_color, "black");
-  assert.equal(subject.state.confirmPivot(), true);
   assert.equal(subject.state.snapshot().status, "ready");
   assert.equal(subject.state.setSource("opening-database", false), true);
   assert.equal(subject.state.snapshot().controls.sources.includes("opening-database"), false);

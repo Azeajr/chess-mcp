@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { actions } from "../src/store/game.ts";
 
 import {
   cancelDocumentClose,
@@ -10,6 +11,8 @@ import {
 
 test("document-close resume runs at most once", async () => {
   cancelDocumentClose();
+  actions.newGame();
+  actions.play("e2", "e4");
   let resumes = 0;
 
   requestDocumentClose("new", () => {
@@ -22,6 +25,17 @@ test("document-close resume runs at most once", async () => {
   const second = continueDocumentClose();
   await Promise.all([first, second]);
 
+  assert.equal(resumes, 1);
+  assert.equal(pendingDocumentClose(), null);
+});
+
+test("clean document replacement resumes immediately without a modal", () => {
+  cancelDocumentClose();
+  actions.newGame();
+  let resumes = 0;
+  requestDocumentClose("open", () => {
+    resumes++;
+  });
   assert.equal(resumes, 1);
   assert.equal(pendingDocumentClose(), null);
 });
