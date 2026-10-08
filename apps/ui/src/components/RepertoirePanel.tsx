@@ -426,6 +426,35 @@ export default function RepertoirePanel() {
     ];
   };
   let stagedFillRow: HTMLElement | undefined;
+  /*
+    Extend here, Connect and Shorten stage into the card at the top of the panel, far above the
+    row that was pressed. Focus stayed on that row — off-screen once the card scrolled into view —
+    and tabbing forward never reached Accept line, which sits earlier in the document. Then Accept
+    line and Cancel removed the card and dropped focus to <body>. Move focus to the card when one
+    of these rows stages it, and back to the row (or its section) when the card goes. Previews
+    staged elsewhere (chat, Analysis) keep their own focus.
+  */
+  let staged: { id: string; origin: HTMLElement; summary: HTMLElement | null } | null = null;
+  let panel!: HTMLDivElement;
+  const stageFromRow = (origin: HTMLElement, stage: () => void) => {
+    const before = preview()?.id;
+    stage();
+    const id = preview()?.id;
+    if (!id || id === before) return;
+    staged = { id, origin, summary: origin.closest("details")?.querySelector("summary") ?? null };
+    queueMicrotask(() => {
+      panel.querySelector<HTMLElement>(":scope > .rep-preview .accept")?.focus();
+    });
+  };
+  const leaveStagedCard = (id: string, done: () => void) => {
+    const from = staged?.id === id ? staged : null;
+    staged = null;
+    done();
+    recoverFocus(
+      () => from?.origin,
+      () => from?.summary,
+    );
+  };
   const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
     <InteractiveRow
       class="indent fill-row"
@@ -444,7 +473,7 @@ export default function RepertoirePanel() {
   );
 
   return (
-    <div class="rep-panel">
+    <div class="rep-panel" ref={panel}>
       <PanelHeader title="Repertoire" />
       <div class="scope-note">Engine-backed operations use depth {analysisDepth()}.</div>
       <section class="strategic-fit-entry" aria-labelledby="strategic-fit-entry-title">
@@ -488,10 +517,20 @@ export default function RepertoirePanel() {
             <div class="rep-preview-label">Staged line</div>
             <div class="rep-preview-line">{numbered(active().sans, active().fromPath.length)}</div>
             <div class="rep-preview-actions">
-              <button class="accept" onClick={acceptPreview}>
+              <button
+                class="accept"
+                onClick={() => {
+                  leaveStagedCard(active().id, acceptPreview);
+                }}
+              >
                 Accept line
               </button>
-              <button class="reject" onClick={clearPreview}>
+              <button
+                class="reject"
+                onClick={() => {
+                  leaveStagedCard(active().id, clearPreview);
+                }}
+              >
                 Cancel
               </button>
             </div>
@@ -642,7 +681,7 @@ export default function RepertoirePanel() {
                   navSan(match.path as string[]);
                 }}
               >
-                <span class="san">{(match.path as string[]).join(" ")}</span>
+                <span class="san">{numbered(match.path as string[])}</span>
                 {/*
                   `StructureMatch` names this field `structure_class`; reading `structure` made
                   every row print the string "undefined" next to a correct line, with no console
@@ -1067,8 +1106,10 @@ export default function RepertoirePanel() {
             {(b: ExtendedBridge) => (
               <InteractiveRow
                 current={currentAtSan(b.fromPath)}
-                onClick={() => {
-                  onExtBridge(b);
+                onClick={(event) => {
+                  stageFromRow(event.currentTarget, () => {
+                    onExtBridge(b);
+                  });
                 }}
                 title={`${b.fromPath.join(" ")} → ${b.moves.join(" ")}  joins  ${b.joinsPath.join(" ")}`}
               >
@@ -1133,8 +1174,10 @@ export default function RepertoirePanel() {
                 <div class="rep-row-action">
                   <InteractiveRow
                     current={currentAtSan(p.atPath)}
-                    onClick={() => {
-                      onPrune(p);
+                    onClick={(event) => {
+                      stageFromRow(event.currentTarget, () => {
+                        onPrune(p);
+                      });
                     }}
                     title={`${p.linePath.join(" ")}\n@ ${p.atPath.join(" ") || "start"} play ${p.rerouteMove} → joins ${p.joinsPath.join(" ")} (save ${p.savedPlies} ply${centipawnDelta(p.evalDelta)})${p.bestSavings ? "\n★ most moves saved on this line" : ""}${p.bestEval ? `\n★ best eval on this line${p.evalConfirmed ? " (deep-confirmed)" : ""}` : ""}`}
                   >
@@ -1336,9 +1379,11 @@ export default function RepertoirePanel() {
             {(m) => (
               <>
                 <InteractiveRow
-                  onClick={() => {
+                  onClick={(event) => {
                     setInlineGap(null);
-                    stagePreviewLine(currentPath(), [m.move]);
+                    stageFromRow(event.currentTarget, () => {
+                      stagePreviewLine(currentPath(), [m.move]);
+                    });
                   }}
                   title={m.pv}
                 >
