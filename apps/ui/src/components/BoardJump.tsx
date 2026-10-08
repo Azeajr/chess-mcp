@@ -13,7 +13,11 @@ const VISIBLE_SHARE = 0.25;
 const EDGE_GAP = 8;
 
 type Mode = "show" | "back";
-type Placement = { left: number; top?: number; bottom?: number };
+interface Placement {
+  left: number;
+  top?: number;
+  bottom?: number;
+}
 
 const stage = () => document.querySelector<HTMLElement>(".board-stage");
 
