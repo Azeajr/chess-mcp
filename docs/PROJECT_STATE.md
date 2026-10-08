@@ -89,7 +89,8 @@ human. The pieces, from cheapest to most expensive:
   Command: `SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs`.
 - Engine-free, deterministic domain drivers: `node scripts/smoke-gametree.mjs`,
   `node scripts/structure-accuracy.mjs`.
-- Claude Code plugin surface: `plugin/` with skills synchronized from `.claude/skills/`
+- Claude Code plugin surface: `plugin/` with skills synchronized from `.claude/skills/` (less the
+  `web-harness` and `ux-review` development skills)
   (`pnpm sync:skills`). The repo's own skills (`analyze-position`, `annotate-pgn`,
   `chess-game-review`, `repertoire-builder`) exercise the MCP tools end to end when the plugin is
   installed — useful for a qualitative agent-level check, but not scripted.
@@ -247,7 +248,8 @@ its evidence.
    discipline):
    - `docs/TOOL_CATALOG.md` generated from `packages/chess-tools/src/tool-contract.ts` —
      `pnpm docs:generate`; guarded by `pnpm docs:check`.
-   - `plugin/skills/` copy of `.claude/skills/`, and generated guidance from
+   - `plugin/skills/` copy of `.claude/skills/` without the `web-harness` and `ux-review`
+     development skills, and generated guidance from
      `packages/chess-tools/src/workflow-contract.ts` — `pnpm sync:skills`; guarded by
      `pnpm check:skills` (`rm -rf plugin/skills && cp -r` — any file added only under
      `plugin/skills/` is silently deleted).
