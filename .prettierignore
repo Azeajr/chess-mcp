@@ -5,3 +5,4 @@ apps/ui/test/fixtures/ux-review/*-provider.js
 # Installed verbatim by `web-harness skill install`; a reinstall after each bump would undo any
 # reformatting, so the formatter leaves it alone.
 .agents/skills/web-harness/
+.claude/skills/web-harness/

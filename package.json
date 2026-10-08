@@ -27,13 +27,13 @@
     "verify:openrouter": "node --import tsx scripts/openrouter-tool-surface-eval.mjs",
     "docs:generate": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs",
     "docs:check": "pnpm --filter @chess-mcp/chess-tools build && node scripts/tool-catalog.mjs --check && node scripts/docs-consistency.mjs",
-    "sync:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs && rm -rf plugin/skills && cp -r .claude/skills plugin/skills",
-    "check:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs --check && diff -r .claude/skills plugin/skills",
+    "sync:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs && rm -rf plugin/skills && cp -r .claude/skills plugin/skills && rm -rf plugin/skills/web-harness plugin/skills/ux-review",
+    "check:skills": "pnpm --filter @chess-mcp/chess-tools build && node scripts/workflow-guidance.mjs --check && diff -r -x web-harness -x ux-review .claude/skills plugin/skills",
     "harness": "web-harness",
     "smoke": "web-harness smoke"
   },
   "devDependencies": {
-    "@azeajr/web-harness": "github:Azeajr/web-harness#v0.2.2",
+    "@azeajr/web-harness": "github:Azeajr/web-harness#v0.2.3",
     "@eslint/js": "^9.39.5",
     "eslint": "^9.39.5",
     "eslint-plugin-solid": "^0.14.5",
