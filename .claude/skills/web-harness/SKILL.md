@@ -2,7 +2,7 @@
 name: web-harness
 description: Drive, inspect and verify this project's web app with web-harness — owned browser sessions in Docker, batched journeys, failure bundles, production smoke, container E2E and scenario reports. Use when reproducing a UI bug, checking that a change works in a real browser, reviewing a layout, or proving a fix before a PR.
 ---
-<!-- web-harness 0.2.3: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
+<!-- web-harness 0.2.4: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
 
 # web-harness
 
@@ -17,6 +17,9 @@ print JSON. The full guide is `node_modules/@azeajr/web-harness/docs/HARNESS.md`
 2. `free -h`, then `pnpm exec web-harness doctor` — Docker, the pinned image, the port, the memory
    budget, version drift and whether evidence is git-ignored. Fix what it reports first.
 3. Read the project's own skills and `CLAUDE.md`/`AGENTS.md` for app-specific journeys.
+
+`pnpm exec web-harness <command> --help` prints that command's usage and runs nothing; read it
+rather than guessing flags.
 
 ## The loop
 
