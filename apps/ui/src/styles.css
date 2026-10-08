@@ -838,6 +838,30 @@ img,
   height: 100%;
 }
 
+/* Chessground's stock coordinates sit at fixed pixel offsets (files 24px right, ranks 20px up)
+   that only line up on squares wider than about 48px. On a phone's 40px squares every file letter
+   landed on the next square, H fell off the board and the 8 was clipped. Anchor each label inside
+   its own square instead: ranks at the top-left of the a-file, files at the bottom-right of rank 1.
+   A zero flex basis keeps every label's box exactly one square; the stock `auto` basis sized each
+   from its glyph, so a wide G pushed its box past the edge of its square. */
+.cg-wrap coords.ranks {
+  top: 0;
+  left: 2px;
+}
+.cg-wrap coords.ranks coord {
+  flex: 1 1 0;
+  transform: none;
+}
+.cg-wrap coords.files {
+  bottom: 0;
+  left: 0;
+  text-align: right;
+}
+.cg-wrap coords.files coord {
+  flex: 1 1 0;
+  padding-right: 2px;
+}
+
 .board-keyboard-layer {
   position: absolute;
   inset: 0;
