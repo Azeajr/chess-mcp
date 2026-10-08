@@ -269,3 +269,55 @@ test("structure matches name the structure instead of printing undefined", async
   await expect(structures.locator(".fit")).toHaveText("carlsbad");
   await expect(structures).not.toContainText("undefined");
 });
+
+test("filling a gap from the keyboard keeps focus in the gap list", async ({ page }) => {
+  await openApp(page, PHONE);
+  await page.getByRole("button", { name: "Engine settings", exact: true }).click();
+  await page.getByRole("spinbutton", { name: "Analysis depth" }).fill("1");
+  await page.getByRole("button", { name: "Close settings" }).click();
+
+  // Choose fill… and Add best fill disable themselves while they load, and Cancel, Accept line
+  // and Add best fill remove the button that was pressed. Each dropped focus to <body>, so one
+  // fill sent a keyboard user back to the top of the page three times.
+  const gaps = section(page, "Gaps").first();
+  await gaps.getByRole("button", { name: "Scan", exact: true }).click();
+  await expect(gaps.getByRole("button", { name: "Scan next 12" })).toBeVisible({ timeout: 20_000 });
+
+  const flags = gaps.locator(".rep-flag");
+  expect(await flags.count(), "the scan found gaps to fill").toBeGreaterThanOrEqual(3);
+  const keyAt = (index: number) => flags.nth(index).getAttribute("data-gap");
+  const gapRow = (key: string | null) =>
+    gaps.locator(`.rep-flag[data-gap="${key}"] > .rep-row`).first();
+  const [firstKey, secondKey, thirdKey] = [await keyAt(0), await keyAt(1), await keyAt(2)];
+  const first = gaps.locator(`.rep-flag[data-gap="${firstKey}"]`);
+
+  await first.getByRole("button", { name: "Choose fill…" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(first.locator(".fill-row").first(), "choices take focus once loaded").toBeFocused({
+    timeout: 20_000,
+  });
+
+  await page.keyboard.press("Enter");
+  await first.getByRole("button", { name: "Cancel" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(first.locator(".rep-preview")).toHaveCount(0);
+  await expect(
+    first.locator(".fill-row").first(),
+    "Cancel returns to the staged choice",
+  ).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await first.getByRole("button", { name: "Accept line" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(first).toHaveCount(0);
+  await expect(gapRow(secondKey), "Accept continues at the next gap").toBeFocused();
+
+  await gaps
+    .locator(`.rep-flag[data-gap="${secondKey}"]`)
+    .getByRole("button", { name: "Add best fill" })
+    .focus();
+  await page.keyboard.press("Enter");
+  await expect(gapRow(thirdKey), "Add best fill continues at the next gap").toBeFocused({
+    timeout: 20_000,
+  });
+});

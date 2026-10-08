@@ -308,6 +308,20 @@ export default defineHarness({
       ],
     },
     {
+      id: "gap-fill",
+      title: "A gap fill stages, rejects and accepts in place without losing keyboard focus",
+      covers: [
+        {
+          file: "apps/ui/test/e2e/workflow-efficiency.spec.ts",
+          test: "F5/F24/F25 White gaps retain playable replies, accept in place, and continue the original sweep",
+        },
+        {
+          file: "apps/ui/test/e2e/repertoire-journey.spec.ts",
+          test: "filling a gap from the keyboard keeps focus in the gap list",
+        },
+      ],
+    },
+    {
       id: "strategic-fit-resolution",
       title: "A recorded Strategic Fit resolution holds",
       covers: [

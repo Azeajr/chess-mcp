@@ -372,11 +372,53 @@ export default function RepertoirePanel() {
       return "";
     }
   };
+  /*
+    Every control in a gap's fill flow takes itself out from under the keyboard: Choose fill… and
+    Add best fill disable themselves while they load, and Cancel, Accept line and a successful Add
+    best fill remove the element that was pressed. WebKit then drops focus to <body>, so one fill
+    sent a keyboard or screen-reader user back to the top of the page three times. Once the DOM
+    settles, focus the first target still present and enabled, unless something else took focus.
+  */
+  const recoverFocus = (...targets: (() => Element | null | undefined)[]) => {
+    queueMicrotask(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      for (const target of targets) {
+        const element = target();
+        if (
+          element instanceof HTMLElement &&
+          element.isConnected &&
+          !element.matches(":disabled")
+        ) {
+          element.focus();
+          return;
+        }
+      }
+    });
+  };
+  // A filled gap leaves the list with its controls, so focus continues at a neighbouring gap.
+  // The edit re-renders every row, so name the neighbours by gap key before the gap is removed
+  // and look them up again afterwards.
+  const afterFilledGap = (flag: HTMLElement) => {
+    const section = flag.closest("details");
+    const neighbours = [flag.nextElementSibling, flag.previousElementSibling]
+      .map((element) => element?.getAttribute("data-gap"))
+      .filter((key): key is string => key != null);
+    return [
+      ...neighbours.map(
+        (key) => () =>
+          section?.querySelector(`.rep-flag[data-gap="${CSS.escape(key)}"] > .rep-row`),
+      ),
+      () => section?.querySelector("summary"),
+    ];
+  };
+  let stagedFillRow: HTMLElement | undefined;
   const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
     <InteractiveRow
       class="indent fill-row"
       current={currentAt(props.g.path)}
-      onClick={() => {
+      onClick={(event) => {
+        stagedFillRow = event.currentTarget;
         onFill(props.g, props.opt);
       }}
     >
@@ -829,8 +871,9 @@ export default function RepertoirePanel() {
                 const value = gapState();
                 return typeof value === "object" && "error" in value ? value.error : null;
               };
+              let flag!: HTMLDivElement;
               return (
-                <div class="rep-flag">
+                <div class="rep-flag" data-gap={gapKey(g)} ref={flag}>
                   <InteractiveRow
                     current={currentAt(g.path)}
                     onClick={() => {
@@ -847,8 +890,14 @@ export default function RepertoirePanel() {
                   <button
                     class="fix-btn fill-btn"
                     disabled={gapState() === "loading"}
-                    onClick={() => {
-                      void fillGap(g);
+                    onClick={(event) => {
+                      const chooseFill = event.currentTarget;
+                      void fillGap(g).finally(() => {
+                        recoverFocus(
+                          () => flag.querySelector(".fill-row"),
+                          () => chooseFill,
+                        );
+                      });
                     }}
                   >
                     Choose fill…
@@ -856,17 +905,23 @@ export default function RepertoirePanel() {
                   <button
                     class="fix-btn"
                     disabled={gapState() === "loading"}
-                    onClick={() => {
-                      void fillGap(g).then((fill) => {
-                        if (fill?.document !== documentId() || fill.color !== color()) return;
-                        actions.applyEdit(
-                          "add",
-                          g.sanPath,
-                          { addMoves: fill.bestEval.line },
-                          fill.revision,
-                        );
-                        setInlineGap(null);
-                      });
+                    onClick={(event) => {
+                      const addBest = event.currentTarget;
+                      const targets = [() => addBest, ...afterFilledGap(flag)];
+                      void fillGap(g)
+                        .then((fill) => {
+                          if (fill?.document !== documentId() || fill.color !== color()) return;
+                          actions.applyEdit(
+                            "add",
+                            g.sanPath,
+                            { addMoves: fill.bestEval.line },
+                            fill.revision,
+                          );
+                          setInlineGap(null);
+                        })
+                        .finally(() => {
+                          recoverFocus(...targets);
+                        });
                     }}
                   >
                     Add best fill
@@ -877,8 +932,10 @@ export default function RepertoirePanel() {
                         <p>{numbered(active().sans, active().fromPath.length)}</p>
                         <button
                           onClick={() => {
+                            const targets = [() => stagedFillRow, ...afterFilledGap(flag)];
                             acceptPreview();
                             setInlineGap(null);
+                            recoverFocus(...targets);
                           }}
                         >
                           Accept line
@@ -887,6 +944,10 @@ export default function RepertoirePanel() {
                           onClick={() => {
                             clearPreview();
                             setInlineGap(null);
+                            recoverFocus(
+                              () => stagedFillRow,
+                              () => flag.querySelector(".fill-row"),
+                            );
                           }}
                         >
                           Cancel
