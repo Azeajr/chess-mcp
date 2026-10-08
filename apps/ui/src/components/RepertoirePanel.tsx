@@ -159,6 +159,19 @@ export default function RepertoirePanel() {
       ...(reachedPrep ? [reachedPrep] : []),
     ].join(" · ");
   };
+  // A search with no matches rendered "0 results" in the summary and an empty body, so it never
+  // said which structure was looked for or how much of the repertoire was searched.
+  const structureEmpty = (): string | null => {
+    const entry = state("find_structures");
+    if (entry.status !== "completed" || entry.error || !entry.result) return null;
+    if (rows("find_structures", "matches").length > 0) return null;
+    const name =
+      (typeof entry.args?.structure === "string" && entry.args.structure.trim()) ||
+      "that structure";
+    const lines = entry.result.leaves_total;
+    if (typeof lines !== "number") return `No ${name} positions found.`;
+    return `No ${name} positions in the ${lines} ${lines === 1 ? "line" : "lines"} searched.`;
+  };
   const commandErrorDetail = (command: DirectCommand, code: string): string => {
     // A tool's `reason` is written for its caller — find_structures answers "provide at least one
     // of structure/center/themes/color_complex" and this panel offers one box, for the structure.
@@ -610,6 +623,13 @@ export default function RepertoirePanel() {
             />
           </div>
           {commandStatus("find_structures")}
+          <Show when={structureEmpty()}>
+            {(text) => (
+              <div class="empty" data-structure-empty>
+                {text()}
+              </div>
+            )}
+          </Show>
           <datalist id="structure-names">
             <For each={STRUCTURE_NAMES}>{(name) => <option value={name} />}</For>
           </datalist>
@@ -767,13 +787,6 @@ export default function RepertoirePanel() {
               hidden; re-scan to include newly added positions.
             </p>
           </Show>
-          <Show
-            when={scanCompleted() && (scanScope()?.scanned ?? 0) < (scanScope()?.available ?? 0)}
-          >
-            <button disabled={scanning()} onClick={() => void scanGaps(true)}>
-              Scan next 12
-            </button>
-          </Show>
           <Show when={gaps().some((gap) => gap.severity === "low")}>
             <p>
               Low-severity replies are playable candidates not yet prepared; they are included
@@ -784,6 +797,7 @@ export default function RepertoirePanel() {
             {(p) => (
               <div class="scan-progress">
                 <Progress
+                  class="scan-progress-meter"
                   label="Scanning repertoire positions"
                   max={p().total || undefined}
                   value={p().total ? Math.min(p().done, p().total) : undefined}
@@ -851,7 +865,7 @@ export default function RepertoirePanel() {
           */}
           <Show when={scanCompleted() && gaps().length > 0 ? scanScope() : null}>
             {(scope) => (
-              <div class="scan-state-detail" data-gaps-scope>
+              <div class="scan-state-detail gaps-scope-line" data-gaps-scope>
                 {GAPS_SCOPE.checked(scope().scanned, scope().available)}
                 <Show when={scope().found > gaps().length}>
                   {" "}
@@ -859,6 +873,21 @@ export default function RepertoirePanel() {
                 </Show>
               </div>
             )}
+          </Show>
+          {/*
+            Continuing the sweep only makes sense once the reader knows how far the first one got,
+            so the control follows the scope sentence. It was an unstyled 16px button above it.
+          */}
+          <Show
+            when={scanCompleted() && (scanScope()?.scanned ?? 0) < (scanScope()?.available ?? 0)}
+          >
+            <button
+              class="scan-btn scan-next"
+              disabled={scanning()}
+              onClick={() => void scanGaps(true)}
+            >
+              Scan next 12
+            </button>
           </Show>
           <For each={gaps()}>
             {(g) => {

@@ -321,3 +321,50 @@ test("filling a gap from the keyboard keeps focus in the gap list", async ({ pag
     timeout: 20_000,
   });
 });
+
+test("a structure search with no matches says what was searched and how far", async ({ page }) => {
+  await openApp(page, PHONE);
+
+  // A miss rendered "0 results" in the summary and an empty body.
+  const structures = section(page, "Structure search").first();
+  await structures.locator("summary").click();
+  await structures.getByRole("combobox", { name: "Structure name" }).fill("Carlsbad");
+  await structures.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(structures.locator("[data-structure-empty]")).toHaveText(
+    "No Carlsbad positions in the 12 lines searched.",
+  );
+
+  await structures.getByRole("combobox", { name: "Structure name" }).fill("Slav");
+  await structures.getByRole("button", { name: "Search", exact: true }).click();
+  await expect(structures.locator(".fit")).toHaveText("Slav");
+  await expect(structures.locator("[data-structure-empty]")).toHaveCount(0);
+});
+
+test("Scan next 12 follows the sentence that says how far the sweep got", async ({ page }) => {
+  await openApp(page, PHONE);
+
+  // It rendered as an unstyled 16px button above the scope sentence, offering to continue before
+  // saying what had been covered.
+  await page.evaluate(() => {
+    (
+      window as unknown as {
+        __chess: {
+          setScanScopeForTesting: (scope: {
+            scanned: number;
+            available: number;
+            found: number;
+          }) => void;
+        };
+      }
+    ).__chess.setScanScopeForTesting({ scanned: 12, available: 45, found: 0 });
+  });
+
+  const gaps = section(page, "Gaps").first();
+  const scope = gaps.locator("[data-gaps-scope]");
+  const next = gaps.getByRole("button", { name: "Scan next 12" });
+  await expect(scope).toBeVisible();
+  await expect(next).toBeVisible();
+  const scopeBox = (await scope.boundingBox())!;
+  expect((await next.boundingBox())!.y).toBeGreaterThanOrEqual(scopeBox.y + scopeBox.height);
+  await expect(next).toHaveCSS("font-size", "12px");
+});
