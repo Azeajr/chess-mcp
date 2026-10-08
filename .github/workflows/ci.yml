@@ -189,7 +189,9 @@ jobs:
   # THE required status check.
   verdict:
     needs: [scope, node, checks, smoke, e2e]
-    if: always()
+    # Same guard as scope: `create` also fires for every new branch, where scope is skipped and
+    # the verdict had nothing to judge, so each branch push left a failed CI run beside its PR's.
+    if: always() && (github.event_name != 'create' || github.ref_type == 'tag')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
