@@ -1,6 +1,7 @@
 import { onMount, onCleanup, Show } from "solid-js";
 import TopBar from "./components/TopBar";
 import Board from "./components/Board";
+import BoardJump from "./components/BoardJump";
 import EvalBar from "./components/EvalBar";
 import MoveTree from "./components/MoveTree";
 import AnalysisPanel from "./components/AnalysisPanel";
@@ -229,6 +230,8 @@ export default function App() {
             <ChatPanel />
           </div>
         </div>
+        {/* Inside .app-main: it points at the background workspace, so a modal suspends it too. */}
+        <BoardJump />
       </div>
       {/* Overlays render outside .app-main because they make it inert: an overlay nested inside
           the region it suspends would be inert itself, and disappear from the accessibility tree

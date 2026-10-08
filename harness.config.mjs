@@ -308,6 +308,20 @@ export default defineHarness({
       ],
     },
     {
+      id: "finding-navigation",
+      title: "Opening a finding with the board scrolled away offers a jump there and back",
+      covers: [
+        {
+          file: "apps/ui/test/e2e/board-jump.spec.ts",
+          test: "opening a finding with the board scrolled away offers a jump there and back",
+        },
+        {
+          file: "apps/ui/test/e2e/board-jump.spec.ts",
+          test: "no jump is offered while the board stays in view",
+        },
+      ],
+    },
+    {
       id: "gap-fill",
       title: "A gap fill stages, rejects and accepts in place without losing keyboard focus",
       covers: [
