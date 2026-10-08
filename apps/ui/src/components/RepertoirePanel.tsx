@@ -159,6 +159,19 @@ export default function RepertoirePanel() {
       ...(reachedPrep ? [reachedPrep] : []),
     ].join(" · ");
   };
+  // A search with no matches rendered "0 results" in the summary and an empty body, so it never
+  // said which structure was looked for or how much of the repertoire was searched.
+  const structureEmpty = (): string | null => {
+    const entry = state("find_structures");
+    if (entry.status !== "completed" || entry.error || !entry.result) return null;
+    if (rows("find_structures", "matches").length > 0) return null;
+    const name =
+      (typeof entry.args?.structure === "string" && entry.args.structure.trim()) ||
+      "that structure";
+    const lines = entry.result.leaves_total;
+    if (typeof lines !== "number") return `No ${name} positions found.`;
+    return `No ${name} positions in the ${lines} ${lines === 1 ? "line" : "lines"} searched.`;
+  };
   const commandErrorDetail = (command: DirectCommand, code: string): string => {
     // A tool's `reason` is written for its caller — find_structures answers "provide at least one
     // of structure/center/themes/color_complex" and this panel offers one box, for the structure.
@@ -372,11 +385,53 @@ export default function RepertoirePanel() {
       return "";
     }
   };
+  /*
+    Every control in a gap's fill flow takes itself out from under the keyboard: Choose fill… and
+    Add best fill disable themselves while they load, and Cancel, Accept line and a successful Add
+    best fill remove the element that was pressed. WebKit then drops focus to <body>, so one fill
+    sent a keyboard or screen-reader user back to the top of the page three times. Once the DOM
+    settles, focus the first target still present and enabled, unless something else took focus.
+  */
+  const recoverFocus = (...targets: (() => Element | null | undefined)[]) => {
+    queueMicrotask(() => {
+      const active = document.activeElement;
+      if (active && active !== document.body && active.isConnected) return;
+      for (const target of targets) {
+        const element = target();
+        if (
+          element instanceof HTMLElement &&
+          element.isConnected &&
+          !element.matches(":disabled")
+        ) {
+          element.focus();
+          return;
+        }
+      }
+    });
+  };
+  // A filled gap leaves the list with its controls, so focus continues at a neighbouring gap.
+  // The edit re-renders every row, so name the neighbours by gap key before the gap is removed
+  // and look them up again afterwards.
+  const afterFilledGap = (flag: HTMLElement) => {
+    const section = flag.closest("details");
+    const neighbours = [flag.nextElementSibling, flag.previousElementSibling]
+      .map((element) => element?.getAttribute("data-gap"))
+      .filter((key): key is string => key != null);
+    return [
+      ...neighbours.map(
+        (key) => () =>
+          section?.querySelector(`.rep-flag[data-gap="${CSS.escape(key)}"] > .rep-row`),
+      ),
+      () => section?.querySelector("summary"),
+    ];
+  };
+  let stagedFillRow: HTMLElement | undefined;
   const FillRow = (props: { g: Gap; opt: FillOption; label: string }) => (
     <InteractiveRow
       class="indent fill-row"
       current={currentAt(props.g.path)}
-      onClick={() => {
+      onClick={(event) => {
+        stagedFillRow = event.currentTarget;
         onFill(props.g, props.opt);
       }}
     >
@@ -568,6 +623,13 @@ export default function RepertoirePanel() {
             />
           </div>
           {commandStatus("find_structures")}
+          <Show when={structureEmpty()}>
+            {(text) => (
+              <div class="empty" data-structure-empty>
+                {text()}
+              </div>
+            )}
+          </Show>
           <datalist id="structure-names">
             <For each={STRUCTURE_NAMES}>{(name) => <option value={name} />}</For>
           </datalist>
@@ -725,13 +787,6 @@ export default function RepertoirePanel() {
               hidden; re-scan to include newly added positions.
             </p>
           </Show>
-          <Show
-            when={scanCompleted() && (scanScope()?.scanned ?? 0) < (scanScope()?.available ?? 0)}
-          >
-            <button disabled={scanning()} onClick={() => void scanGaps(true)}>
-              Scan next 12
-            </button>
-          </Show>
           <Show when={gaps().some((gap) => gap.severity === "low")}>
             <p>
               Low-severity replies are playable candidates not yet prepared; they are included
@@ -742,6 +797,7 @@ export default function RepertoirePanel() {
             {(p) => (
               <div class="scan-progress">
                 <Progress
+                  class="scan-progress-meter"
                   label="Scanning repertoire positions"
                   max={p().total || undefined}
                   value={p().total ? Math.min(p().done, p().total) : undefined}
@@ -809,7 +865,7 @@ export default function RepertoirePanel() {
           */}
           <Show when={scanCompleted() && gaps().length > 0 ? scanScope() : null}>
             {(scope) => (
-              <div class="scan-state-detail" data-gaps-scope>
+              <div class="scan-state-detail gaps-scope-line" data-gaps-scope>
                 {GAPS_SCOPE.checked(scope().scanned, scope().available)}
                 <Show when={scope().found > gaps().length}>
                   {" "}
@@ -817,6 +873,21 @@ export default function RepertoirePanel() {
                 </Show>
               </div>
             )}
+          </Show>
+          {/*
+            Continuing the sweep only makes sense once the reader knows how far the first one got,
+            so the control follows the scope sentence. It was an unstyled 16px button above it.
+          */}
+          <Show
+            when={scanCompleted() && (scanScope()?.scanned ?? 0) < (scanScope()?.available ?? 0)}
+          >
+            <button
+              class="scan-btn scan-next"
+              disabled={scanning()}
+              onClick={() => void scanGaps(true)}
+            >
+              Scan next 12
+            </button>
           </Show>
           <For each={gaps()}>
             {(g) => {
@@ -829,8 +900,9 @@ export default function RepertoirePanel() {
                 const value = gapState();
                 return typeof value === "object" && "error" in value ? value.error : null;
               };
+              let flag!: HTMLDivElement;
               return (
-                <div class="rep-flag">
+                <div class="rep-flag" data-gap={gapKey(g)} ref={flag}>
                   <InteractiveRow
                     current={currentAt(g.path)}
                     onClick={() => {
@@ -847,8 +919,14 @@ export default function RepertoirePanel() {
                   <button
                     class="fix-btn fill-btn"
                     disabled={gapState() === "loading"}
-                    onClick={() => {
-                      void fillGap(g);
+                    onClick={(event) => {
+                      const chooseFill = event.currentTarget;
+                      void fillGap(g).finally(() => {
+                        recoverFocus(
+                          () => flag.querySelector(".fill-row"),
+                          () => chooseFill,
+                        );
+                      });
                     }}
                   >
                     Choose fill…
@@ -856,17 +934,23 @@ export default function RepertoirePanel() {
                   <button
                     class="fix-btn"
                     disabled={gapState() === "loading"}
-                    onClick={() => {
-                      void fillGap(g).then((fill) => {
-                        if (fill?.document !== documentId() || fill.color !== color()) return;
-                        actions.applyEdit(
-                          "add",
-                          g.sanPath,
-                          { addMoves: fill.bestEval.line },
-                          fill.revision,
-                        );
-                        setInlineGap(null);
-                      });
+                    onClick={(event) => {
+                      const addBest = event.currentTarget;
+                      const targets = [() => addBest, ...afterFilledGap(flag)];
+                      void fillGap(g)
+                        .then((fill) => {
+                          if (fill?.document !== documentId() || fill.color !== color()) return;
+                          actions.applyEdit(
+                            "add",
+                            g.sanPath,
+                            { addMoves: fill.bestEval.line },
+                            fill.revision,
+                          );
+                          setInlineGap(null);
+                        })
+                        .finally(() => {
+                          recoverFocus(...targets);
+                        });
                     }}
                   >
                     Add best fill
@@ -877,8 +961,10 @@ export default function RepertoirePanel() {
                         <p>{numbered(active().sans, active().fromPath.length)}</p>
                         <button
                           onClick={() => {
+                            const targets = [() => stagedFillRow, ...afterFilledGap(flag)];
                             acceptPreview();
                             setInlineGap(null);
+                            recoverFocus(...targets);
                           }}
                         >
                           Accept line
@@ -887,6 +973,10 @@ export default function RepertoirePanel() {
                           onClick={() => {
                             clearPreview();
                             setInlineGap(null);
+                            recoverFocus(
+                              () => stagedFillRow,
+                              () => flag.querySelector(".fill-row"),
+                            );
                           }}
                         >
                           Cancel

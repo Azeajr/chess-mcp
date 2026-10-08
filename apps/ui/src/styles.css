@@ -838,6 +838,30 @@ img,
   height: 100%;
 }
 
+/* Chessground's stock coordinates sit at fixed pixel offsets (files 24px right, ranks 20px up)
+   that only line up on squares wider than about 48px. On a phone's 40px squares every file letter
+   landed on the next square, H fell off the board and the 8 was clipped. Anchor each label inside
+   its own square instead: ranks at the top-left of the a-file, files at the bottom-right of rank 1.
+   A zero flex basis keeps every label's box exactly one square; the stock `auto` basis sized each
+   from its glyph, so a wide G pushed its box past the edge of its square. */
+.cg-wrap coords.ranks {
+  top: 0;
+  left: 2px;
+}
+.cg-wrap coords.ranks coord {
+  flex: 1 1 0;
+  transform: none;
+}
+.cg-wrap coords.files {
+  bottom: 0;
+  left: 0;
+  text-align: right;
+}
+.cg-wrap coords.files coord {
+  flex: 1 1 0;
+  padding-right: 2px;
+}
+
 .board-keyboard-layer {
   position: absolute;
   inset: 0;
@@ -2768,6 +2792,15 @@ img,
 .scan-error .scan-btn {
   margin-top: var(--space-2);
 }
+/* Above a list of gaps the scope sentence stands alone, not after an icon and title. */
+.scan-state-detail.gaps-scope-line {
+  display: block;
+  margin-left: 0;
+}
+.rep-panel .scan-btn.scan-next {
+  align-self: flex-start;
+  margin-block: var(--space-2);
+}
 
 .sug-showing {
   padding: 0.1rem 0.4rem;
@@ -3844,6 +3877,35 @@ img,
   box-shadow: 0 8px 24px var(--shadow-translucent);
   font-size: var(--type-sm);
 }
+/* Jump between an off-screen board and the list that moved it (BoardJump). Positioned against the
+   workspace from script, so it never covers the board it points at. */
+.board-jump {
+  position: fixed;
+  transform: translateX(-50%);
+  z-index: var(--z-notice);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--target-touch);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 8px 24px var(--shadow-translucent);
+  font: inherit;
+  font-size: var(--type-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.board-jump:hover {
+  background: var(--surface-hover);
+}
+.board-jump:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--focus-offset);
+}
+
 .ui-toast-success {
   border-color: var(--status-success-text);
 }
