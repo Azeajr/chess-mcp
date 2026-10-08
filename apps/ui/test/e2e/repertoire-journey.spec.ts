@@ -267,6 +267,8 @@ test("structure matches name the structure instead of printing undefined", async
   });
 
   await expect(structures.locator(".fit")).toHaveText("carlsbad");
+  // The line printed as bare moves ("d4 d5 c4 e6") where every other row numbers them.
+  await expect(structures.locator(".san")).toHaveText("1. d4 d5 2. c4 e6");
   await expect(structures).not.toContainText("undefined");
 });
 
@@ -367,4 +369,48 @@ test("Scan next 12 follows the sentence that says how far the sweep got", async 
   const scopeBox = (await scope.boundingBox())!;
   expect((await next.boundingBox())!.y).toBeGreaterThanOrEqual(scopeBox.y + scopeBox.height);
   await expect(next).toHaveCSS("font-size", "12px");
+});
+
+test("staging from Extend here hands the keyboard to the staged card and back", async ({
+  page,
+}) => {
+  // The suggestion needs the engine; a cold start took over 20s once in the container.
+  test.slow();
+  await openApp(page, PHONE);
+  await page.getByRole("button", { name: "Engine settings", exact: true }).click();
+  await page.getByRole("spinbutton", { name: "Analysis depth" }).fill("1");
+  await page.getByRole("button", { name: "Close settings" }).click();
+
+  // The card sits at the top of the panel: staging left focus on the row far below it, tabbing
+  // forward never reached Accept line, and Accept line or Cancel then dropped focus to <body>.
+  const extend = section(page, "Extend here").first();
+  await extend.getByRole("button", { name: "Suggest an extension" }).focus();
+  await page.keyboard.press("Enter");
+  const candidate = extend.locator(".rep-row").first();
+  await expect(candidate).toBeVisible({ timeout: 60_000 });
+
+  const card = page.locator(".rep-panel > .rep-preview");
+  await candidate.focus();
+  await page.keyboard.press("Enter");
+  await expect(
+    card.getByRole("button", { name: "Accept line" }),
+    "staging focuses Accept",
+  ).toBeFocused();
+  await expect(card.getByRole("button", { name: "Accept line" })).toBeInViewport();
+
+  await page.keyboard.press("Tab");
+  await expect(card.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(card).toHaveCount(0);
+  await expect(candidate, "Cancel returns to the row that staged it").toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(card.getByRole("button", { name: "Accept line" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(card).toHaveCount(0);
+  await expect(page.locator(":focus")).toHaveCount(1);
+  expect(
+    await page.evaluate(() => document.activeElement?.closest("details.rep-section") !== null),
+    "Accept keeps focus in the section it came from",
+  ).toBe(true);
 });
