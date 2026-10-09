@@ -791,7 +791,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   await showStage(page, "findings");
   await expect(queue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "9 results · showing 1–6",
+    "9 actionable findings · showing 1–6",
   );
 
   await showStage(page, "findings");
@@ -906,7 +906,7 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
   );
   await showStage(page, "findings");
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "9 results · showing 7–9",
+    "9 actionable findings · showing 7–9",
   );
 
   await openQueueFilters(queue);
@@ -926,6 +926,12 @@ test("finding queue renders frozen card fields, stable pages, composed filters, 
       .locator("[data-finding-id]")
       .evaluateAll((cards) => cards.map((card) => card.getAttribute("data-finding-id"))),
   ).toEqual(["finding:01"]);
+  await queue.getByLabel("Priority", { exact: true }).selectOption({ label: "Review later" });
+  await expect(queue.getByText("No findings match this queue view", { exact: true })).toBeVisible();
+  await expect(
+    queue.getByText("Adjust the overview focus, priority, or opening filter."),
+  ).toBeVisible();
+  await expect(queue.getByText("No actionable findings in this report")).toHaveCount(0);
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
   expect(await chess(page, (api) => api.currentPath())).toEqual(pathBefore);
 });
@@ -1620,7 +1626,7 @@ test("overview intents filter only the current report queue and can return to al
   await queue.getByRole("button", { name: "Show all report findings" }).click();
   await expect(pane).toHaveAttribute("data-queue-filter", "none");
   await expect(queue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "9 results · showing 1–6",
+    "9 actionable findings · showing 1–6",
   );
 
   await dialog.getByRole("button", { name: "Return to repertoire" }).click();
@@ -1633,7 +1639,7 @@ test("overview intents filter only the current report queue and can return to al
   await expect(reopenedQueue).toHaveAttribute("data-queue-status", "ready");
   await expect(reopenedQueue.locator("[data-finding-id]")).toHaveCount(6);
   await expect(reopenedQueue.locator(".strategic-fit-queue-summary p")).toContainText(
-    "9 results · showing 1–6",
+    "9 actionable findings · showing 1–6",
   );
   expect(await chess(page, (api) => api.toPgn())).toBe(before);
 });

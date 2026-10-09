@@ -71,6 +71,7 @@ export default function FindingQueue(props: {
 
   const state = () => strategicFitFindingQueue.snapshot();
   const view = () => strategicFitFindingQueue.view(props.resolutionState);
+  const evidenceFindings = () => state().findings.filter((finding) => !isDecidableFinding(finding));
   const range = () =>
     view().page.total_count === 0
       ? "0"
@@ -104,9 +105,10 @@ export default function FindingQueue(props: {
       data-queue-report-id={state().report_id ?? ""}
       data-queue-status={state().status}
     >
-      <Show when={state().findings.some((finding) => !isDecidableFinding(finding))}>
+      <Show when={evidenceFindings().length > 0}>
         <details class="strategic-fit-evidence-checklist">
-          <summary>
+          <summary>Evidence and information: {evidenceFindings().length} findings</summary>
+          <p>
             {
               state().findings.filter(
                 (finding) =>
@@ -115,8 +117,8 @@ export default function FindingQueue(props: {
               ).length
             }{" "}
             lines need more evidence · transpositions are information
-          </summary>
-          <For each={state().findings.filter((finding) => !isDecidableFinding(finding))}>
+          </p>
+          <For each={evidenceFindings()}>
             {(finding) => (
               <div>
                 <p>{finding.plain_language_category}</p>
@@ -272,7 +274,8 @@ export default function FindingQueue(props: {
             data-page-total={view().page.total_count}
             data-canonical-total={view().canonical_total_count}
           >
-            {view().page.total_count} results · showing {range()}
+            {view().page.total_count} {state().intent === null ? "actionable findings" : "results"}{" "}
+            · showing {range()}
           </p>
           <Show when={hasActiveFilters()}>
             <button type="button" onClick={clearFilters}>
@@ -318,8 +321,24 @@ export default function FindingQueue(props: {
           when={view().page.total_count > 0}
           fallback={
             <div class="strategic-fit-queue-empty">
-              <strong>No findings match this queue view</strong>
-              <p>Adjust the overview focus, priority, or opening filter.</p>
+              <Show
+                when={hasActiveFilters()}
+                fallback={
+                  <>
+                    <strong>No actionable findings in this report</strong>
+                    <Show when={evidenceFindings().length > 0}>
+                      <p>
+                        {evidenceFindings().length} evidence and informational findings are
+                        available in “Evidence and information” above. Open it to review their
+                        evidence.
+                      </p>
+                    </Show>
+                  </>
+                }
+              >
+                <strong>No findings match this queue view</strong>
+                <p>Adjust the overview focus, priority, or opening filter.</p>
+              </Show>
             </div>
           }
         >

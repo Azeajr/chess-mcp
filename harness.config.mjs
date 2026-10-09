@@ -247,6 +247,7 @@ export default defineHarness({
   },
   e2e: {
     config: "apps/ui/playwright.config.ts",
+    fixtures: "apps/ui/test/e2e/helpers/fixtures.ts",
     prepare: ["pnpm --filter @chess-mcp/chess-tools build"],
     snapshots: ["apps/ui/test/e2e"],
     report: "apps/ui/playwright-report",
@@ -342,6 +343,16 @@ export default defineHarness({
         {
           file: "apps/ui/test/e2e/strategic-fit-journey.spec.ts",
           test: "a recorded resolution holds and says so",
+        },
+      ],
+    },
+    {
+      id: "strategic-fit-evidence-discovery",
+      title: "Evidence remains discoverable when Strategic Fit has no pending decisions",
+      covers: [
+        {
+          file: "apps/ui/test/e2e/strategic-fit-evidence-discovery.spec.ts",
+          test: "evidence remains discoverable with zero pending decisions @mobile-webkit",
         },
       ],
     },
