@@ -2,7 +2,7 @@
 name: web-harness
 description: Drive, inspect and verify this project's web app with web-harness — owned browser sessions in Docker, batched journeys, failure bundles, production smoke, container E2E and scenario reports. Use when reproducing a UI bug, checking that a change works in a real browser, reviewing a layout, or proving a fix before a PR.
 ---
-<!-- web-harness 0.2.4: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
+<!-- web-harness 0.2.5: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
 
 # web-harness
 
@@ -50,7 +50,9 @@ What each proves:
 - `run` — the batch's own `step`s and `assert`s held, and no fault was retained. A batch gets
   `{ step, assert, observe, state, effect, allowFault, expectFault, clock }`.
 - `effect` — something watched actually changed (`expect: 'change'`), or nothing did
-  (`expect: 'none'`). Catches the click that did nothing.
+  (`expect: 'none'`). Catches the click that did nothing. An observed element counts as changed
+  when its text, visibility, attributes, css or own scroll offset change, or when it crosses the
+  edge of the screen or of a scrolling pane; not when it only shifts on screen or takes focus.
 - `reload` keeps memory and storage; `restart` keeps only what persisted (the durability proof);
   `reset` starts over from the same fixture.
 - `check --a11y` — axe rules found nothing at or above the configured impact. Automated rules find
