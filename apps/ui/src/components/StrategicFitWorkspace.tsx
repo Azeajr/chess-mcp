@@ -479,7 +479,7 @@ export default function StrategicFitWorkspace() {
                         >
                           {stage.label}
                           {/*
-                            aria-hidden keeps the tab's accessible name exactly "Findings"; the
+                            aria-hidden keeps the tab's accessible name exactly "Review"; the
                             count is a fact about the queue, announced by the queue's own live
                             region rather than by the tab that leads to it.
                           */}
@@ -489,7 +489,7 @@ export default function StrategicFitWorkspace() {
                               class="strategic-fit-stage-count"
                               aria-hidden="true"
                             >
-                              {unresolvedCount()}
+                              {unresolvedCount()} pending
                             </Status>
                           </Show>
                         </button>
