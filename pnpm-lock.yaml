@@ -12,8 +12,8 @@ importers:
   .:
     devDependencies:
       '@azeajr/web-harness':
-        specifier: github:Azeajr/web-harness#v0.2.4
-        version: https://codeload.github.com/Azeajr/web-harness/tar.gz/b78d6fc7c6b95480ff6b74b5ed79230bb46939f1(playwright@1.63.0)
+        specifier: github:Azeajr/web-harness#v0.2.5
+        version: https://codeload.github.com/Azeajr/web-harness/tar.gz/aeec20f058e53d82bcdaeadfff8cb65e3263602b(playwright@1.63.0)
       '@eslint/js':
         specifier: ^9.39.5
         version: 9.39.5
@@ -131,9 +131,9 @@ packages:
     peerDependencies:
       ajv: '>=8'
 
-  '@azeajr/web-harness@https://codeload.github.com/Azeajr/web-harness/tar.gz/b78d6fc7c6b95480ff6b74b5ed79230bb46939f1':
-    resolution: {gitHosted: true, integrity: sha512-TIU44vTnhh8Ulp9mvOag9yDl0SgDZ5HZUDdJHNqPx5yZjbz6Nn//jLRWkgkR3W0+vr9RRX37jxzW9HiCLKuPBA==, tarball: https://codeload.github.com/Azeajr/web-harness/tar.gz/b78d6fc7c6b95480ff6b74b5ed79230bb46939f1}
-    version: 0.2.4
+  '@azeajr/web-harness@https://codeload.github.com/Azeajr/web-harness/tar.gz/aeec20f058e53d82bcdaeadfff8cb65e3263602b':
+    resolution: {gitHosted: true, integrity: sha512-rzx+1+NsHHWtUWX/dTkIEzRv4y3PtAujFBrVGteGjx+JCjggHTCjx41DUZgoeXirIIJvxGwKsfrDv4VIBAazsA==, tarball: https://codeload.github.com/Azeajr/web-harness/tar.gz/aeec20f058e53d82bcdaeadfff8cb65e3263602b}
+    version: 0.2.5
     engines: {node: '>=22'}
     hasBin: true
     peerDependencies:
@@ -3346,7 +3346,7 @@ snapshots:
       jsonpointer: 5.0.1
       leven: 3.1.0
 
-  '@azeajr/web-harness@https://codeload.github.com/Azeajr/web-harness/tar.gz/b78d6fc7c6b95480ff6b74b5ed79230bb46939f1(playwright@1.63.0)':
+  '@azeajr/web-harness@https://codeload.github.com/Azeajr/web-harness/tar.gz/aeec20f058e53d82bcdaeadfff8cb65e3263602b(playwright@1.63.0)':
     dependencies:
       playwright: 1.63.0
 
