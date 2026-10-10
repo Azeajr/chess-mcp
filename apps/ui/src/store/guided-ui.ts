@@ -42,6 +42,8 @@ export const [guidedStatus, setGuidedStatus] = createSignal<
   "idle" | "executing" | "paused" | "completed" | "cancelled" | "failed"
 >("idle");
 export const [guidedPurpose, setGuidedPurpose] = createSignal("");
+/** The assistant's closing explanation, shown where the user is when chat is out of view. */
+export const [guidedReply, setGuidedReply] = createSignal("");
 export const [selectedReview, setSelectedReview] = createSignal<{
   resultId: string;
   ply: number;
@@ -58,6 +60,23 @@ export function manualIntervention() {
     setGuidedStatus("paused");
     setGuidedPurpose("Paused so you can use the controls. Send a message to continue.");
     interrupt?.();
+  } else if (guidedStatus() === "completed" && typeof window !== "undefined") {
+    // The user has moved on from a finished guided step; its explanation no longer describes
+    // what is on screen, so the status steps aside rather than going stale. Not on pointerdown:
+    // removing the bar then shifted the page and the release landed on a different control.
+    let retired = false;
+    const retire = () => {
+      if (retired) return;
+      retired = true;
+      window.removeEventListener("click", retire);
+      window.removeEventListener("keyup", retire);
+      if (guidedStatus() !== "completed") return;
+      setGuidedStatus("idle");
+      setGuidedReply("");
+    };
+    window.addEventListener("click", retire, { once: true });
+    window.addEventListener("keyup", retire, { once: true });
+    setTimeout(retire, 1500);
   }
 }
 

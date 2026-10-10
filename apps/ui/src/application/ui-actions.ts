@@ -416,7 +416,7 @@ function failure(error: string, reason: string, extra: Record<string, unknown> =
 function describe(action: UiAction): string {
   switch (action.kind) {
     case "navigate":
-      return `Open ${SURFACE_ROUTES[action.surface].label}`;
+      return `Show ${SURFACE_ROUTES[action.surface].label}`;
     case "set_fields":
       return action.form === "decision"
         ? "Prepare a decision for you to record"

@@ -9,7 +9,7 @@ import {
 } from "../store/commands";
 import { setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
-import ToolResult from "./ToolResult";
+import ToolResult, { ReviewSummary } from "./ToolResult";
 import ReviewFindings from "./ReviewFindings";
 import ExportSaveControl from "./ExportSaveControl";
 import {
@@ -79,7 +79,24 @@ export default function DirectAnalysis() {
             <Show
               when={command === "analyze_game" && state(command).resultId && !state(command).error}
               fallback={
-                <ToolResult operation={command} content={JSON.stringify(state(command).result)} />
+                /* With Move findings below, the summary's own move rows were a second list of
+                   the same moves that went to the position after each move, not before it. */
+                <Show
+                  when={
+                    command === "get_game_summary" &&
+                    state("analyze_game").result &&
+                    !state("analyze_game").error &&
+                    !commandIsStale("analyze_game")
+                  }
+                  fallback={
+                    <ToolResult
+                      operation={command}
+                      content={JSON.stringify(state(command).result)}
+                    />
+                  }
+                >
+                  <ReviewSummary data={state(command).result ?? {}} rows={false} />
+                </Show>
               }
             >
               <ReviewFindings

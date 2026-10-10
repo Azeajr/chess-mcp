@@ -436,7 +436,8 @@ export function selectResult(
   if (item.ply !== undefined) {
     if (!selectReviewedMove(resultId, item.ply))
       return blocked("stale_result", "Select a move from the current completed review.");
-    return { selected: { ply: item.ply }, surface: "analysis.review" };
+    // The explanation is about the position on the board, so show the board.
+    return { selected: { ply: item.ply }, surface: "workspace.board" };
   }
   const itemId = item.itemId ?? "";
   for (const [command, key] of Object.entries(COMMAND_ROWS)) {

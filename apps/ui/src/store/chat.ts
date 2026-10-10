@@ -16,9 +16,11 @@ import {
   guidedStatus,
   setGuidedStatus,
   setGuidedPurpose,
+  setGuidedReply,
   registerGuidedInterrupt,
 } from "./guided-ui";
 import { workflowPrompt } from "../llm/workflows";
+import { GOAL_STARTERS, MISSING_KEY } from "../content/chat";
 import { apiKey, model, hasApiKey, chatMode } from "./settings";
 import { fen, color, currentTree, currentPath, fileName, version } from "./game";
 import type { Path } from "@chess-mcp/chess-tools";
@@ -448,7 +450,10 @@ async function sendTurn(userText: string) {
   const text = userText.trim();
   if (!text || busy()) return;
   if (!hasApiKey()) {
-    setError("Set your OpenRouter API key in Settings.");
+    // Keep the request through the detour to Settings, so Send again sends it.
+    lastRequest = text;
+    const goal = GOAL_STARTERS.find((starter) => starter.label === text);
+    setError(goal ? MISSING_KEY.withManualRoute(goal.manual) : MISSING_KEY.message);
     return;
   }
   lastRequest = text;
@@ -459,6 +464,7 @@ async function sendTurn(userText: string) {
   setBusy(true);
   setGuidedStatus("executing");
   setGuidedPurpose(text.slice(0, 180));
+  setGuidedReply("");
   controller = new AbortController();
   const signal = controller.signal;
   let trailingTools = false;
@@ -544,7 +550,12 @@ async function sendTurn(userText: string) {
           : String(e),
     );
   } finally {
-    if (guidedStatus() === "executing") setGuidedStatus(error() ? "failed" : "completed");
+    if (guidedStatus() === "executing") {
+      setGuidedStatus(error() ? "failed" : "completed");
+      const reply = history().at(-1);
+      if (!error() && reply?.role === "assistant" && reply.content)
+        setGuidedReply(reply.content.slice(0, 400));
+    }
     setBusy(false);
     setStreamingText("");
     controller = null;

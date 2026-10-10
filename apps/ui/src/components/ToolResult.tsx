@@ -1188,7 +1188,7 @@ function ValidateLineResult(props: { data: Data }) {
   );
 }
 
-function ReviewSummary(props: { data: Data }) {
+export function ReviewSummary(props: { data: Data; rows?: boolean }) {
   const side = (name: "white" | "black") => props.data[name] as Data | undefined;
   // The summary carries mistakes and inaccuracies alongside blunders; reporting only blunders
   // hid two thirds of the per-side classification the review asks the reader to compare.
@@ -1206,7 +1206,9 @@ function ReviewSummary(props: { data: Data }) {
       <div class="result-summary">
         Black {displayValue(side("black")?.accuracy_pct ?? "—")}% · {classifications("black")}
       </div>
-      <NavigationRows data={props.data} />
+      <Show when={props.rows !== false}>
+        <NavigationRows data={props.data} />
+      </Show>
     </div>
   );
 }

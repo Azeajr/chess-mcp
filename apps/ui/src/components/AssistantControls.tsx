@@ -1,6 +1,12 @@
 import { Show } from "solid-js";
 import { busy, stop, handoff } from "../store/chat";
-import { guidedPurpose, guidedStatus, guidedSurface, manualIntervention } from "../store/guided-ui";
+import {
+  guidedPurpose,
+  guidedReply,
+  guidedStatus,
+  guidedSurface,
+  manualIntervention,
+} from "../store/guided-ui";
 import { openFile, saveFile } from "../store/files";
 import { setMobileTab, setStrategicFitWorkspaceOpen } from "../store/ui";
 
@@ -9,8 +15,19 @@ export default function AssistantControls() {
     <Show when={guidedStatus() !== "idle"}>
       <aside class="assistant-controls" aria-label="Assistant controls">
         <span role="status">
-          {guidedStatus() === "executing" ? "Assistant working" : `Assistant ${guidedStatus()}`}:{" "}
-          {guidedPurpose()}
+          <Show
+            when={guidedStatus() === "completed" && guidedReply()}
+            fallback={
+              <>
+                {guidedStatus() === "executing"
+                  ? "Assistant working"
+                  : `Assistant ${guidedStatus()}`}
+                : {guidedPurpose()}
+              </>
+            }
+          >
+            {(reply) => <>Assistant: {reply()}</>}
+          </Show>
         </span>
         <Show when={guidedSurface() === "document.open"}>
           <button

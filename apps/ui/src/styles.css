@@ -9816,8 +9816,8 @@ img,
 }
 
 /*
-  Compact: the purpose repeats the user's own message, so one line is enough; three wrapped lines
-  squeezed the chat log to nothing on a 629px phone. On the Chat tab the panel already carries
+  Compact: two lines at most, enough for the start of the assistant's explanation while chat is
+  out of view; more wrapped lines squeezed the chat log to nothing on a 629px phone. On the Chat tab the panel already carries
   Stop and the hand-off controls, so the duplicate bar steps aside there unless it carries an
   action of its own, such as Open PGN.
 */
@@ -9828,15 +9828,22 @@ img,
   }
 
   .assistant-controls > span {
+    display: -webkit-box;
     flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
   .app-main:has(.workspace[data-mtab="chat"])
     > .assistant-controls:not(:has([data-guided-surface])) {
+    display: none;
+  }
+
+  /* On the Chat tab the conversation already says what is happening; keep only the action. */
+  .app-main:has(.workspace[data-mtab="chat"]) > .assistant-controls > :not([data-guided-surface]) {
     display: none;
   }
 }
