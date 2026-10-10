@@ -494,7 +494,8 @@ who has just watched the assistant do it. A scripted provider stub
 for the model's choices and narration only; every step runs for real in the browser. Record
 completion, whether each control was findable, friction and screenshots of each reachable state; fix
 reproducible friction, reset and replay the same seed, and promote the durable behavior into the
-Playwright suite. Live-model evaluation remains supplementary.
+Playwright suite. Live-model evaluation remains supplementary; it runs locally through
+[`LIVE_CHAT_TESTS.md`](LIVE_CHAT_TESTS.md).
 
 ## 13. Delivery plan and stop conditions
 

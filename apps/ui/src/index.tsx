@@ -32,6 +32,7 @@ import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
 import {
   appendToolResultForTesting,
   appendUserMessageForTesting,
+  busy as chatBusy,
   setChatTransportForTesting,
 } from "./store/chat";
 import { uiSnapshot } from "./application/ui-actions";
@@ -157,6 +158,7 @@ if (import.meta.env.DEV) {
     setCommandStateForTesting,
     setCommandExecutorForTesting,
     setChatTransportForTesting,
+    chatBusy,
     uiSnapshot,
     recordDirectCommandForTesting: (command: string, args: Record<string, unknown>) => {
       recordDirectCommandForTesting(

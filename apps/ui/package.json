@@ -14,6 +14,7 @@
     "test:chat": "node --no-experimental-webstorage --import tsx --test test/*.test.ts",
     "test:e2e": "node ../../scripts/playwright-low-impact.mjs",
     "test:e2e:host": "E2E_CPU_QUOTA=60% E2E_RUNTIME_MAX=45min node ../../scripts/playwright-low-impact.mjs --project=chromium --project=firefox",
+    "test:e2e:live": "playwright test --config playwright.live.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },
