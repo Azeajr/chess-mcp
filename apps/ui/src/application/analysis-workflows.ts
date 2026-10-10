@@ -148,6 +148,13 @@ export async function importHistory(options: CommandExecutionOptions = {}) {
     options,
   );
   if (!reviewed || reviewed.error) return reviewed;
+  // "reviewing" stayed on screen after the review finished, so the import never read as done.
+  setImportNotice({
+    tone: "status",
+    message: `Fetched ${games.length} ${games.length === 1 ? "game" : "games"} for ${username} (${scope}) and reviewed ${selected}. Your repertoire is unchanged.`,
+    fetched: games.length,
+    selected,
+  });
   return { ...reviewed, fetched: games.length, selected_for_review: selected, username, scope };
 }
 

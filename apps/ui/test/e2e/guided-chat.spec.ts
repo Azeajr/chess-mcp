@@ -42,7 +42,12 @@ async function installAssistant(page: Page, slow = false) {
             eval_pov: "white",
             moves: [{ move: "e4", san: "e4", cp: 30, mate: null, legal: true }],
           };
-        return { total_moves: 2, white: { accuracy: 90 }, black: { accuracy: 80 } };
+        return {
+          total_moves: 2,
+          white: { accuracy: 90 },
+          black: { accuracy: 80 },
+          moves: [{ ply: 2, san: "e5", classification: "mistake", cp_loss: 90 }],
+        };
       });
       api.setChatTransportForTesting(async (options) => {
         const last = options.messages.at(-1);
@@ -111,6 +116,25 @@ async function ask(page: Page, text: string) {
   await page.getByRole("button", { name: "Send", exact: true }).click();
 }
 
+test("without an API key the request is kept, names the manual route, and opens setup", async ({
+  page,
+}) => {
+  await openApp(page, { pgn: "*" });
+  await page.getByRole("button", { name: "Review a game" }).click();
+  const composer = page.getByRole("textbox", { name: "Chat message" });
+  await expect(composer).toHaveValue("Review a game");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const error = page.locator(".chat-error");
+  await expect(error).toContainText(
+    "Without the assistant: open the game with Open PGN in the File menu, then press Review game in the Analysis tab.",
+  );
+  // The request used to be cleared, so setting up the key meant typing it again.
+  await expect(composer).toHaveValue("Review a game");
+  await expect(error.getByRole("button", { name: "Send again" })).toHaveCount(0);
+  await error.getByRole("button", { name: "Set up the assistant" }).click();
+  await expect(page.getByLabel("OpenRouter API key")).toBeFocused();
+});
+
 for (const mobile of [false, true]) {
   const tag = mobile ? " @mobile-webkit" : "";
   test(`empty app goal reveals file input and continues after user loads a game${tag}`, async ({
@@ -156,12 +180,23 @@ for (const mobile of [false, true]) {
     await expect(page.locator(".direct-analysis .result-nav[aria-pressed=true]")).toContainText(
       "e5",
     );
-    await expect(page.locator(".assistant-controls")).toContainText("completed");
+    // One list of reviewed moves: the summary's own rows went to the position after each move.
+    await expect(page.locator(".direct-analysis .result-nav", { hasText: "e5" })).toHaveCount(1);
+    // On a phone the selected position is brought into view, not left above the results.
+    if (mobile) await expect(page.locator(".board-stage")).toBeInViewport();
+    // A finished step shows the assistant's reply, so it reads where the user is looking.
+    await expect(page.locator(".assistant-controls")).toContainText(
+      "Assistant: The result is ready.",
+    );
     await ask(page, "Compare candidate moves");
     await expect(page.getByRole("textbox", { name: "Candidate moves" })).toHaveValue("e4 d4");
-    await expect(page.locator(".assistant-controls")).toContainText("completed");
+    await expect(page.locator(".assistant-controls")).toContainText(
+      "Assistant: The result is ready.",
+    );
     await page.getByRole("textbox", { name: "Candidate moves" }).fill("Nf3");
     await page.getByRole("button", { name: "Compare moves", exact: true }).click();
+    // Taking over retires the finished reply, after the press lands rather than under the finger.
+    await expect(page.locator(".assistant-controls")).toHaveCount(0);
     await expect
       .poll(() =>
         page.evaluate(
@@ -175,6 +210,25 @@ for (const mobile of [false, true]) {
       )
       .toEqual(["Nf3"]);
     await page.screenshot({ path: test.info().outputPath("guided-manual-handoff.png") });
+  });
+
+  test(`the conversation follows the newest reply${tag}`, async ({ page }) => {
+    await openApp(page, {
+      width: mobile ? 375 : 1280,
+      height: mobile ? 629 : 800,
+      pgn: "1. e4 e5 *",
+    });
+    await installAssistant(page);
+    const replies = page.locator(".chat-log .msg.assistant", {
+      hasText: "The result is ready. You can continue with the same controls.",
+    });
+    for (const count of [1, 2, 3]) {
+      await ask(page, "Review this game");
+      await expect(replies).toHaveCount(count);
+    }
+    if (mobile) await page.getByRole("tab", { name: /Chat/ }).click();
+    // The log stayed where it was, so on a phone the newest reply sat below a two-line window.
+    await expect(replies.last()).toBeInViewport();
   });
 
   test(`manual edits pause assistant work and Stop remains accessible${tag}`, async ({ page }) => {

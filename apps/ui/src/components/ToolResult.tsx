@@ -1213,6 +1213,76 @@ export function ReviewSummary(props: { data: Data; rows?: boolean }) {
   );
 }
 
+// An import's results carry no path into the open document, so the navigation fallback rendered
+// them as empty cards and the reader never saw which games arrived or what the review found.
+function ImportedGamesResult(props: { data: Data; platform: string }) {
+  const games = () => (Array.isArray(props.data.games) ? (props.data.games as Data[]) : []);
+  const tally = (outcome: string) => games().filter((game) => game.user_result === outcome).length;
+  return (
+    <div class="result-card">
+      <div class="result-title">Imported games · {props.platform}</div>
+      <div class="result-summary">
+        {countLabel(games().length, "game")} for {displayValue(props.data.username)} ·{" "}
+        {countLabel(tally("win"), "win")} · {countLabel(tally("draw"), "draw")} · {tally("loss")}{" "}
+        {tally("loss") === 1 ? "loss" : "losses"}
+      </div>
+      <For each={games().slice(0, 20)}>
+        {(game) => (
+          <div class="result-line">
+            {displayValue(game.white)} – {displayValue(game.black)} · {displayValue(game.result)}
+            {typeof game.opening === "string" ? ` · ${game.opening}` : ""}
+          </div>
+        )}
+      </For>
+    </div>
+  );
+}
+
+function BatchReviewResult(props: { data: Data }) {
+  const groups = () => (Array.isArray(props.data.groups) ? (props.data.groups as Data[]) : []);
+  // Rates are per group; a lone draw read as "0% won", so count the outcomes instead.
+  const outcomes = (group: Data) =>
+    (
+      [
+        ["won", group.win_rate],
+        ["drawn", group.draw_rate],
+        ["lost", group.loss_rate],
+      ] as const
+    )
+      .map(
+        ([label, rate]) =>
+          [label, Math.round(Number(rate ?? 0) * Number(group.games ?? 0))] as const,
+      )
+      .filter(([, count]) => count > 0)
+      .map(([label, count]) => ` · ${count} ${label}`)
+      .join("");
+  return (
+    <div class="result-card">
+      <div class="result-title">Review of imported games</div>
+      <div class="result-summary">
+        {countLabel(Number(props.data.total_games ?? 0), "game")} reviewed, grouped by opening
+      </div>
+      <For each={groups()}>
+        {(group) => {
+          const blunders = Array.isArray(group.top_blunders) ? (group.top_blunders as Data[]) : [];
+          return (
+            <div class="result-line">
+              {displayValue(group.name)} · {countLabel(Number(group.games ?? 0), "game")}
+              {outcomes(group)} · average loss {displayValue(group.avg_cpl)} cp
+              {blunders.length
+                ? ` · blunders: ${blunders
+                    .slice(0, 3)
+                    .map((entry) => `${displayValue(entry.move)} ×${displayValue(entry.frequency)}`)
+                    .join(", ")}`
+                : ""}
+            </div>
+          );
+        }}
+      </For>
+    </div>
+  );
+}
+
 function ReportResult(props: { title: string; summary: string; data: Data }) {
   return (
     <div class="result-card report-card">
@@ -1229,6 +1299,9 @@ const byOperation: Record<string, (data: Data) => unknown> = {
   compare_moves: (data) => <CompareMovesResult data={data} />,
   validate_line: (data) => <ValidateLineResult data={data} />,
   get_game_summary: (data) => <ReviewSummary data={data} />,
+  lichess_games: (data) => <ImportedGamesResult data={data} platform="Lichess" />,
+  chesscom_games: (data) => <ImportedGamesResult data={data} platform="Chess.com" />,
+  batch_review: (data) => <BatchReviewResult data={data} />,
   analyze_game: (data) => {
     // The moves arrive in game order, so the first rows used to be the opening moves — the ones
     // with nothing to review. Rank the flagged moves first, and fall back to the game order only

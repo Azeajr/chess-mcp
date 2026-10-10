@@ -1,7 +1,7 @@
 # Chat-driven web app
 
-Status: interaction decisions accepted; Phases 1–3 implemented (section 15). The guided-then-manual
-usability evaluation in section 12 has not been run.
+Status: interaction decisions accepted; Phases 1–3 implemented and the guided-then-manual
+walkthrough of J1–J5 run (section 15).
 Date: 2026-10-10.
 
 ## 1. Problem and intended outcome
@@ -487,12 +487,14 @@ boundaries, run relevant chat tests, typecheck, builds, contract checks, generat
 if affected, and the appropriate repository gates. Live-model evaluation is supplementary: it
 measures whether a model chooses sensible actions but cannot replace deterministic safety tests.
 
-Product validation proposal: observe five users unfamiliar with the app. Each completes one guided
-review and then repeats a comparable review manually. Record completion, moderator interventions,
-whether they locate the relevant control, and whether they can explain the result and next action.
-A provisional success threshold is four of five completing both tasks without moderator help.
-Treat this as a directional usability check, not statistical proof. Record failures as workflow
-issues to fix before broad rollout. No new remote telemetry service is required.
+Product validation: walk every journey with web-harness and the UX review skill on emulated mobile
+WebKit, first guided through chat and then repeated manually using only visible controls, as a user
+who has just watched the assistant do it. A scripted provider stub
+([`guided-chat-provider.js`](../apps/ui/test/fixtures/ux-review/guided-chat-provider.js)) stands in
+for the model's choices and narration only; every step runs for real in the browser. Record
+completion, whether each control was findable, friction and screenshots of each reachable state; fix
+reproducible friction, reset and replay the same seed, and promote the durable behavior into the
+Playwright suite. Live-model evaluation remains supplementary.
 
 ## 13. Delivery plan and stop conditions
 
@@ -628,12 +630,15 @@ and equivalent move orders have no decision to record and are refused as `not_de
 
 A navigation returns `presentation: "visible"` only after its destination rendered; staged cards
 and workflow outcomes (import notice, export Save control, change review) are revealed after they
-appear. Leaving Strategic Fit closes only its overlay: stage, queue, selection and an open
-Replacement Lab stay in their stores and reappear intact. The Lab is never closed by the assistant,
-because closing it discards candidates. The assistant bar renders inside the Strategic Fit dialog
-and the Lab dialog, each with Stop, hand-off and Return to chat. On compact layouts the bar shows
-one ellipsized line and steps aside on the Chat tab unless it carries Open PGN or Save PGN; Return to
-chat lands on the newest reply.
+appear. Leaving Strategic Fit closes only its overlay: the report and an open Replacement Lab stay in
+their stores and reappear intact. The finding queue is rebuilt on reopen and restores the branch
+the reader had open while its report is still current, so the Branch pane never reopens empty. The Lab is never
+closed by the assistant, because closing it discards candidates. The assistant bar renders inside the Strategic Fit dialog
+and the Lab dialog, each with Stop, hand-off and Return to chat. On compact layouts the bar is clamped to two
+lines and steps aside on the Chat tab unless it carries Open PGN or Save PGN. A finished step shows
+the start of the assistant's reply, so it can be read without opening chat; after the user takes
+over, the bar retires once their press or keystroke has landed, never under the finger. Return to
+chat and new replies keep the conversation scrolled to the newest message.
 
 ### Verification
 
@@ -648,5 +653,36 @@ Settings) run on desktop and compact WebKit with deterministic transports.
 
 Known gaps: no browser test applies a Replacement Lab change set through chat approval, because no
 fixture produces a stage the change controller accepts; the route reaches the same writer the Accept
-card uses, whose atomic behavior `strategic-fit-changes.test.ts` covers. Live-model behavior and
-the five-user usability check remain to be done.
+card uses, whose atomic behavior `strategic-fit-changes.test.ts` covers. Live-model behavior remains
+to be evaluated.
+
+### Guided-then-manual walkthrough
+
+Run on 2026-10-10 with web-harness (headless WebKit emulating an iPhone 13 Mini, not genuine Mobile
+Safari), following the section 12 protocol. Every journey completed both ways with zero page faults
+after the fixes below.
+
+| Journey | Guided                                                                 | Manual repeat                                                            |
+| ------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| J1      | Starter → Set up the assistant → Open PGN → review selects the blunder | Tap the other flagged move under Review game                             |
+| J2      | Candidate moves filled and compared; reply gives White-POV scores      | Edit Candidate moves, press Compare moves                                |
+| J3      | Profile setup requested; after Use Balanced profile, a branch is shown | Open Strategic Fit → Review → Evidence and information → Extend on board |
+| J4      | History form filled, games fetched and reviewed, repertoire unchanged  | Platform and Username, then Import and review games                      |
+| J5      | Annotated PGN generated, not saved, until Save annotated game          | Export annotated game generates and saves in one press                   |
+
+Friction found and fixed: without an API key the request was cleared, and the error offered neither
+setup nor a manual route; the phone chat log never followed new replies, and completed step strips
+pushed them out of a two-line window; the compact bar echoed the request instead of the reply; the
+board stayed scrolled away after a guided selection; the review showed two lists of the same moves
+that went to different positions; the bar stayed after takeover, and removing it on press shifted the
+page under the finger; imported games and their review rendered as empty cards, and the notice still
+said "reviewing" when done; reopening Strategic Fit after a branch showed an empty Branch pane, because closing dropped
+the selection; Extend
+on board returned focus to Open Strategic Fit, scrolling away from the section it opened. Each fix has
+a browser assertion in `guided-chat.spec.ts`, `guided-phases.spec.ts` or
+`strategic-fit-workspace.spec.ts`.
+
+Seen but unchanged (outside these journeys' fixes): a mate-scored move shows as "Δ-998.20"; the color
+dialog says "repertoire" for a single game; the review summary says "1 blunders". The rich-repertoire
+fixture yields no decidable Strategic Fit finding, so the decision and approval path is exercised by
+the worker-fixture browser test rather than this walkthrough.

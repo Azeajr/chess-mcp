@@ -230,7 +230,10 @@ test("a fake model can follow up by the compacted Strategic Fit finding ID", asy
   const input = page.getByPlaceholder("Ask about this position, game, or repertoire…");
   await input.fill("Analyze strategic fit and follow up on the top finding.");
   await page.getByRole("button", { name: "Send" }).click();
-  await expect(page.getByText(/Follow-up grounded in finding/)).toBeVisible({ timeout: 20_000 });
+  // The finished reply also appears in the assistant bar, so look for it in the conversation.
+  await expect(
+    page.locator(".chat-log .msg.assistant").getByText(/Follow-up grounded in finding/),
+  ).toBeVisible({ timeout: 20_000 });
 
   expect(rounds).toBe(2);
   expect(compacted).toBe(true);

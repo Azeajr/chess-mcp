@@ -256,7 +256,10 @@ test("account import names the scope, separates fetched from reviewed, and keeps
   assert.equal(calls[1]!.args.max_games, 20);
   assert.equal(receipt.result?.fetched, 25);
   assert.equal(receipt.result?.selected_for_review, 20);
-  assert.match(importNotice()?.message ?? "", /Fetched 25 games for fixture-user .* reviewing 20/);
+  assert.match(
+    importNotice()?.message ?? "",
+    /Fetched 25 games for fixture-user .* and reviewed 20/,
+  );
   assert.equal(currentTree().toPgn(), pgn);
 
   const empty = await act(

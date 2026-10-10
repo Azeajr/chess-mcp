@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./helpers/fixtures";
+import { RICH_PGN } from "./helpers/app";
 
 type Region = "overview" | "findings" | "evidence" | "resolution";
 type RegionState = { status: "empty" | "loading" | "error"; message?: string };
@@ -272,4 +273,60 @@ test("shell regions render explicit empty, loading, and error states", async ({ 
   await expect(
     dialog.locator("#strategic-fit-pane-evidence [data-region-state='empty']"),
   ).toContainText("Choose a result to understand");
+});
+
+test("reopening returns to the open branch, and Extend on board lands on Extend here @mobile-webkit", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 629 });
+  await chess(page, (api, pgn) => api.loadPgn(pgn, "rich-repertoire.pgn"), RICH_PGN);
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
+  await page.getByRole("tab", { name: /Analysis/ }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
+  const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
+  await expect
+    .poll(() => chess(page, (api) => api.strategicFitLifecycle().status), { timeout: 60_000 })
+    .toBe("completed");
+  const pane = dialog.locator("#strategic-fit-pane-findings");
+  const showEvidence = async () => {
+    const summary = pane.locator("summary", {
+      hasText: /^Evidence and information: \d+ findings$/,
+    });
+    if (!(await summary.evaluate((node) => (node.parentElement as HTMLDetailsElement).open)))
+      await summary.click();
+  };
+
+  await dialog.locator("#strategic-fit-stage-findings").click();
+  await showEvidence();
+  await pane.getByRole("button", { name: "Review evidence" }).first().click();
+  const evidence = dialog.locator("#strategic-fit-pane-evidence");
+  await expect(evidence).toContainText("Understand this branch");
+  const branch = await evidence
+    .locator("[data-evidence-finding-id]")
+    .first()
+    .getAttribute("data-evidence-finding-id");
+  // Closing unmounted the queue and dropped the selection, so reopening on Branch showed an empty
+  // "Choose a result" pane.
+  await dialog.getByRole("button", { name: "Return to repertoire" }).click();
+  await page.getByRole("button", { name: "Open Strategic Fit" }).click();
+  await expect(dialog.getByRole("tab", { name: "Branch" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(evidence.locator("[data-evidence-finding-id]").first()).toHaveAttribute(
+    "data-evidence-finding-id",
+    branch ?? "",
+  );
+  await expect(evidence.locator("[data-region-state='empty']")).toHaveCount(0);
+  await dialog.locator("#strategic-fit-stage-findings").click();
+
+  // The dialog handed focus back to Open Strategic Fit, scrolling the shared pane away from the
+  // section Extend on board had just opened.
+  await showEvidence();
+  await pane.getByRole("button", { name: "Extend on board" }).first().click();
+  await expect(dialog).toHaveCount(0);
+  const extend = page.locator("[data-guided-surface='repertoire.extend']");
+  await expect(extend.locator("> summary")).toBeFocused();
+  await expect(extend).toBeInViewport();
 });

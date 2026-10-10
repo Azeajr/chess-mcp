@@ -680,3 +680,22 @@ test("dispose aborts an unmounted page load, discards it, and lets the same repo
     ["finding:dispose-a", "finding:dispose-b"],
   );
 });
+
+test("reopening the same report restores the selected finding, and a new report does not", async () => {
+  const queue = createStrategicFitFindingQueueState({ execute: async () => null });
+  const first = finding("finding:keep-a");
+  const second = finding("finding:keep-b");
+  const current = report("report:keep", [first, second]);
+  await queue.synchronize(current);
+  queue.selectFinding("finding:keep-b");
+
+  // Closing the workspace unmounts the queue; reopening it used to land on an empty Branch pane.
+  queue.dispose();
+  assert.equal(queue.snapshot().selected_finding_id, null);
+  await queue.synchronize(current);
+  assert.equal(queue.snapshot().selected_finding_id, "finding:keep-b");
+
+  queue.dispose();
+  await queue.synchronize(report("report:refreshed", [first, second]));
+  assert.equal(queue.snapshot().selected_finding_id, null);
+});

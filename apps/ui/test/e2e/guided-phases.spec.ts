@@ -66,12 +66,31 @@ async function installScript(page: Page, plan: Plan, executor?: "import" | "expo
         api.setCommandExecutorForTesting(async (name) =>
           name === "lichess_games"
             ? {
+                platform: "lichess",
+                username: "fixture-user",
+                total: 3,
                 games: [1, 2, 3].map((round) => ({
-                  pgn: `[Event "Fixture ${round}"]\n[White "fixture-user"]\n[Black "opponent"]\n\n1. e4 e5 2. Nf3 Nc6 *`,
+                  white: "fixture-user",
+                  black: `opponent-${round}`,
+                  result: "1-0",
+                  user_result: "win",
+                  pgn: `[Event "Fixture ${round}"]\n[White "fixture-user"]\n[Black "opponent-${round}"]\n\n1. e4 e5 2. Nf3 Nc6 *`,
                 })),
               }
             : name === "batch_review"
-              ? { games_reviewed: 3, username: "fixture-user", games: [] }
+              ? {
+                  total_games: 3,
+                  groups: [
+                    {
+                      key: "C44",
+                      name: "King's Knight Opening",
+                      games: 3,
+                      avg_cpl: 12.5,
+                      top_blunders: [{ move: "Nc6", frequency: 2 }],
+                      win_rate: 1,
+                    },
+                  ],
+                }
               : {},
         );
       if (executor === "export")
@@ -214,11 +233,13 @@ for (const mobile of [false, true]) {
 
     // The assistant's status and its route back to the conversation live inside the dialog.
     const controls = dialog.getByRole("complementary", { name: "Assistant controls" });
-    await expect(controls).toContainText("completed");
+    await expect(controls).toContainText("Assistant: I prepared Defer for this finding.");
     await controls.getByRole("button", { name: "Return to chat", exact: true }).click();
     // Returning lands on the newest reply, not the top of the conversation.
     await expect(
-      page.getByText("I prepared Defer for this finding. Shall I record it?"),
+      page
+        .locator(".chat-log .msg.assistant")
+        .getByText("I prepared Defer for this finding. Shall I record it?"),
     ).toBeInViewport();
     await test
       .info()
@@ -255,7 +276,19 @@ for (const mobile of [false, true]) {
     const history = page.locator("[data-guided-surface='analysis.history']");
     await expect(history.getByRole("textbox", { name: "Username" })).toHaveValue("fixture-user");
     await expect(history.locator("[data-import-notice='status']")).toContainText(
-      "Fetched 3 games for fixture-user (the latest 20 Lichess games); reviewing 3. Your repertoire is unchanged.",
+      "Fetched 3 games for fixture-user (the latest 20 Lichess games) and reviewed 3. Your repertoire is unchanged.",
+    );
+    // The imported games and their review are shown, not left as empty cards.
+    await expect(
+      history.locator(".result-card", { hasText: "Imported games · Lichess" }),
+    ).toContainText("3 games for fixture-user · 3 wins · 0 draws · 0 losses");
+    await expect(
+      history.locator(".result-card", { hasText: "Imported games · Lichess" }),
+    ).toContainText("fixture-user – opponent-2 · 1-0");
+    await expect(
+      history.locator(".result-card", { hasText: "Review of imported games" }),
+    ).toContainText(
+      "King's Knight Opening · 3 games · 3 won · average loss 12.5 cp · blunders: Nc6 ×2",
     );
     await expect
       .poll(async () => (await receipts(page)).at(-1)?.result?.selected_for_review)
@@ -354,7 +387,7 @@ for (const mobile of [false, true]) {
     const pivotName = await label(pivot);
     expect(pivotName).not.toBe("");
     const controls = lab.getByRole("complementary", { name: "Assistant controls" });
-    await expect(controls).toContainText("completed");
+    await expect(controls).toContainText("Assistant: I chose the decision to replace.");
     await test
       .info()
       .attach("lab-assistant", { body: await page.screenshot(), contentType: "image/png" });

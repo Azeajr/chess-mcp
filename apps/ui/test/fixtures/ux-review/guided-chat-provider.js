@@ -53,8 +53,13 @@ async (page) => {
     const failed = (receipt) => receipt.status && receipt.status !== "completed";
 
     let next;
-    if (step > 0 && failed(last)) {
-      next = say(`That step didn't go through: ${last.reason ?? last.error}.`);
+    if (step > 0 && last.error === "profile_setup_required") {
+      next = say(
+        "Strategic Fit first asks what kind of repertoire you're building, because that changes what it calls out. " +
+          "The choices are on screen now: pick one (Balanced is a good start) and press its Use … profile button, then ask me again.",
+      );
+    } else if (step > 0 && failed(last)) {
+      next = say(`That step didn't go through: ${String(last.reason ?? last.error).replace(/\.+$/, "")}.`);
     } else if (request.includes("review")) {
       if (state?.document.kind === "empty")
         next =
@@ -130,7 +135,8 @@ async (page) => {
             ? "The analysis found nothing that needs a decision."
             : decidable
               ? `This branch (${item?.opening}) ${item?.category.toLowerCase()}. Choose what to do with it under “What do you want to do?”, or ask me to prepare a decision.`
-              : `All ${findings.total} findings report incomplete evidence: lines such as ${item?.opening} end before the position settles, so there is nothing to decide yet. Extending them (Extend here in the Repertoire panel) gives the analysis more to compare.`,
+              : `None of the ${findings.total} findings needs a decision yet. Lines such as ${item?.opening} end before the position settles, so there is too little to compare. ` +
+                "Under Review, open Evidence and information and press Extend on board beside a line to add moves to it, then run the analysis again.",
         );
       }
     } else if (request.includes("import")) {

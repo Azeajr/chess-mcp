@@ -28,6 +28,13 @@ const emptyStrategicFitWorkspaceRegions = (): Record<
 });
 
 export const [strategicFitWorkspaceOpen, setStrategicFitWorkspaceOpen] = createSignal(false);
+/**
+ * A control that closes Strategic Fit to send the reader somewhere else in the app names where focus
+ * lands. Returning focus to the opener scrolled its pane back, away from that destination.
+ */
+export const [strategicFitCloseFocus, setStrategicFitCloseFocus] = createSignal<string | null>(
+  null,
+);
 export const [strategicFitWorkspaceStage, setStrategicFitWorkspaceStage] =
   createSignal<StrategicFitWorkspaceStage>("overview");
 export const [strategicFitWorkspaceRegions, setStrategicFitWorkspaceRegions] = createSignal(

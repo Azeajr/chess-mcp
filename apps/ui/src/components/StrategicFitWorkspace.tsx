@@ -53,6 +53,8 @@ import {
   setStrategicFitWorkspaceOpen,
   setStrategicFitBoardReturn,
   setStrategicFitWorkspaceStage,
+  strategicFitCloseFocus,
+  setStrategicFitCloseFocus,
   strategicFitFindingQueueFilterKey,
   strategicFitFindingQueueIntent,
   strategicFitPrintExportMode,
@@ -390,6 +392,11 @@ export default function StrategicFitWorkspace() {
         class="strategic-fit-workspace"
         unstyled
         inert={replacementLabSnapshot().open}
+        returnFocusTo={() => {
+          const selector = strategicFitCloseFocus();
+          setStrategicFitCloseFocus(null);
+          return selector ? document.querySelector<HTMLElement>(selector) : null;
+        }}
         onClose={close}
       >
         <div

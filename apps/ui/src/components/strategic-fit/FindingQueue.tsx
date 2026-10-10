@@ -22,7 +22,11 @@ import RegionState from "../primitives/RegionState";
 import { isDecidableFinding } from "../../application/decidable-finding";
 import { actions, currentTree, documentId } from "../../store/game";
 import { scanComplementary } from "../../store/repertoire";
-import { setStrategicFitWorkspaceOpen, setStrategicFitBoardReturn } from "../../store/ui";
+import {
+  setStrategicFitWorkspaceOpen,
+  setStrategicFitBoardReturn,
+  setStrategicFitCloseFocus,
+} from "../../store/ui";
 
 const SORT_LABELS: Readonly<Record<StrategicFitFindingSort, string>> = {
   "replacement-priority": "Replacement priority",
@@ -140,19 +144,16 @@ export default function FindingQueue(props: {
                           if (!target) return;
                           actions.goto(target);
                           setStrategicFitBoardReturn(documentId());
-                          setStrategicFitWorkspaceOpen(false);
                           if (finding.classification !== "transpositional-equivalence") {
                             void scanComplementary("low_memorization");
-                            requestAnimationFrame(() => {
-                              const section = document
-                                .querySelector("#extend-mode")
-                                ?.closest("details");
-                              if (section) {
-                                section.open = true;
-                                section.scrollIntoView({ block: "nearest" });
-                              }
-                            });
+                            // Scrolling to the section lost to the dialog returning focus to
+                            // Open Strategic Fit in the same pane; land focus on the section.
+                            const extend = "[data-guided-surface='repertoire.extend']";
+                            const section = document.querySelector<HTMLDetailsElement>(extend);
+                            if (section) section.open = true;
+                            setStrategicFitCloseFocus(`${extend} > summary`);
                           }
+                          setStrategicFitWorkspaceOpen(false);
                         }}
                       >
                         {finding.classification === "transpositional-equivalence"
