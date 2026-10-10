@@ -83,8 +83,8 @@ export function strategicFitSnapshot() {
   const report = currentReport();
   const queue = strategicFitFindingQueue.snapshot();
   const lab = replacementLabSnapshot();
-  const findings =
-    queue.report_id === report?.report_id && queue.status === "ready" ? queue.findings : [];
+  const loaded = report !== null && findingsLoaded(report.report_id);
+  const findings = loaded ? queue.findings : [];
   const unresolved = findings.filter(
     (finding) => displayStrategicFitFindingResolution(finding) === "unresolved",
   );
@@ -130,8 +130,11 @@ export function strategicFitSnapshot() {
     findings: report
       ? {
           reportId: report.report_id,
-          total: findings.length,
-          unresolved: unresolved.length,
+          // Findings load with the workspace; until then the report's own count is the total, and
+          // nothing is known about which are unresolved.
+          loaded,
+          total: loaded ? findings.length : report.result.finding_page.total_count,
+          unresolved: loaded ? unresolved.length : null,
           selectedFindingId: queue.selected_finding_id,
           items: ordered.slice(0, FINDING_LIMIT).map(findingStory),
           truncated: ordered.length > FINDING_LIMIT,
@@ -250,6 +253,22 @@ export async function awaitFindingQueue(reportId: string, signal?: AbortSignal) 
   return false;
 }
 
+/** Whether the finding queue holds this report's findings; it loads when the workspace opens. */
+export function findingsLoaded(reportId: string): boolean {
+  const queue = strategicFitFindingQueue.snapshot();
+  return (
+    currentReport()?.report_id === reportId &&
+    queue.report_id === reportId &&
+    queue.status === "ready"
+  );
+}
+
+export const FINDINGS_NOT_LOADED: AdapterFailure = {
+  error: "findings_not_loaded",
+  reason:
+    "This report's findings are not loaded yet. Navigate to strategicFit.review so they load, then try again.",
+};
+
 export function findingIn(reportId: string, findingId: string): StrategicFinding | null {
   const report = currentReport();
   const queue = strategicFitFindingQueue.snapshot();
@@ -299,6 +318,7 @@ export function showFindingOnBoard(reportId: string, findingId: string) {
 export function decisionPrecheck(findingId: string): AdapterFailure | null {
   const report = currentReport();
   if (!report) return { error: "no_report", reason: "No current Strategic Fit report." };
+  if (!findingsLoaded(report.report_id)) return FINDINGS_NOT_LOADED;
   const finding = findingIn(report.report_id, findingId);
   if (!finding)
     return { error: "stale_result", reason: "That finding is not in the current report." };
@@ -321,6 +341,7 @@ export function prepareFindingDecision(input: {
 }): PreparedDecision | { error: string; reason: string } {
   const report = currentReport();
   if (!report) return { error: "no_report", reason: "No current Strategic Fit report." };
+  if (!findingsLoaded(report.report_id)) return FINDINGS_NOT_LOADED;
   const finding = findingIn(report.report_id, input.findingId);
   if (!finding)
     return { error: "stale_result", reason: "That finding is not in the current report." };
@@ -356,6 +377,7 @@ export function prepareFindingDecision(input: {
 export function openReplacementLab(findingId: string): { ok: true } | AdapterFailure {
   const report = currentReport();
   if (!report) return { error: "no_report", reason: "No current Strategic Fit report." };
+  if (!findingsLoaded(report.report_id)) return FINDINGS_NOT_LOADED;
   const finding = findingIn(report.report_id, findingId);
   if (!finding)
     return { error: "stale_result", reason: "That finding is not in the current report." };

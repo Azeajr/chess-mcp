@@ -631,8 +631,11 @@ and equivalent move orders have no decision to record and are refused as `not_de
 A navigation returns `presentation: "visible"` only after its destination rendered; staged cards
 and workflow outcomes (import notice, export Save control, change review) are revealed after they
 appear. Leaving Strategic Fit closes only its overlay: the report and an open Replacement Lab stay in
-their stores and reappear intact. The finding queue is rebuilt on reopen and restores the branch
-the reader had open while its report is still current, so the Branch pane never reopens empty. The Lab is never
+their stores and reappear intact. The finding queue keeps a loaded report's findings and the branch
+the reader had open while the overlay is closed (only its sort, filters and page reset), so the
+assistant still reads and decides findings by identity from chat and the Branch pane never reopens
+empty. Before a report's findings first load, the state gives the report's own total with
+`loaded: false` and identity actions return `findings_not_loaded`. The Lab is never
 closed by the assistant, because closing it discards candidates. The assistant bar renders inside the Strategic Fit dialog
 and the Lab dialog, each with Stop, hand-off and Return to chat. On compact layouts the bar is clamped to two
 lines and steps aside on the Chat tab unless it carries Open PGN or Save PGN. A finished step shows

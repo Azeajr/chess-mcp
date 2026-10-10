@@ -59,6 +59,8 @@ import { selectReviewedMove } from "../review-selection";
 import type { ExportCommand } from "../../store/exports";
 import {
   awaitFindingQueue,
+  FINDINGS_NOT_LOADED,
+  findingsLoaded,
   awaitStrategicFitReport,
   configureReplacementLab,
   generateReplacementCandidates,
@@ -505,6 +507,8 @@ export function selectResult(
   }
   const report = strategicFitLifecycle().current_result;
   if (report?.report_id === resultId) {
+    if (!findingsLoaded(resultId))
+      return blocked(FINDINGS_NOT_LOADED.error, FINDINGS_NOT_LOADED.reason);
     if (item.board) {
       const shown = showFindingOnBoard(resultId, itemId);
       return shown

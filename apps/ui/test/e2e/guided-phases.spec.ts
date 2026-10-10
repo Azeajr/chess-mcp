@@ -160,6 +160,11 @@ type Harness = {
   strategicFitMetadata(): { resolutions: unknown[] };
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "balanced"): unknown;
+  uiSnapshot(): {
+    strategicFit: {
+      findings: { loaded: boolean; total: number; selectedFindingId: string | null } | null;
+    };
+  };
 };
 const chess = <T>(page: Page, fn: (api: Harness, arg: T) => unknown, arg?: T) =>
   page.evaluate(
@@ -401,6 +406,59 @@ for (const mobile of [false, true]) {
     expect(await currentPgn(page)).toBe(before);
   });
 }
+
+test("after Return to chat the assistant still sees and decides the report's findings", async ({
+  page,
+}) => {
+  test.slow();
+  await installFindingWorkerFixture(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "guided-return.pgn"));
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
+  await installScript(page, {
+    "Find something to fix with Strategic Fit": [
+      { action: { kind: "navigate", surface: "strategicFit.assessment" } },
+      { action: { kind: "submit", workflow: "strategic_fit_analyze" } },
+      { action: { kind: "select_result", resultId: "$reportId", itemId: "$finding" } },
+      { text: "This finding is worth a decision." },
+    ],
+    "Defer it": [
+      {
+        action: {
+          kind: "set_fields",
+          form: "decision",
+          values: { findingId: "$selectedFinding", decision: "defer" },
+        },
+      },
+      { text: "I prepared Defer for it." },
+    ],
+  });
+
+  await ask(page, "Find something to fix with Strategic Fit");
+  const dialog = page.getByRole("dialog", { name: "Strategic Fit" });
+  const controls = dialog.getByRole("complementary", { name: "Assistant controls" });
+  await expect(controls).toContainText("Assistant: This finding is worth a decision.", {
+    timeout: 30_000,
+  });
+  await controls.getByRole("button", { name: "Return to chat", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  // Closing the workspace used to empty its finding queue: the assistant read a total of 0 and
+  // its next decision was refused as "not in the current report".
+  const findings = await chess(page, (api) => api.uiSnapshot().strategicFit.findings);
+  expect(findings?.loaded).toBe(true);
+  expect(findings?.total).toBeGreaterThan(0);
+  expect(findings?.selectedFindingId).toBeTruthy();
+
+  await ask(page, "Defer it");
+  await expect(dialog.locator("[data-prepared-decision='defer']")).toBeVisible({ timeout: 15_000 });
+  await expect
+    .poll(async () => (await receipts(page)).map((receipt) => receipt.error ?? receipt.status))
+    .toEqual(["completed", "completed", "completed", "completed"]);
+  expect(await resolutions(page)).toBe(0);
+});
 
 test("settings open at the requested section and credentials stay the user's", async ({ page }) => {
   await openApp(page, { width: 1280, height: 800 });

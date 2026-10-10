@@ -54,6 +54,8 @@ import {
 } from "./ui-adapters/proposals";
 import {
   awaitFindingQueue,
+  FINDINGS_NOT_LOADED,
+  findingsLoaded,
   decisionPrecheck,
   strategicFitSnapshot,
   strategicFitSetupRequired,
@@ -477,8 +479,8 @@ function evidencePage(resultId: string, offset: number) {
     list = result?.moves ?? result?.findings ?? result?.matches ?? result?.lines ?? result?.games;
     whole = result;
   } else if (strategicFitLifecycle().current_result?.report_id === resultId) {
+    if (!findingsLoaded(resultId)) return FINDINGS_NOT_LOADED;
     const queue = strategicFitFindingQueue.snapshot();
-    if (queue.report_id !== resultId) return null;
     list = queue.findings.map((finding) => ({
       findingId: finding.finding_id,
       classification: finding.classification,
@@ -627,6 +629,7 @@ export async function executeUiTool(
     const offset = Number(raw.offset ?? 0);
     const page = evidencePage(raw.resultId, offset);
     if (!page) return failure("stale_result", "That result is no longer current.");
+    if ("error" in page) return failure(page.error, page.reason);
     return { state: uiSnapshot(options.turn), resultId: raw.resultId, offset, ...page };
   }
   if (

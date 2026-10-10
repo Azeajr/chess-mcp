@@ -257,9 +257,9 @@ export function createStrategicFitFindingQueueState(
   const [state, setState] = createSignal<StrategicFitFindingQueueSnapshot>(initialSnapshot());
   let activeController: AbortController | null = null;
   let loadSequence = 0;
-  // The workspace unmounts the queue when it closes. Keeping the branch the reader had open lets
-  // reopening the same report (Back to Strategic Fit, Return to chat and back) land on it, where
-  // the Branch pane otherwise reopened empty.
+  // The workspace unmounts the queue when it closes. A load it abandoned restarts on reopening;
+  // keeping the branch the reader had open lets that reopening land on it, where the Branch pane
+  // otherwise reopened empty.
   let retained: { report_id: string; selected_finding_id: string } | null = null;
   const revealSelection = () => {
     const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
@@ -449,13 +449,34 @@ export function createStrategicFitFindingQueueState(
     revealSelectedFinding: revealSelection,
     dispose: () => {
       const current = state();
+      activeController?.abort();
+      activeController = null;
+      loadSequence++;
+      // Closing the workspace (Return to chat, Go to line) leaves its report current, and the
+      // assistant still reads, selects and decides findings by identity. Emptying a loaded queue
+      // made them look absent ("not in the current report", a total of 0), so it is kept; only the
+      // reader's sort, filters and page reset, with the selected finding's page in view.
+      if (current.status === "ready" && current.report_id !== null) {
+        retained = null;
+        const kept: StrategicFitFindingQueueSnapshot = {
+          ...initialSnapshot(),
+          report_id: current.report_id,
+          repertoire_revision: current.repertoire_revision,
+          status: "ready",
+          findings: current.findings,
+          canonical_total_count: current.canonical_total_count,
+          selected_finding_id: current.selected_finding_id,
+        };
+        setState({
+          ...kept,
+          page_offset: buildStrategicFitFindingQueueView(kept).selected_page_offset ?? 0,
+        });
+        return;
+      }
       retained =
         current.report_id !== null && current.selected_finding_id !== null
           ? { report_id: current.report_id, selected_finding_id: current.selected_finding_id }
           : null;
-      activeController?.abort();
-      activeController = null;
-      loadSequence++;
       setState(initialSnapshot());
     },
   };
