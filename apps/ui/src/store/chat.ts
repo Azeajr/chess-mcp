@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { history, setHistory } from "./chat-history";
 import { streamChat, type ChatMessage, type ToolCall } from "../llm/openrouter";
 import {
   assistantToolSchemas,
@@ -6,6 +7,11 @@ import {
   ownsCommandLifecycle,
 } from "../llm/tools";
 import { uiSnapshot, uiStateToken } from "../application/ui-actions";
+import {
+  pendingProposals,
+  recordPresented,
+  type AssistantTurnContext,
+} from "../application/ui-adapters/proposals";
 import {
   guidedStatus,
   setGuidedStatus,
@@ -44,13 +50,17 @@ interface ToolRunState {
   detail?: string;
   error?: string;
 }
-const [history, setHistory] = createSignal<ChatMessage[]>([]);
 const [streamingText, setStreamingText] = createSignal("");
 const [busy, setBusy] = createSignal(false);
 const [error, setError] = createSignal<string | null>(null);
 const [toolRuns, setToolRuns] = createSignal<ToolRunState[]>([]);
 let controller: AbortController | null = null;
 let lastRequest = "";
+// Each user message starts a turn. The application, not the model, assigns the message identity, so
+// an approval or settings request can be traced to the words the user actually sent.
+let turnSequence = 0;
+let currentTurn: AssistantTurnContext | null = null;
+export const currentAssistantTurn = () => currentTurn;
 let chatTransportOverride: typeof streamChat | null = null;
 let toolExecutorOverride: typeof runTool | null = null;
 const chatTransport: typeof streamChat = (...args) =>
@@ -170,7 +180,7 @@ export function chatContextBlock(snapshot: ChatContextSnapshot = chatContextSnap
 function systemMessage(): ChatMessage {
   return {
     role: "system",
-    content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${chatContextBlock()}\n\nCurrent UI state: ${JSON.stringify(uiSnapshot())}`,
+    content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${chatContextBlock()}\n\nCurrent UI state: ${JSON.stringify(uiSnapshot(currentTurn ?? undefined))}`,
   };
 }
 
@@ -372,6 +382,7 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
             cancel: abortRun,
           });
     let result: unknown;
+    const proposalsBefore = new Set(pendingProposals().map((proposal) => proposal.proposalId));
     try {
       result = await toolExecutor(tc.function.name, raw, {
         signal: runSignal,
@@ -379,6 +390,7 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
           updateRun(tc.id, { done, total, detail });
           if (operationId) updateOperation(operationId, { done, total, detail });
         },
+        ...(currentTurn ? { turn: currentTurn } : {}),
       });
       const failed =
         !!result &&
@@ -411,6 +423,12 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         );
     } finally {
       signal.removeEventListener("abort", abortRun);
+      // Any proposal a tool staged appears as a card in this turn; record it as presented.
+      if (currentTurn)
+        recordPresented(
+          currentTurn.turnId,
+          pendingProposals().filter((proposal) => !proposalsBefore.has(proposal.proposalId)),
+        );
     }
     setHistory((h) => [
       ...h,
@@ -435,6 +453,8 @@ async function sendTurn(userText: string) {
   }
   lastRequest = text;
   setError(null);
+  const turnId = ++turnSequence;
+  currentTurn = { turnId, messageId: `user-message-${turnId}`, text };
   setHistory((h) => [...h, { role: "user", content: text }]);
   setBusy(true);
   setGuidedStatus("executing");

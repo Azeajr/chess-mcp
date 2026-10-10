@@ -1,4 +1,5 @@
 import { For, Show, createEffect, createSignal } from "solid-js";
+import AssistantControls from "../AssistantControls";
 import type { ReplacementCandidateSourceKind } from "@chess-mcp/chess-tools";
 import {
   REPLACEMENT_LAB_SUPPORTED_SOURCES,
@@ -188,6 +189,7 @@ export default function ReplacementLab() {
       }}
     >
       <div data-replacement-lab-status={state().status} class="replacement-lab-inner">
+        <AssistantControls />
         <header class="replacement-lab-header">
           <div>
             <span>Strategic Fit</span>

@@ -1,6 +1,7 @@
 # Chat-driven web app
 
-Status: interaction decisions accepted; Phase 1 implementation in progress. Later phases remain planned.
+Status: interaction decisions accepted; Phases 1–3 implemented (section 15). The guided-then-manual
+usability evaluation in section 12 has not been run.
 Date: 2026-10-10.
 
 ## 1. Problem and intended outcome
@@ -524,9 +525,9 @@ presentation additions while keeping accepted document data compatible with exis
 
 ## 14. Accepted decisions and remaining proposals
 
-The user accepted all interaction defaults below and authorized Phase 1 implementation.
-Conversational approval belongs to the staged-resolution phase; Phase 1 does not add an acceptance
-endpoint or change existing mutation controls.
+The user accepted all interaction defaults below and authorized implementation of all three phases
+in one change. Conversational approval is implemented with the staged-resolution work; existing
+Accept controls keep their behavior.
 
 | Decision                                 | Proposed default                                                                                        | Reason                                                                          |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
@@ -543,26 +544,109 @@ identity adapters for non-command stores, render acknowledgement hooks, and the 
 stack's best placement for compact assistant controls. Resolve these against the actual code during
 the phase, document deviations, and do not weaken the requirements above to fit a convenient seam.
 
-## 15. Phase 1 implementation coverage
+## 15. Implementation coverage
 
-The browser assistant adds `ui_get_state` and `ui_act` beside the unchanged canonical chess
-schemas. These UI contracts live only in `apps/ui`; they do not change MCP or generated chess tool
-contracts. State tokens bind document identity, revision, side, position, manual interaction and
-comparison draft version. Session receipts reject conflicting IDs and deduplicate retries.
+All three phases are implemented. This section records what exists, where it deviates from the
+proposals above, and what remains user-only or deferred.
 
-| Control                                                     | Phase 1 disposition                                                                                         |
-| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| Open PGN                                                    | Assistant reveals a visible Open PGN action; file choice, color and Load remain user actions.               |
-| Review game                                                 | Shared summary/analysis workflow; chat and manual use publish the same command results.                     |
-| Review finding row                                          | Both select the position before the move; assistant selection requires a current result identity.           |
-| Candidate moves                                             | Shared versioned draft; assistant fills it visibly and manual changes interrupt orchestration.              |
-| Compare moves                                               | Shared automatic/supplied candidate workflow with existing illegal-move results preserved.                  |
-| Position evaluation                                         | Canonical command remains available and publishes current-position results; automatic comparison reuses it. |
-| Stop / manual handoff                                       | Available outside chat while a request runs, including compact layouts.                                     |
-| Engine settings, tablebase, popularity, imports and exports | Existing controls and canonical chess tools retained; UI action adapters deferred to later phases.          |
-| Staged edits and other acceptance controls                  | Existing explicit card acceptance retained; conversational acceptance implementation deferred to Phase 2.   |
+### Model-facing surface as built
 
-Manual intervention conservatively aborts the active guided turn, including cancellable analysis,
-instead of continuing computation in the background. Completed results and drafts remain. No
-automatic work resumes after reload. Mainline review of a branching tree requires clarification;
-the existing canonical mainline tools remain available after that clarification.
+The browser assistant receives `ui_get_state` and `ui_act` beside the unchanged canonical chess
+schemas ([schema](../apps/ui/src/application/ui-action-schema.ts)). They live only in `apps/ui`;
+the MCP server, the generated tool catalog and the shared chess contract are unchanged.
+`ui_act` takes `{ actionId, stateToken, action }` with this closed union:
+
+| Action             | Effect                                                                                                               |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `navigate`         | Reveal a logical surface (section 5 IDs; [routes](../apps/ui/src/application/ui-adapters/surfaces.ts)).              |
+| `set_fields`       | Fill a form: `compare`, `history`, `structure`, `opponent`, `extend`, `decision`, `replacementLab`.                  |
+| `submit`           | Run a registered workflow through the same function its visible control calls (26 workflows).                        |
+| `select_result`    | Select an item of a current result by `resultId` and `ply` or `itemId`; repertoire suggestions stage a preview.      |
+| `select_path`      | Move the board to an existing SAN path.                                                                              |
+| `show_proposal`    | Reveal a pending proposal and record it as presented for decision.                                                   |
+| `approve_proposal` | Apply a pending proposal on verified chat approval (below).                                                          |
+| `open_settings`    | Open Settings at `general`, `engine`, `api-key` or `lichess-token`.                                                  |
+| `set_setting`      | Change `analysis_depth`, `cloud_eval`, `technical_details` or `chat_workflow` when the user's current message asked. |
+
+Deviations from sections 6–7, each deliberate:
+
+- One `stateToken` binds document ID, revision, side, FEN, selected path, interaction epoch and both
+  form versions, instead of a separate `expected` object; any manual change invalidates queued actions.
+- `approve_proposal` and `select_path` were added to the proposed union; acceptance needs an
+  explicit action because the model must name the approval candidate the application then verifies.
+- Adapters live in `apps/ui/src/application/ui-adapters/` behind the existing `ui-actions.ts`
+  dispatcher. `catalog.ts` holds the closed vocabularies with no runtime imports, so the schema
+  never loads the stores.
+- The injected snapshot stays within 12,000 characters by dropping repertoire scan rows and
+  trimming Strategic Fit findings first; identity, blocking dialog, proposals and active work are
+  always kept. Evidence pages come from `ui_get_state` with `resultId` and `offset`.
+- Each receipt carries a `step` label in the interface's words; chat renders UI steps as short
+  "App step" cards instead of generic tool results.
+
+### Proposals and chat approval
+
+[`proposals.ts`](../apps/ui/src/application/ui-adapters/proposals.ts) lists every pending staged
+decision from its owning store: staged edits, preview lines (gap fills, Connect, Shorten, Extend),
+Strategic Fit profile proposals, plan cards, replacement bounds, Replacement Lab change sets and
+prepared finding decisions. Acceptance always goes back to the owning writer through one coordinator
+that holds a proposal while an asynchronous writer runs.
+
+A chat approval is applied only when every check passes: the cited message is the current turn's
+user message (IDs are assigned by the app, never the model); it has not approved anything before; it
+reads as an explicit approval (no question, refusal or change of content, which the conservative
+wording check rejects); the previous assistant turn presented exactly this proposal and no other
+still-pending one; and the proposal's preview version is unchanged and current. Otherwise the
+receipt names the failed check (`approval_message_invalid`, `approval_already_used`,
+`approval_not_explicit`, `approval_not_presented`, `approval_ambiguous`, `approval_stale`). A
+request to "improve" or to "apply what you find" cannot pre-approve a preview the user has not seen.
+
+Strategic Fit finding decisions write metadata the moment their buttons are pressed, so the
+assistant only prepares one (`set_fields decision`). The prepared card in the Branch pane offers
+Record decision and Discard; a decision the user makes directly supersedes it. Uncertain evidence
+and equivalent move orders have no decision to record and are refused as `not_decidable`.
+
+### Control inventory (AC13)
+
+| Surface                                | Supported for the assistant                                                             | User-only, with reason                                                                     | Deferred, with reason                                                                                                 |
+| -------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Document                               | Reveal Open PGN and Save PGN in the assistant bar                                       | File choice, color/Load dialog, saving, New, discard/recovery choices: file and data guard | —                                                                                                                     |
+| Board and moves                        | Select an existing path; reveal Moves                                                   | Playing moves on the board: user input                                                     | Opening an arbitrary legal preview line: the canonical `propose_line` already stages one                              |
+| Review game                            | Reveal; run; select a reviewed move                                                     | —                                                                                          | —                                                                                                                     |
+| Compare and position tools             | Fill candidates; run compare, position evaluation, tablebase, popularity                | —                                                                                          | —                                                                                                                     |
+| Import my games                        | Fill platform, username, month; import and review; compare with history                 | —                                                                                          | —                                                                                                                     |
+| Export annotated game / repertoire     | Generate; reveal the Save control                                                       | Save (file gesture)                                                                        | —                                                                                                                     |
+| Audit, Only moves, Structures, Prep    | Fill inputs; run; select a row's line                                                   | —                                                                                          | Create drill deck: a user-saved CSV with no assistant need                                                            |
+| Gaps, Connect, Shorten, Extend         | Scan, scan next, choose fill, select a suggestion (stages a preview), set Extend style  | Accept line, Add best fill, Add move: they apply without a preview                         | Shortcut Inspect: available as the canonical `inspect_shortcut` tool                                                  |
+| Strategic Fit assessment/review/branch | Open; run or await analysis; select finding; show its line on the board                 | Profile setup choices                                                                      | Queue filters and sort, maps/heatmap/flow drill-downs: identities reach the assistant through selection and retrieval |
+| Strategic Fit decision                 | Prepare a decision; verified chat approval                                              | Reopen and Undo decision                                                                   | Cohort regrouping (CohortEditor): its own preview/confirm flow, not adapted                                           |
+| Replacement Lab                        | Open; choose pivot, sources, depth; generate; stage a candidate; verified chat approval | Revision-confirmation checkbox and Accept on the card (the visible route)                  | Undo after acceptance: remains with the resolution proof controls                                                     |
+| Training                               | Plans via `propose_strategic_fit_plan`; open an accepted item's drill                   | Recall moves and attempts                                                                  | —                                                                                                                     |
+| Strategic Fit portability              | Generate metadata JSON and intent PGN; reveal Save                                      | Metadata import (file choice and confirmation)                                             | —                                                                                                                     |
+| Settings                               | Open a section; change the four public settings on request                              | API key, model, Lichess token, recovery                                                    | —                                                                                                                     |
+
+### Presentation and compact layouts
+
+A navigation returns `presentation: "visible"` only after its destination rendered; staged cards
+and workflow outcomes (import notice, export Save control, change review) are revealed after they
+appear. Leaving Strategic Fit closes only its overlay: stage, queue, selection and an open
+Replacement Lab stay in their stores and reappear intact. The Lab is never closed by the assistant,
+because closing it discards candidates. The assistant bar renders inside the Strategic Fit dialog
+and the Lab dialog, each with Stop, hand-off and Return to chat. On compact layouts the bar shows
+one ellipsized line and steps aside on the Chat tab unless it carries Open PGN or Save PGN; Return to
+chat lands on the newest reply.
+
+### Verification
+
+Unit tests: [`guided-ui.test.ts`](../apps/ui/test/guided-ui.test.ts) and
+[`guided-phases.test.ts`](../apps/ui/test/guided-phases.test.ts) cover both approval routes,
+ambiguous, revised, stale and forged approvals, simultaneous card and chat acceptance, form conflicts,
+import scope, generated-versus-saved exports, the settings request rule, secrets in context, staged
+previews and the context budget. Browser tests:
+[`guided-chat.spec.ts`](../apps/ui/test/e2e/guided-chat.spec.ts) (J1, J2) and
+[`guided-phases.spec.ts`](../apps/ui/test/e2e/guided-phases.spec.ts) (J3–J5, the Replacement Lab and
+Settings) run on desktop and compact WebKit with deterministic transports.
+
+Known gaps: no browser test applies a Replacement Lab change set through chat approval, because no
+fixture produces a stage the change controller accepts; the route reaches the same writer the Accept
+card uses, whose atomic behavior `strategic-fit-changes.test.ts` covers. Live-model behavior and
+the five-user usability check remain to be done.

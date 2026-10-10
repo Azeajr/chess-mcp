@@ -11,12 +11,8 @@ import Divider from "./components/Divider";
 import MobileTabs from "./components/MobileTabs";
 import ActivityStrip from "./components/ActivityStrip";
 import AssistantControls from "./components/AssistantControls";
-import {
-  registerGuidedPresenter,
-  setComparisonOpen,
-  manualIntervention,
-  setSelectedReview,
-} from "./store/guided-ui";
+import { registerGuidedPresenter, manualIntervention, setSelectedReview } from "./store/guided-ui";
+import { presentSurfaceInDocument } from "./application/ui-adapters/surfaces";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
@@ -48,7 +44,7 @@ import {
   startStrategicFitTrainingPerformancePersistence,
   strategicFitTrainingPerformanceWarning,
 } from "./store/strategic-fit-training";
-import { mobileTab, setMobileTab, strategicFitWorkspaceOpen } from "./store/ui";
+import { mobileTab, strategicFitWorkspaceOpen } from "./store/ui";
 import {
   resizeSide,
   resizeSideChat,
@@ -71,21 +67,7 @@ export default function App() {
   startStrategicFitLifecycle();
 
   onMount(() => {
-    const disposePresenter = registerGuidedPresenter(async (surface, signal) => {
-      if (signal?.aborted || backgroundSuspended()) return false;
-      if (surface !== "document.open") setMobileTab("analysis");
-      if (surface === "analysis.compare") setComparisonOpen(true);
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
-          resolve();
-        });
-      });
-      if (signal?.aborted || backgroundSuspended()) return false;
-      const target = document.querySelector<HTMLElement>(`[data-guided-surface="${surface}"]`);
-      if (!target?.getClientRects().length) return false;
-      target.scrollIntoView({ block: "nearest" });
-      return true;
-    });
+    const disposePresenter = registerGuidedPresenter(presentSurfaceInDocument);
     const intervene = (event: Event) => {
       if (!event.isTrusted || !(event.target instanceof Element)) return;
       // Switching panels only changes what is visible; watching chat must not stop its work.
@@ -192,7 +174,7 @@ export default function App() {
               collapsed tool, which put it ~90px below the fold of a 950px-tall viewport while the
               board column left 185px of empty space beneath the board. */}
           <div class="board-panel">
-            <div class="board-stage">
+            <div class="board-stage" data-guided-surface="workspace.board">
               <EvalBar />
               <Board />
             </div>

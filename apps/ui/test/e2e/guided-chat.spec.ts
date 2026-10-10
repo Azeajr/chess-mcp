@@ -60,7 +60,8 @@ async function installAssistant(page: Page, slow = false) {
         if (state.document.kind === "empty" && step === 0)
           action = { kind: "navigate", surface: "document.open" };
         else if (state.document.kind !== "empty" && /compare/i.test(request)) {
-          if (step === 0) action = { kind: "set_fields", candidates: "e4 d4" };
+          if (step === 0)
+            action = { kind: "set_fields", form: "compare", values: { candidates: "e4 d4" } };
           if (step === 1) action = { kind: "submit", workflow: "compare" };
         } else if (state.document.kind !== "empty") {
           if (step === 0) action = { kind: "submit", workflow: "review" };

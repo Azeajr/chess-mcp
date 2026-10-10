@@ -1334,7 +1334,36 @@ const byKind: Record<string, (data: Data) => unknown> = {
   strategic_fit_portfolio: (data) => <StrategicFitPortfolioResultCard data={data} />,
 };
 
+// A UI step names what the assistant did in the app; its receipt state is for the assistant.
+function UiStepResult(props: { data: Data }) {
+  const status = () => displayValue(props.data.status ?? "completed");
+  return (
+    <div class="result-card ui-step" data-ui-step-status={status()}>
+      <div class="result-title">{displayValue(props.data.step ?? "Read the app")}</div>
+      <Show when={props.data.status !== "completed" && props.data.status !== undefined}>
+        <div class="result-summary">
+          {status() === "blocked" ? "Not done" : status()}
+          <Show when={typeof props.data.reason === "string" && props.data.reason}>
+            {(reason) => <>: {reason()}</>}
+          </Show>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 export default function ToolResult(props: Props) {
+  const data = createMemo(() => parse(props.content));
+  const uiStep = () =>
+    props.operation === "ui_act" || props.operation === "ui_get_state" ? data() : null;
+  return (
+    <Show when={uiStep()} fallback={<ChessToolResult {...props} />}>
+      {(value) => <UiStepResult data={value()} />}
+    </Show>
+  );
+}
+
+function ChessToolResult(props: Props) {
   const data = createMemo(() => parse(props.content));
   const renderer = (value: Data) =>
     byOperation[props.operation] ?? byKind[displayValue(value.kind)];

@@ -92,13 +92,21 @@ export const TOOL_LABELS = {
   },
 } as const satisfies Readonly<Record<BrowserCommandName, ContentLabel>>;
 
+// Browser-only assistant tools that operate the visible app; not chess commands.
+const UI_TOOL_LABELS: Readonly<Record<string, ContentLabel>> = {
+  ui_act: { plain: "App step", result: "App step" },
+  ui_get_state: { plain: "Read the app", result: "App state" },
+};
+
 export function taskLabel(name: string): string {
-  const label = TOOL_LABELS[name as BrowserCommandName] as ContentLabel | undefined;
+  const label =
+    (TOOL_LABELS[name as BrowserCommandName] as ContentLabel | undefined) ?? UI_TOOL_LABELS[name];
   return label?.task ?? label?.plain ?? "Tool";
 }
 
 export function resultLabel(name: string): string {
-  const label = TOOL_LABELS[name as BrowserCommandName] as ContentLabel | undefined;
+  const label =
+    (TOOL_LABELS[name as BrowserCommandName] as ContentLabel | undefined) ?? UI_TOOL_LABELS[name];
   return label?.result ?? label?.plain ?? "Tool";
 }
 

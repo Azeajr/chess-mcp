@@ -40,12 +40,15 @@ evidence only through bounded commands. Every tool-capable round receives the sa
 schema. Long operations use shared progress, cancellation, settlement, and retry state.
 
 The web assistant additionally receives browser-only `ui_get_state` and `ui_act` schemas. Typed
-actions reveal game review/comparison controls, edit a versioned candidate draft, invoke shared
-analysis workflows, and select current review results. Manual intervention stops dependent work;
-state tokens and session receipts prevent stale actions and duplicate execution. These UI actions
-do not add operations to the MCP or shared chess contract. Direct and chat-originated current-document
+actions reveal surfaces, fill visible forms, run the same workflows as the manual controls, select
+results by identity, and show staged proposals across analysis, imports, exports, repertoire scans,
+Strategic Fit, the Replacement Lab and Settings. Manual intervention stops dependent work; state
+tokens and session receipts prevent stale actions and duplicate execution. Staged changes are
+applied only by their existing writers, through the visible Accept control or a chat approval the
+application verifies against the user's own current message and the single preview it answers.
+These UI actions add no operations to the MCP or shared chess contract. Direct and chat-originated
 commands publish through the same command store. See [the design spec](CHAT_DRIVEN_UI_SPEC.md) for
-accepted interaction rules and phased coverage.
+the interaction rules, control inventory and coverage.
 
 ## Engines and providers
 

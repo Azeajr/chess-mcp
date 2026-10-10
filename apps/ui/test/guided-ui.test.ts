@@ -107,9 +107,17 @@ test("comparison fields are visible before submit, manual edits invalidate queue
   actions.loadPgn("1. e4 e5 *");
   const dispose = registerGuidedPresenter(async () => true);
   try {
-    await executeUiTool("ui_act", request({ kind: "set_fields", candidates: "e4 bad" }));
+    await executeUiTool(
+      "ui_act",
+      request({ kind: "set_fields", form: "compare", values: { candidates: "e4 bad" } }),
+    );
     assert.equal(comparisonDraft(), "e4 bad");
-    const queued = request({ kind: "set_fields", candidates: "d4" });
+    const queued = request({
+      kind: "set_fields",
+      form: "compare",
+      values: { candidates: "d4" },
+      replace: true,
+    });
     manualIntervention();
     setComparisonDraft("Nf3");
     assert.equal(((await executeUiTool("ui_act", queued)) as { error: string }).error, "stale_ui");

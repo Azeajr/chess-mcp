@@ -1,7 +1,8 @@
 import { For, Show, createSignal } from "solid-js";
-import { saveArtifact, type ArtifactSaveResult } from "../store/artifacts";
 import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
-import { cancelCommand, commandStates, executeCommand } from "../store/commands";
+import { cancelCommand, commandStates } from "../store/commands";
+import { generateExport } from "../application/analysis-workflows";
+import { exportRecord, saveExport, type ExportCommand } from "../store/exports";
 import {
   cancelStrategicFitSidecarImport,
   confirmStrategicFitSidecarImport,
@@ -33,12 +34,21 @@ export default function StrategicFitTransfer() {
   const [mismatchAcknowledged, setMismatchAcknowledged] = createSignal(false);
   const [confirmationMessage, setConfirmationMessage] = createSignal<string | null>(null);
   // Pressing Save changed nothing on screen, so a browser that refused the download looked exactly
-  // like one that took it.
-  const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
-  const save = (artifactId: unknown) => {
-    if (typeof artifactId !== "string") return;
-    setSaved(saveArtifact(artifactId));
+  // like one that took it. The shared export record holds the latest save outcome, and an export
+  // the assistant generated stays unsaved until one of these buttons is pressed.
+  const [lastSaved, setLastSaved] = createSignal<ExportCommand | null>(null);
+  const save = (command: ExportCommand) => {
+    saveExport(command);
+    setLastSaved(command);
   };
+  const saved = () => {
+    const command = lastSaved();
+    return command ? (exportRecord(command)?.save ?? null) : null;
+  };
+  const generate = (command: ExportCommand) =>
+    void generateExport(command, "user").then((outcome) => {
+      if (outcome && "record" in outcome) setLastSaved(command);
+    });
   const sidecarState = () => commandStates().export_strategic_fit_metadata;
   const intentState = () => commandStates().export_strategic_fit_intent_pgn;
 
@@ -60,7 +70,7 @@ export default function StrategicFitTransfer() {
   };
 
   return (
-    <details class="rep-section strategic-fit-transfer">
+    <details class="rep-section strategic-fit-transfer" data-guided-surface="repertoire.transfer">
       <summary>
         <span>Strategic Fit portability</span>
       </summary>
@@ -72,23 +82,21 @@ export default function StrategicFitTransfer() {
         <button
           class="fix-btn"
           disabled={sidecarState().status === "running"}
-          onClick={() =>
-            void executeCommand("export_strategic_fit_metadata").then((result) => {
-              save(result?.artifact_id);
-            })
-          }
+          onClick={() => {
+            generate("export_strategic_fit_metadata");
+          }}
         >
           Export metadata JSON
         </button>
-        <Show when={sidecarState().result?.artifact_id}>
-          {(id) => (
+        <Show when={exportRecord("export_strategic_fit_metadata")}>
+          {(record) => (
             <button
               class="fix-btn"
               onClick={() => {
-                save(id());
+                save("export_strategic_fit_metadata");
               }}
             >
-              Download metadata JSON again
+              {record().save === null ? "Save metadata JSON" : "Download metadata JSON again"}
             </button>
           )}
         </Show>
@@ -97,11 +105,9 @@ export default function StrategicFitTransfer() {
           fallback={
             <button
               class="fix-btn"
-              onClick={() =>
-                void executeCommand("export_strategic_fit_intent_pgn").then((result) => {
-                  save(result?.artifact_id);
-                })
-              }
+              onClick={() => {
+                generate("export_strategic_fit_intent_pgn");
+              }}
             >
               Export intent PGN
             </button>
@@ -116,15 +122,15 @@ export default function StrategicFitTransfer() {
             Cancel intent export
           </button>
         </Show>
-        <Show when={intentState().result?.artifact_id}>
-          {(id) => (
+        <Show when={exportRecord("export_strategic_fit_intent_pgn")}>
+          {(record) => (
             <button
               class="fix-btn"
               onClick={() => {
-                save(id());
+                save("export_strategic_fit_intent_pgn");
               }}
             >
-              Download intent PGN again
+              {record().save === null ? "Save intent PGN" : "Download intent PGN again"}
             </button>
           )}
         </Show>

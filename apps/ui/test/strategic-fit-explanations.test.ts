@@ -98,10 +98,7 @@ test("browser guidance carries the explanation contract in both the preset and p
     assert.match(prompt, /Never present one as zero/);
     assert.match(prompt, /carry no legality, engine evaluation, coverage, or popularity evidence/);
     assert.match(prompt, /never selects a command by itself/);
-    assert.match(
-      prompt,
-      /The workspace charts and panels the user is looking at were never given to you/,
-    );
+    assert.match(prompt, /The workspace charts and maps were never given to you/);
   }
 });
 

@@ -16,6 +16,11 @@ import { strategicFitMetadata } from "../../store/strategic-fit-metadata";
 import { replacementLab } from "../../store/strategic-fit-replacement";
 import type { StrategicFitCompletedResult } from "../../store/strategic-fit";
 import { STRATEGIC_FIT_DISPLAY_RESOLUTION_LABELS } from "./FindingCard";
+import {
+  acceptPreparedDecision,
+  discardPreparedDecision,
+  pendingDecisionForFinding,
+} from "../../store/strategic-fit-decision-drafts";
 import { buildStrategicFindingStory } from "./finding-story";
 
 const ACTIONS: readonly {
@@ -92,7 +97,11 @@ export default function ResolutionActions(props: {
   };
   const story = () => buildStrategicFindingStory(props.finding);
   const replacementAvailability = () => replacementLab.availability(props.completed, props.finding);
+  const prepared = () => pendingDecisionForFinding(props.finding.finding_id);
   const save = (state: (typeof ACTIONS)[number]["state"]) => {
+    // A decision made here supersedes one the assistant prepared for the same finding.
+    const pending = prepared();
+    if (pending) discardPreparedDecision(pending.proposalId);
     const result = transitionStrategicFitFindingResolution({
       report_id: props.reportId,
       finding_id: props.finding.finding_id,
@@ -148,6 +157,48 @@ export default function ResolutionActions(props: {
           {replacementAvailability().message}
         </p>
       </section>
+
+      <Show when={resolution() === "unresolved" ? prepared() : null}>
+        {(decision) => (
+          <div
+            class="strategic-fit-prepared-decision"
+            role="status"
+            data-prepared-decision={decision().state}
+          >
+            <p>
+              <strong>
+                Prepared for you:{" "}
+                {ACTIONS.find((action) => action.state === decision().state)?.label ??
+                  decision().state}
+              </strong>
+            </p>
+            <Show when={decision().reason}>
+              {(reason) => <p>Reason: {REASON_LABELS[reason()]}</p>}
+            </Show>
+            <Show when={decision().note}>
+              {(value) => <p class="strategic-fit-resolution-note">Note: {value()}</p>}
+            </Show>
+            <p>Nothing is recorded until you record it here or approve it in chat.</p>
+            <button
+              type="button"
+              onClick={() => {
+                const result = acceptPreparedDecision(decision().proposalId);
+                if (result.state !== "blocked") props.onResolved?.();
+              }}
+            >
+              Record decision
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                discardPreparedDecision(decision().proposalId);
+              }}
+            >
+              Discard
+            </button>
+          </div>
+        )}
+      </Show>
 
       <Show
         when={availability().available}

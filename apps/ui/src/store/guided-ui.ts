@@ -1,6 +1,38 @@
 import { createSignal } from "solid-js";
 
-export type GuidedSurface = "analysis.review" | "analysis.compare" | "document.open";
+// Logical destinations the browser assistant can reveal. They are stable application identifiers,
+// independent of breakpoints; ui-adapters/surfaces.ts resolves each to the element that shows it.
+export const GUIDED_SURFACES = [
+  "document.open",
+  "document.save",
+  "workspace.board",
+  "workspace.moves",
+  "analysis.review",
+  "analysis.compare",
+  "analysis.position",
+  "analysis.history",
+  "analysis.export",
+  "repertoire.audit",
+  "repertoire.onlyMoves",
+  "repertoire.structures",
+  "repertoire.prep",
+  "repertoire.export",
+  "repertoire.transfer",
+  "repertoire.gaps",
+  "repertoire.connect",
+  "repertoire.shorten",
+  "repertoire.extend",
+  "repertoire.preview",
+  "strategicFit.assessment",
+  "strategicFit.review",
+  "strategicFit.branch",
+  "strategicFit.decision",
+  "strategicFit.training",
+  "strategicFit.lab",
+] as const;
+export type GuidedSurface = (typeof GUIDED_SURFACES)[number];
+export const isGuidedSurface = (value: unknown): value is GuidedSurface =>
+  (GUIDED_SURFACES as readonly unknown[]).includes(value);
 export const [comparisonDraft, setComparisonDraftValue] = createSignal("");
 export const [comparisonVersion, setComparisonVersion] = createSignal(0);
 export const [comparisonOpen, setComparisonOpen] = createSignal(false);

@@ -1,22 +1,34 @@
-import { For, Show, createSignal } from "solid-js";
-import { currentTree, fen } from "../store/game";
-import { analysisDepth } from "../store/engine-settings";
+import { For, Show } from "solid-js";
+import { currentTree } from "../store/game";
 import {
   commandStates,
-  executeCommand,
   cancelCommand,
   commandIsStale,
   rerunCommand,
   type DirectCommand,
 } from "../store/commands";
-import { saveArtifact, type ArtifactSaveResult } from "../store/artifacts";
-import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
 import { setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import ToolResult from "./ToolResult";
 import ReviewFindings from "./ReviewFindings";
-import { preference } from "../store/preferences";
-import { reviewGame, comparePosition } from "../application/analysis-workflows";
+import ExportSaveControl from "./ExportSaveControl";
+import {
+  reviewGame,
+  comparePosition,
+  compareWithHistory,
+  generateExport,
+  importHistory,
+  importNotice,
+  lookUpPosition,
+} from "../application/analysis-workflows";
+import {
+  historyMonth,
+  historyPlatform,
+  historyUsername,
+  setHistoryMonth,
+  setHistoryPlatform,
+  setHistoryUsername,
+} from "../store/forms";
 import {
   comparisonDraft,
   setComparisonDraft,
@@ -28,34 +40,7 @@ import {
 export const isSingleGame = () => currentTree().stats().leaves === 1;
 
 export default function DirectAnalysis() {
-  const [username, setUsername] = preference("chess.import.username", "");
-  const [platform, setPlatform] = createSignal("lichess");
-  const now = new Date();
-  const [month, setMonth] = createSignal(
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
-  );
-  const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
   const state = (command: DirectCommand) => commandStates()[command];
-  const args = () => ({
-    username: username().trim(),
-    ...(platform() === "chesscom"
-      ? { year: Number(month().split("-")[0]), month: Number(month().split("-")[1]) }
-      : { max_games: 20 }),
-  });
-  const run = (command: DirectCommand, input = {}) =>
-    executeCommand(command, {
-      ...([
-        "get_game_summary",
-        "analyze_game",
-        "export_annotated_pgn",
-        "evaluate_position",
-        "compare_moves",
-        "batch_review",
-      ].includes(command)
-        ? { depth: analysisDepth() }
-        : {}),
-      ...input,
-    });
   const results = (commands: DirectCommand[]) => (
     <For each={commands}>
       {(command) => (
@@ -80,7 +65,14 @@ export default function DirectAnalysis() {
               </button>
             </p>
           </Show>
-          <Show when={state(command).result && !commandIsStale(command)}>
+          {/* An export's artifact is shown once, by its Save control above. */}
+          <Show
+            when={
+              state(command).result &&
+              !commandIsStale(command) &&
+              command !== "export_annotated_pgn"
+            }
+          >
             <Show when={command === "compare_moves" && Array.isArray(state(command).args?.moves)}>
               <p>Compared candidates: {(state(command).args?.moves as string[]).join(", ")}</p>
             </Show>
@@ -113,22 +105,6 @@ export default function DirectAnalysis() {
       )}
     </For>
   );
-  const importGames = async () => {
-    const command = platform() === "lichess" ? "lichess_games" : "chesscom_games";
-    const usernameAtStart = username().trim();
-    const result = await run(command, { ...args(), include_pgn: true });
-    const games = result?.games;
-    if (!Array.isArray(games)) return;
-    const pgn = (games as unknown[])
-      .map((game) =>
-        game && typeof game === "object" && "pgn" in game && typeof game.pgn === "string"
-          ? game.pgn
-          : "",
-      )
-      .filter(Boolean)
-      .join("\n\n");
-    if (pgn) await run("batch_review", { pgn, username: usernameAtStart, max_games: 20 });
-  };
   return (
     <section
       class="direct-analysis"
@@ -146,18 +122,18 @@ export default function DirectAnalysis() {
           Review game
         </button>
         <button
+          data-guided-surface="analysis.export"
           disabled={state("export_annotated_pgn").status === "running"}
-          onClick={() =>
-            void run("export_annotated_pgn").then((result) => {
-              const id = result?.artifact_id;
-              if (typeof id === "string") setSaved(saveArtifact(id));
-            })
-          }
+          onClick={() => void generateExport("export_annotated_pgn", "user")}
         >
           Export annotated game
         </button>
       </Show>
-      <ArtifactSaveStatus result={saved()} />
+      <ExportSaveControl
+        command="export_annotated_pgn"
+        saveLabel="Save annotated game"
+        againLabel="Download annotated game again"
+      />
       <Show
         when={
           selectedReview()?.resultId === state("analyze_game").resultId &&
@@ -193,17 +169,22 @@ export default function DirectAnalysis() {
         >
           Compare moves
         </button>
-        <button onClick={() => void run("tablebase_lookup", { fen: fen() })}>Tablebase</button>
-        <button onClick={() => void run("position_popularity", { fen: fen() })}>
+        <button onClick={() => void lookUpPosition("tablebase_lookup")}>Tablebase</button>
+        <button onClick={() => void lookUpPosition("position_popularity")}>
           Position popularity
         </button>
         {results(["evaluate_position", "compare_moves", "tablebase_lookup", "position_popularity"])}
       </details>
-      <details>
+      <details data-guided-surface="analysis.history">
         <summary>Prepare · Import my games</summary>
         <label>
           Platform{" "}
-          <select value={platform()} onChange={(event) => setPlatform(event.currentTarget.value)}>
+          <select
+            value={historyPlatform()}
+            onChange={(event) => {
+              setHistoryPlatform(event.currentTarget.value === "chesscom" ? "chesscom" : "lichess");
+            }}
+          >
             <option value="lichess">Lichess</option>
             <option value="chesscom">Chess.com</option>
           </select>
@@ -211,40 +192,46 @@ export default function DirectAnalysis() {
         <label>
           Username{" "}
           <input
-            value={username()}
+            value={historyUsername()}
             onInput={(event) => {
-              setUsername(event.currentTarget.value);
+              setHistoryUsername(event.currentTarget.value);
             }}
           />
         </label>
-        <Show when={platform() === "chesscom"}>
+        <Show when={historyPlatform() === "chesscom"}>
           <label>
             Month{" "}
             <input
               type="month"
-              value={month()}
-              onInput={(event) => setMonth(event.currentTarget.value)}
+              value={historyMonth()}
+              onInput={(event) => {
+                setHistoryMonth(event.currentTarget.value);
+              }}
             />
           </label>
         </Show>
         <button
           disabled={
-            !username().trim() ||
+            !historyUsername().trim() ||
             state("lichess_games").status === "running" ||
             state("chesscom_games").status === "running" ||
             state("batch_review").status === "running"
           }
-          onClick={() => void importGames()}
+          onClick={() => void importHistory()}
         >
           Import and review games
         </button>
-        <button
-          disabled={!username().trim()}
-          onClick={() => void run("repertoire_vs_history", { ...args(), platform: platform() })}
-        >
+        <button disabled={!historyUsername().trim()} onClick={() => void compareWithHistory()}>
           Compare with my history
         </button>
         <p>Fetches public games from the selected service. Does not replace your repertoire.</p>
+        <Show when={importNotice()}>
+          {(notice) => (
+            <p role={notice().tone} data-import-notice={notice().tone}>
+              {notice().message}
+            </p>
+          )}
+        </Show>
         {results(["lichess_games", "chesscom_games", "batch_review", "repertoire_vs_history"])}
       </details>
     </section>

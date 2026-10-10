@@ -9814,3 +9814,29 @@ img,
   flex: 1 1 12rem;
   overflow-wrap: anywhere;
 }
+
+/*
+  Compact: the purpose repeats the user's own message, so one line is enough; three wrapped lines
+  squeezed the chat log to nothing on a 629px phone. On the Chat tab the panel already carries
+  Stop and the hand-off controls, so the duplicate bar steps aside there unless it carries an
+  action of its own, such as Open PGN.
+*/
+@media (max-width: 45em) {
+  /* Without this the one-line purpose's full width widened the bar, and the page, past 375px. */
+  .assistant-controls {
+    min-width: 0;
+  }
+
+  .assistant-controls > span {
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-main:has(.workspace[data-mtab="chat"])
+    > .assistant-controls:not(:has([data-guided-surface])) {
+    display: none;
+  }
+}
