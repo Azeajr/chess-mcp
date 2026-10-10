@@ -10,12 +10,14 @@ import {
   retry,
   toolRuns,
   cancelRun,
+  replaceRequest,
+  handoff,
 } from "../store/chat";
 import { CHAT_CONTROLS, CHAT_STARTERS } from "../content/chat";
 import ChatContextChip from "./ChatContextChip";
 import { hasApiKey, chatMode, setChatMode, setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
-import { actions, color } from "../store/game";
+import { actions, color, currentTree } from "../store/game";
 import { isSingleGame } from "./DirectAnalysis";
 import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
@@ -56,7 +58,7 @@ export default function ChatPanel() {
     const text = input();
     if (!text.trim()) return;
     setInput("");
-    void send(text);
+    void replaceRequest(text);
   };
 
   const empty = () => history().length === 0 && !streamingText() && !busy();
@@ -113,9 +115,16 @@ export default function ChatPanel() {
         */}
           <Show when={empty()}>
             <div class="chat-starters" data-chat-starters>
-              <p class="chat-starters-title">Ask about this position</p>
+              <p class="chat-starters-title">
+                {currentTree().stats().nodes <= 1
+                  ? "What would you like to do?"
+                  : "Ask about this position"}
+              </p>
               <For
                 each={[
+                  ...(currentTree().stats().nodes <= 1
+                    ? ["Review a game", "Improve a repertoire", "Understand a position"]
+                    : []),
                   ...CHAT_STARTERS.map((starter) =>
                     starter.replace("White", color() === "white" ? "White" : "Black"),
                   ),
@@ -298,7 +307,6 @@ export default function ChatPanel() {
           rows="2"
           placeholder="Ask about this position, game, or repertoire…"
           value={input()}
-          disabled={busy()}
           onInput={(e) => setInput(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -310,14 +318,20 @@ export default function ChatPanel() {
         <Show
           when={!busy()}
           fallback={
-            <button
-              class="stop-btn"
-              title={CHAT_CONTROLS.stopRequestDescription}
-              aria-label={CHAT_CONTROLS.stopRequestDescription}
-              onClick={stop}
-            >
-              {CHAT_CONTROLS.stopRequest}
-            </button>
+            <>
+              <button onClick={submit} disabled={!input().trim()}>
+                Send new request
+              </button>
+              <button onClick={handoff}>I'll take it from here</button>
+              <button
+                class="stop-btn"
+                title={CHAT_CONTROLS.stopRequestDescription}
+                aria-label={CHAT_CONTROLS.stopRequestDescription}
+                onClick={stop}
+              >
+                {CHAT_CONTROLS.stopRequest}
+              </button>
+            </>
           }
         >
           <button onClick={submit}>Send</button>

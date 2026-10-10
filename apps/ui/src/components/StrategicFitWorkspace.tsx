@@ -64,6 +64,7 @@ import {
 import { replacementLab, replacementLabSnapshot } from "../store/strategic-fit-replacement";
 import { strategicFitTrainingMastery } from "../store/strategic-fit-training";
 import Dialog from "./primitives/Dialog";
+import AssistantControls from "./AssistantControls";
 import PanelHeader from "./primitives/PanelHeader";
 import RegionState from "./primitives/RegionState";
 import { buildStrategicFindingStory } from "./strategic-fit/finding-story";
@@ -404,6 +405,7 @@ export default function StrategicFitWorkspace() {
             duplicate chip is gone and the rest shares one baseline: the status has one home, one
             row below, where the control that changes it also lives.
           */}
+          <AssistantControls />
           <PanelHeader class="strategic-fit-workspace-header">
             <div class="strategic-fit-workspace-identity">
               <h1 id="strategic-fit-workspace-title">Strategic Fit</h1>

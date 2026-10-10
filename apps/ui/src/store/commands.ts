@@ -13,7 +13,7 @@ import {
   updateOperation,
 } from "./operations";
 import { assertTestOnly } from "./test-seam";
-import { color, documentId, version } from "./game";
+import { color, documentId, version, fen } from "./game";
 
 export function executeDirectBrowserCommand(
   command: BrowserCommandName,
@@ -45,6 +45,7 @@ export type DirectCommand =
   | "prep_vs_opponent";
 
 export interface CommandState {
+  resultId?: string;
   documentId?: string;
   revision?: number;
   color?: string;
@@ -88,11 +89,20 @@ export const commandIsStale = (command: DirectCommand) => {
   const state = commandStates()[command];
   return (
     (state.revision !== undefined && state.revision !== version()) ||
-    (state.color !== undefined && state.color !== color())
+    (state.color !== undefined && state.color !== color()) ||
+    (["compare_moves", "evaluate_position", "tablebase_lookup", "position_popularity"].includes(
+      command,
+    ) &&
+      typeof state.args?.fen === "string" &&
+      state.args.fen !== fen())
   );
 };
 export const rerunCommand = (command: DirectCommand) =>
   executeCommand(command, commandStates()[command].args ?? {});
+
+export function isDirectCommand(name: string): name is DirectCommand {
+  return Object.hasOwn(rawCommandStates(), name);
+}
 
 const controllers = new Map<DirectCommand, AbortController>();
 
@@ -165,10 +175,35 @@ export function recordDirectCommandForTesting(
   lastCommandRequest = { command, args: { ...args } };
 }
 
-export async function executeCommand(command: DirectCommand, args: Record<string, unknown> = {}) {
+export interface CommandExecutionOptions extends BrowserCommandExecutionOptions {
+  executor?: typeof executeBrowserCommand;
+  dependencies?: BrowserCommandDependencies;
+  /** Chat needs structured failures too; manual composite workflows stop on undefined. */
+  returnErrors?: boolean;
+}
+
+let resultSequence = 0;
+let commandExecutorForTesting: typeof executeBrowserCommand | undefined;
+export function setCommandExecutorForTesting(executor?: typeof executeBrowserCommand) {
+  assertTestOnly();
+  commandExecutorForTesting = executor;
+}
+
+export async function executeCommand(
+  command: DirectCommand,
+  args: Record<string, unknown> = {},
+  options: CommandExecutionOptions = {},
+) {
+  if (options.signal?.aborted) return options.returnErrors ? { error: "cancelled" } : undefined;
   cancelCommandSilently(command);
   const controller = new AbortController();
+  const abort = () => {
+    controller.abort();
+    if (controllers.get(command) === controller) cancelCommand(command);
+  };
+  options.signal?.addEventListener("abort", abort, { once: true });
   const source = {
+    resultId: `command-result-${++resultSequence}`,
     documentId: documentId(),
     revision: version(),
     color: color(),
@@ -180,30 +215,44 @@ export async function executeCommand(command: DirectCommand, args: Record<string
   const operationId = registerOperation({
     kind: `direct-command:${command}`,
     label: COMMAND_LABELS[command],
-    surface: "repertoire",
+    surface: ["analyze_game", "get_game_summary", "compare_moves", "evaluate_position"].includes(
+      command,
+    )
+      ? "analysis"
+      : "repertoire",
     cancel: () => {
       cancelCommand(command);
     },
   });
   commandOperationIds.set(command, operationId);
   try {
-    const value = await executeDirectBrowserCommand(command, args, {
-      signal: controller.signal,
-      onProgress: (done, total, detail) => {
-        if (controllers.get(command) !== controller || controller.signal.aborted) return;
-        updateOperation(operationId, { done, total, detail });
-        setCommandStates((all) => ({
-          ...all,
-          [command]:
-            all[command].status === "running"
-              ? { ...all[command], progress: { done, total, detail } }
-              : all[command],
-        }));
+    const value = await (
+      options.executor ??
+      commandExecutorForTesting ??
+      executeDirectBrowserCommand
+    )(
+      command,
+      args,
+      {
+        signal: controller.signal,
+        onProgress: (done, total, detail) => {
+          if (controllers.get(command) !== controller || controller.signal.aborted) return;
+          updateOperation(operationId, { done, total, detail });
+          options.onProgress?.(done, total, detail);
+          setCommandStates((all) => ({
+            ...all,
+            [command]:
+              all[command].status === "running"
+                ? { ...all[command], progress: { done, total, detail } }
+                : all[command],
+          }));
+        },
       },
-    });
-    if (controller.signal.aborted) {
+      options.dependencies,
+    );
+    if (controller.signal.aborted || controllers.get(command) !== controller) {
       settleOperationQuietly(operationId, "cancelled");
-      return;
+      return options.returnErrors ? { error: "cancelled" } : undefined;
     }
     const result = value as Record<string, unknown>;
     const error = typeof result.error === "string" ? result.error : undefined;
@@ -227,6 +276,12 @@ export async function executeCommand(command: DirectCommand, args: Record<string
           }
         : { ...source, status: executionOutcome(false), result, completedAt: Date.now() },
     }));
+    if (options.returnErrors)
+      return source.documentId === documentId() &&
+        source.revision === version() &&
+        source.color === color()
+        ? result
+        : { error: "context_changed", reason: "The result belongs to an earlier document state." };
     if (
       !error &&
       source.documentId === documentId() &&
@@ -235,9 +290,9 @@ export async function executeCommand(command: DirectCommand, args: Record<string
     )
       return result;
   } catch (error) {
-    if (controller.signal.aborted) {
+    if (controller.signal.aborted || controllers.get(command) !== controller) {
       settleOperationQuietly(operationId, "cancelled");
-      return;
+      return options.returnErrors ? { error: "cancelled" } : undefined;
     }
     const message = error instanceof Error ? error.message : String(error);
     settleOperation(operationId, "failed", { detail: message });
@@ -250,7 +305,9 @@ export async function executeCommand(command: DirectCommand, args: Record<string
         completedAt: Date.now(),
       },
     }));
+    if (options.returnErrors) return { error: message };
   } finally {
+    options.signal?.removeEventListener("abort", abort);
     if (controllers.get(command) === controller) {
       controllers.delete(command);
       commandOperationIds.delete(command);

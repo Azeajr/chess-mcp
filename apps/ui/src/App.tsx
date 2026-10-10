@@ -10,6 +10,13 @@ import ChatPanel from "./components/ChatPanel";
 import Divider from "./components/Divider";
 import MobileTabs from "./components/MobileTabs";
 import ActivityStrip from "./components/ActivityStrip";
+import AssistantControls from "./components/AssistantControls";
+import {
+  registerGuidedPresenter,
+  setComparisonOpen,
+  manualIntervention,
+  setSelectedReview,
+} from "./store/guided-ui";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
@@ -41,7 +48,7 @@ import {
   startStrategicFitTrainingPerformancePersistence,
   strategicFitTrainingPerformanceWarning,
 } from "./store/strategic-fit-training";
-import { mobileTab, strategicFitWorkspaceOpen } from "./store/ui";
+import { mobileTab, setMobileTab, strategicFitWorkspaceOpen } from "./store/ui";
 import {
   resizeSide,
   resizeSideChat,
@@ -64,6 +71,46 @@ export default function App() {
   startStrategicFitLifecycle();
 
   onMount(() => {
+    const disposePresenter = registerGuidedPresenter(async (surface, signal) => {
+      if (signal?.aborted || backgroundSuspended()) return false;
+      if (surface !== "document.open") setMobileTab("analysis");
+      if (surface === "analysis.compare") setComparisonOpen(true);
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          resolve();
+        });
+      });
+      if (signal?.aborted || backgroundSuspended()) return false;
+      const target = document.querySelector<HTMLElement>(`[data-guided-surface="${surface}"]`);
+      if (!target?.getClientRects().length) return false;
+      target.scrollIntoView({ block: "nearest" });
+      return true;
+    });
+    const intervene = (event: Event) => {
+      if (!event.isTrusted || !(event.target instanceof Element)) return;
+      // Switching panels only changes what is visible; watching chat must not stop its work.
+      if (event.target.closest(".chat-wrap, .assistant-controls, .mobile-tabs")) return;
+      if (
+        event.type === "keydown" &&
+        !["Enter", " ", "ArrowLeft", "ArrowRight"].includes((event as KeyboardEvent).key)
+      )
+        return;
+      if (
+        !event.target.closest(
+          "button, input, select, textarea, summary, .board-wrap, .result-nav, [role=button], [role=tab]",
+        )
+      )
+        return;
+      manualIntervention();
+      setSelectedReview(null);
+    };
+    for (const event of ["pointerdown", "input", "change", "keydown"])
+      document.addEventListener(event, intervene, true);
+    onCleanup(() => {
+      disposePresenter();
+      for (const event of ["pointerdown", "input", "change", "keydown"])
+        document.removeEventListener(event, intervene, true);
+    });
     void (async () => {
       await restoreWorking();
       await restoreStrategicFitMetadata();
@@ -120,6 +167,7 @@ export default function App() {
         aria-hidden={backgroundSuspended() ? "true" : undefined}
       >
         <TopBar />
+        <AssistantControls />
         <Show when={strategicFitMetadataWarning()}>
           {(warning) => (
             <div class="strategic-fit-metadata-warning" role="alert">

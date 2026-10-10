@@ -699,7 +699,7 @@ test("browser annotation guidance validates pasted PGN only and keeps artifact t
 });
 
 test("actual chat requests transmit every canonical browser schema on natural, follow-up, and preset turns", async (t) => {
-  const canonicalBrowserSchemas = contractsForHost("browser").length;
+  const canonicalBrowserSchemas = contractsForHost("browser").length + 2;
   const storage = new Map<string, string>();
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,

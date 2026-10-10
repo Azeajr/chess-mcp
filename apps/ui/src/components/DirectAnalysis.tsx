@@ -1,5 +1,5 @@
 import { For, Show, createSignal } from "solid-js";
-import { currentTree, currentPath, fen, exploration } from "../store/game";
+import { currentTree, fen } from "../store/game";
 import { analysisDepth } from "../store/engine-settings";
 import {
   commandStates,
@@ -14,7 +14,16 @@ import ArtifactSaveStatus from "./primitives/ArtifactSaveStatus";
 import { setSettingsFocusTarget } from "../store/settings";
 import { setSettingsOpen } from "../store/ui";
 import ToolResult from "./ToolResult";
+import ReviewFindings from "./ReviewFindings";
 import { preference } from "../store/preferences";
+import { reviewGame, comparePosition } from "../application/analysis-workflows";
+import {
+  comparisonDraft,
+  setComparisonDraft,
+  comparisonOpen,
+  setComparisonOpen,
+  selectedReview,
+} from "../store/guided-ui";
 
 export const isSingleGame = () => currentTree().stats().leaves === 1;
 
@@ -25,7 +34,6 @@ export default function DirectAnalysis() {
   const [month, setMonth] = createSignal(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
   );
-  const [comparison, setComparison] = createSignal("");
   const [saved, setSaved] = createSignal<ArtifactSaveResult | null>(null);
   const state = (command: DirectCommand) => commandStates()[command];
   const args = () => ({
@@ -73,7 +81,20 @@ export default function DirectAnalysis() {
             </p>
           </Show>
           <Show when={state(command).result && !commandIsStale(command)}>
-            <ToolResult operation={command} content={JSON.stringify(state(command).result)} />
+            <Show when={command === "compare_moves" && Array.isArray(state(command).args?.moves)}>
+              <p>Compared candidates: {(state(command).args?.moves as string[]).join(", ")}</p>
+            </Show>
+            <Show
+              when={command === "analyze_game" && state(command).resultId && !state(command).error}
+              fallback={
+                <ToolResult operation={command} content={JSON.stringify(state(command).result)} />
+              }
+            >
+              <ReviewFindings
+                resultId={state(command).resultId ?? ""}
+                result={state(command).result ?? {}}
+              />
+            </Show>
           </Show>
           <Show when={state(command).error && !state(command).result}>
             <p role="alert">{state(command).error}</p>
@@ -92,30 +113,6 @@ export default function DirectAnalysis() {
       )}
     </For>
   );
-  const review = async () => {
-    if (await run("get_game_summary")) await run("analyze_game");
-  };
-  const compare = async () => {
-    const position = fen();
-    const draft = exploration();
-    const candidates = comparison().trim()
-      ? comparison()
-          .split(/[,\s]+/)
-          .filter(Boolean)
-      : (draft?.tree ?? currentTree())
-          .nodeAt(draft?.path ?? currentPath())
-          .children.map((node) => node.data.san);
-    if (!comparison().trim()) {
-      const result = await run("evaluate_position", { fen: position, lines: 3 });
-      if (!result || fen() !== position) return;
-      if (Array.isArray(result.lines))
-        for (const line of result.lines as unknown[]) {
-          if (line && typeof line === "object" && "san" in line && typeof line.san === "string")
-            candidates.push(line.san);
-        }
-    }
-    await run("compare_moves", { fen: position, moves: [...new Set(candidates)] });
-  };
   const importGames = async () => {
     const command = platform() === "lichess" ? "lichess_games" : "chesscom_games";
     const usernameAtStart = username().trim();
@@ -133,14 +130,18 @@ export default function DirectAnalysis() {
     if (pgn) await run("batch_review", { pgn, username: usernameAtStart, max_games: 20 });
   };
   return (
-    <section class="direct-analysis" aria-label="Game and position tools">
+    <section
+      class="direct-analysis"
+      aria-label="Game and position tools"
+      data-guided-surface="analysis.review"
+    >
       <Show when={isSingleGame()}>
         <button
           disabled={
             state("get_game_summary").status === "running" ||
             state("analyze_game").status === "running"
           }
-          onClick={() => void review()}
+          onClick={() => void reviewGame()}
         >
           Review game
         </button>
@@ -157,15 +158,30 @@ export default function DirectAnalysis() {
         </button>
       </Show>
       <ArtifactSaveStatus result={saved()} />
+      <Show
+        when={
+          selectedReview()?.resultId === state("analyze_game").resultId &&
+          selectedReview() &&
+          !commandIsStale("analyze_game")
+        }
+      >
+        <p role="status">Showing the position before reviewed move {selectedReview()?.ply}.</p>
+      </Show>
       {results(["get_game_summary", "analyze_game", "export_annotated_pgn"])}
-      <details>
+      <details
+        data-guided-surface="analysis.compare"
+        open={comparisonOpen()}
+        onToggle={(event) => setComparisonOpen(event.currentTarget.open)}
+      >
         <summary>Compare moves and position tools</summary>
         <label>
           Candidate moves{" "}
           <input
-            value={comparison()}
+            value={comparisonDraft()}
             placeholder="Automatic, or e4 d4 Nf3"
-            onInput={(event) => setComparison(event.currentTarget.value)}
+            onInput={(event) => {
+              setComparisonDraft(event.currentTarget.value);
+            }}
           />
         </label>
         <button
@@ -173,7 +189,7 @@ export default function DirectAnalysis() {
             state("compare_moves").status === "running" ||
             state("evaluate_position").status === "running"
           }
-          onClick={() => void compare()}
+          onClick={() => void comparePosition()}
         >
           Compare moves
         </button>

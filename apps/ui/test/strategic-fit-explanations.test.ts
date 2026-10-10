@@ -317,8 +317,12 @@ test("an exploration question routes nothing client-side and still offers the co
     chat.clearChat();
     await chat.send(query.question);
     const names = requests.at(-1)!.tools.map((tool) => tool.function.name);
-    assert.equal(names.length, canonicalBrowserSchemas, `${query.id} offers every command`);
-    assert.equal(new Set(names).size, canonicalBrowserSchemas);
+    assert.equal(
+      names.length,
+      canonicalBrowserSchemas + 2,
+      `${query.id} offers every command and UI actions`,
+    );
+    assert.equal(new Set(names).size, canonicalBrowserSchemas + 2);
     assert.equal(names.includes("get_strategic_fit_report"), true);
     for (const tool of query.tools) {
       assert.equal(names.includes(tool), true, `${query.id} can reach ${tool}`);
