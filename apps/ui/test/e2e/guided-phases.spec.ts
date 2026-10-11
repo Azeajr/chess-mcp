@@ -458,6 +458,10 @@ test("after Return to chat the assistant still sees and decides the report's fin
     .poll(async () => (await receipts(page)).map((receipt) => receipt.error ?? receipt.status))
     .toEqual(["completed", "completed", "completed", "completed"]);
   expect(await resolutions(page)).toBe(0);
+  // Preparing it showed it, so the receipt says the user's next yes can record it.
+  expect(String((await receipts(page)).at(-1)?.result?.next)).toMatch(
+    /approve_proposal with these values and that message's ID, without showing it again/,
+  );
 });
 
 test("settings open at the requested section and credentials stay the user's", async ({ page }) => {

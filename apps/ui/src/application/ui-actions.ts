@@ -47,10 +47,12 @@ import {
 } from "./ui-adapters/surfaces";
 import {
   approveProposal,
+  expressesApproval,
   pendingProposals,
   presentedInTurn,
   recordPresented,
   type AssistantTurnContext,
+  type ProposalSummary,
 } from "./ui-adapters/proposals";
 import {
   awaitFindingQueue,
@@ -573,6 +575,41 @@ export async function presentDirectResult(
   return { ...result, ui };
 }
 
+// Receipts name the step that finishes the user's request. Live models opened a panel, wrote "I'll
+// run it next" and ended the turn; re-showed a prepared decision after the user said yes and asked
+// again; and explained a review without selecting the move on the board.
+
+/** After navigate: what to submit, since revealing a panel runs nothing. */
+function surfaceNext(surface: GuidedSurface): { next?: string } {
+  if (surface.startsWith("strategicFit.")) return strategicFitNext(surface);
+  const workflows = (Object.keys(WORKFLOWS) as Workflow[]).filter(
+    (workflow) => WORKFLOWS[workflow] === surface,
+  );
+  if (!workflows.length) return {};
+  const forms = FORMS.filter((form) => FORM_SURFACES[form] === surface);
+  const fill = forms.length
+    ? `set_fields ${forms.join(" or ")} with the values the request gives, then `
+    : "";
+  return {
+    next: `This panel is shown; nothing has run. If the user asked for more than seeing it, ${fill}submit ${workflows.join(" or ")} now: a reply without a tool call ends your turn. set_fields and submit show their own panel, so they need no navigate first.`,
+  };
+}
+
+/** After an action that staged a preview: it counts as shown, so the next "yes" can apply it. */
+function approvalNext(created: readonly ProposalSummary[]): { next?: string } {
+  if (created.length !== 1) return {};
+  const [proposal] = created;
+  if (!proposal) return {};
+  return {
+    next: `The user can see this preview (proposal ${proposal.proposalId}, previewVersion ${proposal.previewVersion}); nothing is recorded yet. If their next message approves it, call approve_proposal with these values and that message's ID, without showing it again.`,
+  };
+}
+
+/** After a review: the board shows a decision only once a reviewed move is selected. */
+function reviewNext(): string {
+  return `Before explaining a decision, select_result resultId ${commandStates().analyze_game.resultId ?? "from this review"} with its ply, so the board shows the position before that move.`;
+}
+
 // Opening Strategic Fit only shows it: a model that read "analyzing" as done ended its turn with
 // nothing selected. Name the step that waits for, runs or refreshes the report.
 function strategicFitNext(surface: GuidedSurface): { next?: string } {
@@ -647,19 +684,22 @@ async function perform(
           error: "profile_setup_required",
           reason: "Strategic Fit shows its first-run setup until the user chooses a preference.",
         };
-      return { surface: action.surface, ...strategicFitNext(action.surface) };
+      return { surface: action.surface, ...surfaceNext(action.surface) };
     case "set_fields": {
       const before = new Set(pendingProposals().map((item) => item.proposalId));
       const filled = setFormFields(action.form, action.values, action.replace === true);
       if ("error" in filled) return { ...filled };
-      if (turn) recordPresented(turn.turnId, proposalCreated(before));
-      return { ...filled };
+      const created = proposalCreated(before);
+      if (turn) recordPresented(turn.turnId, created);
+      return { ...filled, ...approvalNext(created) };
     }
     case "submit": {
       const value = await runWorkflow(action.workflow, action.target, action.option, {
         ...options,
         returnErrors: true,
       });
+      if (action.workflow === "review" && record(value) && !("error" in value))
+        return { ...value, next: reviewNext() };
       return record(value) ? value : { result: value ?? null };
     }
     case "select_result": {
@@ -670,11 +710,13 @@ async function perform(
         selected.surface === surfaceFor(action)
           ? undefined
           : await presentGuidedSurface(selected.surface, signal);
-      if (turn) recordPresented(turn.turnId, proposalCreated(before));
+      const created = proposalCreated(before);
+      if (turn) recordPresented(turn.turnId, created);
       return {
         selected: selected.selected,
         ...(selected.proposal ? { previewStaged: true } : {}),
         ...(visible === undefined ? {} : { visible }),
+        ...approvalNext(created),
       };
     }
     case "select_path":
@@ -687,11 +729,19 @@ async function perform(
         return { error: "proposal_stale", reason: "That proposal is stale; stage it again." };
       const surface = proposalSurface(action.proposalId);
       const visible = surface ? await presentGuidedSurface(surface, signal) : true;
+      // Showing again what the previous turn already showed, after the user said yes, used to end
+      // in asking a second time: say the current message is the approval to act on.
+      const approvedNow =
+        !!turn &&
+        expressesApproval(turn.text) &&
+        presentedInTurn(turn.turnId - 1).get(proposal.proposalId) === proposal.previewVersion;
       if (turn) recordPresented(turn.turnId, [proposal]);
       return {
         proposal,
         visible,
-        next: "Ask the user to accept it with its Accept control or to approve this preview explicitly.",
+        next: approvedNow
+          ? `The user's current message approves this preview, which the previous turn showed. Call approve_proposal now with previewVersion ${proposal.previewVersion} and the current message's ID; do not ask again.`
+          : "Ask the user to accept it with its Accept control or to approve this preview explicitly.",
       };
     }
     case "approve_proposal": {

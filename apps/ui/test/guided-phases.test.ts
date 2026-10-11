@@ -220,6 +220,59 @@ test("show_proposal presents for the next turn; a decision prepared for a findin
   assert.equal(preparedDecision(decision.proposalId)?.status, "stale");
 });
 
+test("receipts name the step that finishes the request", async (t) => {
+  actions.loadPgn("1. e4 e5 *");
+  // Opening a panel runs nothing: live models opened one, wrote "I'll run it next" and stopped.
+  const compare = await act({ kind: "navigate", surface: "analysis.compare" });
+  assert.match(
+    String(compare.result?.next),
+    /set_fields compare with the values the request gives, then submit compare now/,
+  );
+  const exported = await act({ kind: "navigate", surface: "analysis.export" });
+  assert.match(String(exported.result?.next), /more than seeing it, submit export_game now/);
+  const open = await act({ kind: "navigate", surface: "document.open" });
+  assert.equal(open.result?.next, undefined);
+
+  // A review is explained from the board, so its receipt names the selection.
+  setCommandExecutorForTesting(async (name) =>
+    name === "get_game_summary"
+      ? { total_moves: 2, white: { accuracy: 90 }, black: { accuracy: 80 } }
+      : { total_moves: 2, moves: [{ ply: 2, san: "e5", classification: "mistake", cp_loss: 90 }] },
+  );
+  t.after(() => setCommandExecutorForTesting());
+  const reviewed = await act({ kind: "submit", workflow: "review" });
+  assert.equal(reviewed.status, "completed");
+  assert.equal(
+    reviewed.result?.next,
+    `Before explaining a decision, select_result resultId ${commandStates().analyze_game.resultId} with its ply, so the board shows the position before that move.`,
+  );
+});
+
+test("a preview the previous turn showed is applied on yes, not shown and asked again", async () => {
+  actions.loadPgn("1. e4 e5 (1... c5) *");
+  const decision = prepareDecision({
+    reportId: "report-1",
+    findingId: "finding-1",
+    semanticFindingId: "semantic-1",
+    state: "defer",
+    reason: null,
+    note: "",
+  });
+  const id = `strategic_fit_decision:${decision.proposalId}`;
+  const first = await act({ kind: "show_proposal", proposalId: id }, { turn: turn(20, "show me") });
+  assert.match(String(first.result?.next), /^Ask the user to accept it/);
+  // Live models answered "Yes, record it." by showing the same preview again and asking twice.
+  const again = await act(
+    { kind: "show_proposal", proposalId: id },
+    { turn: turn(21, "Yes, record it.") },
+  );
+  assert.match(
+    String(again.result?.next),
+    /^The user's current message approves this preview, which the previous turn showed\. Call approve_proposal now/,
+  );
+  assert.equal(preparedDecision(decision.proposalId)?.status, "pending", "showing never records");
+});
+
 test("filled forms win over assistant drafts unless the request replaces them", async () => {
   actions.loadPgn("1. e4 e5 *");
   setHistoryUsername("my-own-account");
