@@ -579,12 +579,13 @@ export async function presentDirectResult(
 // run it next" and ended the turn; re-showed a prepared decision after the user said yes and asked
 // again; and explained a review without selecting the move on the board.
 
+const workflowsOn = (surface: GuidedSurface) =>
+  (Object.keys(WORKFLOWS) as Workflow[]).filter((workflow) => WORKFLOWS[workflow] === surface);
+
 /** After navigate: what to submit, since revealing a panel runs nothing. */
 function surfaceNext(surface: GuidedSurface): { next?: string } {
   if (surface.startsWith("strategicFit.")) return strategicFitNext(surface);
-  const workflows = (Object.keys(WORKFLOWS) as Workflow[]).filter(
-    (workflow) => WORKFLOWS[workflow] === surface,
-  );
+  const workflows = workflowsOn(surface);
   if (!workflows.length) return {};
   const forms = FORMS.filter((form) => FORM_SURFACES[form] === surface);
   const fill = forms.length
@@ -593,6 +594,16 @@ function surfaceNext(surface: GuidedSurface): { next?: string } {
   return {
     next: `This panel is shown; nothing has run. If the user asked for more than seeing it, ${fill}submit ${workflows.join(" or ")} now: a reply without a tool call ends your turn. set_fields and submit show their own panel, so they need no navigate first.`,
   };
+}
+
+/** After set_fields: filling a form runs nothing either (models filled it, then stopped). */
+function formNext(form: FormId): { next?: string } {
+  const workflows = workflowsOn(FORM_SURFACES[form]);
+  return workflows.length
+    ? {
+        next: `The fields are filled; nothing has run. If the user asked for it to run, submit ${workflows.join(" or ")} now: a reply without a tool call ends your turn.`,
+      }
+    : {};
 }
 
 /** After an action that staged a preview: it counts as shown, so the next "yes" can apply it. */
@@ -691,7 +702,7 @@ async function perform(
       if ("error" in filled) return { ...filled };
       const created = proposalCreated(before);
       if (turn) recordPresented(turn.turnId, created);
-      return { ...filled, ...approvalNext(created) };
+      return { ...filled, ...(created.length ? approvalNext(created) : formNext(action.form)) };
     }
     case "submit": {
       const value = await runWorkflow(action.workflow, action.target, action.option, {

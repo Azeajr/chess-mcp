@@ -232,6 +232,16 @@ test("receipts name the step that finishes the request", async (t) => {
   assert.match(String(exported.result?.next), /more than seeing it, submit export_game now/);
   const open = await act({ kind: "navigate", surface: "document.open" });
   assert.equal(open.result?.next, undefined);
+  // With navigate skipped, the same stop moved to filling the form: its receipt names the submit.
+  const filled = await act({
+    kind: "set_fields",
+    form: "history",
+    values: { platform: "lichess", username: "fixture-user" },
+  });
+  assert.match(
+    String(filled.result?.next),
+    /^The fields are filled; nothing has run\. If the user asked for it to run, submit import_history or compare_history now/,
+  );
 
   // A review is explained from the board, so its receipt names the selection.
   setCommandExecutorForTesting(async (name) =>
