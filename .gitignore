@@ -19,6 +19,9 @@ apps/ui/public/openings.tsv
 # lives in apps/mcp-server/test/fixtures/repertoires/ instead.
 /repertoires/
 
+# diagnostic bundles saved from the app's Settings: they carry the user's repertoire and chat
+chess-debug-*.json
+
 # agent worktree checkouts
 .claude/worktrees/
 /.worktrees/

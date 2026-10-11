@@ -230,3 +230,24 @@ test("a value the recorder cannot store becomes a fault, never an exception", (t
   assert.equal(session!.faults.at(-1)!.kind, "diagnostics");
   assert.match(session!.faults.at(-1)!.message, /could not record recordToolCallUnguarded/);
 });
+
+test("a page load with no activity never displaces the session before it", async (t) => {
+  t.after(cleanup);
+  diagnostics.recordEvent("user-message", { turn: 1, text: "Run Strategic Fit" });
+  await diagnostics.flushDiagnostics();
+  const reported = diagnostics.sessions().at(-1)!.id;
+
+  // Reload: the new page only restores its document, settings and profile, then reloads again,
+  // as an update does.
+  diagnostics.resetDiagnosticsForTesting();
+  await diagnostics.restoreDiagnostics();
+  diagnostics.recordEvent("document", { fileName: null, revision: 0 });
+  diagnostics.recordEvent("settings", { model: "fixture" });
+  diagnostics.recordEvent("strategic-fit", { status: "idle" });
+  diagnostics.recordEvent("strategic-fit-profile", { mode: "balanced" });
+  await diagnostics.flushDiagnostics();
+
+  diagnostics.resetDiagnosticsForTesting();
+  await diagnostics.restoreDiagnostics();
+  assert.equal(diagnostics.sessions()[0]!.id, reported);
+});

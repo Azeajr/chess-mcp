@@ -1,4 +1,4 @@
-import { createEffect, createRoot, on } from "solid-js";
+import { createEffect, createMemo, createRoot, on } from "solid-js";
 import {
   projectStrategicFitConversation,
   serializeStrategicFitSidecar,
@@ -299,13 +299,12 @@ export function observeAppForDiagnostics() {
       lastLifecycle = key;
       recordEvent("strategic-fit", detail);
     });
+    // The profile object is replaced more often than its mode changes; record the mode once.
+    const profileMode = createMemo(() => strategicFitProfile().mode);
     createEffect(
-      on(
-        () => strategicFitProfile().mode,
-        (mode) => {
-          recordEvent("strategic-fit-profile", { mode });
-        },
-      ),
+      on(profileMode, (mode) => {
+        recordEvent("strategic-fit-profile", { mode });
+      }),
     );
     createEffect(
       on([model, chatMode, analysisDepth, cloudEvalEnabled, showTechnicalDetails], (values) => {

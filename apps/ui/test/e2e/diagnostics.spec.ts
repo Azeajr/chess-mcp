@@ -9,6 +9,10 @@ interface Bundle {
   readonly settings: { readonly model: string; readonly apiKeySet: boolean };
   readonly document: { readonly pgn: string | null; readonly fileName: string | null };
   readonly sessions: readonly {
+    readonly events: readonly {
+      readonly kind: string;
+      readonly detail: { readonly mode?: string };
+    }[];
     readonly rounds: readonly {
       readonly text?: string;
       readonly messages: readonly { readonly role: string }[];
@@ -69,4 +73,10 @@ test("Settings saves a diagnostic bundle of the chat without the credentials", a
   expect(round!.text).toBe("The Caro-Kann line is in place.");
   expect(round!.messages.map((message) => message.role)).toEqual(["system", "user"]);
   expect(bundle.timeline.some((line) => line.includes("user (turn 1): What is this?"))).toBe(true);
+  // The profile object is replaced more often than its mode changes; each change is one event.
+  const modes = bundle.sessions
+    .at(-1)!
+    .events.filter((event) => event.kind === "strategic-fit-profile")
+    .map((event) => event.detail.mode);
+  expect(modes.filter((mode, index) => index > 0 && mode === modes[index - 1])).toEqual([]);
 });
