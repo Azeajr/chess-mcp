@@ -147,3 +147,26 @@ test("WP-007 AC-5 AC-6 keeps file loading explicit and cancels promotion on back
   await page.locator(".ui-dialog-backdrop").click({ position: { x: 5, y: 5 } });
   await expect(promotionDialog).toHaveCount(0);
 });
+
+test("closing a dialog never takes back focus that moved after it closed", async ({ page }) => {
+  await openApp(page, { width: 1280, height: 800 });
+  // Resolved before opening: the modal hides the rest of the page from role queries.
+  const other = await page.getByRole("button", { name: "Open PGN" }).elementHandle();
+  await settings.open(page);
+  await expect(settings.dialog(page)).toBeVisible();
+  // Close and move focus in the same task, as a fast keystroke or a guided step can. The restore
+  // retook focus for two more frames, so a following Enter pressed the opener and reopened it.
+  const kept = await settings.first(page).evaluate(async (close, target) => {
+    (close as HTMLButtonElement).click();
+    (target as HTMLElement).focus();
+    for (let frame = 0; frame < 4; frame++)
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+    return document.activeElement === target;
+  }, other);
+  expect(kept).toBe(true);
+
+  // With nothing moved, closing still returns focus to the opener.
+  await settings.open(page);
+  await settings.first(page).click();
+  await expect(settings.opener(page)).toBeFocused();
+});

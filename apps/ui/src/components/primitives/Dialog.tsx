@@ -152,7 +152,12 @@ export default function Dialog(props: DialogProps) {
       const restoreFocus = (attemptsLeft: number) => {
         const target = destination;
         if (!target?.isConnected) return;
-        if (document.activeElement !== target) target.focus();
+        // Recover focus only where closing lost it. Focus moved elsewhere since (a keystroke, a
+        // click, or a guided step) stays put: retaking it made Enter reopen the dialog.
+        const active = document.activeElement;
+        const lost =
+          !active || active === document.body || !active.isConnected || dialog.contains(active);
+        if (active !== target && lost) target.focus();
         if (attemptsLeft > 0) {
           requestAnimationFrame(() => {
             restoreFocus(attemptsLeft - 1);
