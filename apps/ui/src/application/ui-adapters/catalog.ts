@@ -56,7 +56,13 @@ export const FORM_SURFACES: Readonly<Record<FormId, GuidedSurface>> = {
   replacementLab: "strategicFit.lab",
 };
 
-export const SETTINGS_SECTIONS = ["general", "engine", "api-key", "lichess-token"] as const;
+export const SETTINGS_SECTIONS = [
+  "general",
+  "engine",
+  "api-key",
+  "lichess-token",
+  "diagnostics",
+] as const;
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number];
 
 export const PUBLIC_SETTINGS = [

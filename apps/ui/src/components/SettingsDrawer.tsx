@@ -16,6 +16,7 @@ import {
 } from "../store/settings";
 import Field from "./primitives/Field";
 import AnalysisSettings from "./AnalysisSettings";
+import DiagnosticsSettings from "./DiagnosticsSettings";
 import { chatMode, setChatMode } from "../store/settings";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
 import { setRecoverDialogOpen, snapshotsUnavailable } from "../store/persist";
@@ -161,6 +162,8 @@ export default function SettingsDrawer() {
             </small>
           </Show>
         </div>
+
+        <DiagnosticsSettings />
       </Dialog>
     </Show>
   );

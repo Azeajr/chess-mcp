@@ -1,6 +1,7 @@
 import { createSignal } from "solid-js";
 import { announce } from "./announce";
 import { assertTestOnly } from "./test-seam";
+import { recordEvent } from "./diagnostics";
 
 export type OperationStatus = "running" | "completed" | "cancelled" | "failed";
 
@@ -54,6 +55,7 @@ export function registerOperation(input: {
     },
   ]);
   announce(`${input.label} started.`);
+  recordEvent("operation", { id, kind: input.kind, label: input.label, status: "running" });
   return id;
 }
 
@@ -68,6 +70,17 @@ export function updateOperation(
         : operation,
     ),
   );
+}
+
+function recordSettled(operation: Operation, status: OperationStatus, detail?: string) {
+  recordEvent("operation", {
+    id: operation.id,
+    kind: operation.kind,
+    label: operation.label,
+    status,
+    ms: Date.now() - operation.startedAt,
+    ...(detail ? { detail } : {}),
+  });
 }
 
 export function settleOperation(
@@ -89,6 +102,7 @@ export function settleOperation(
         : entry,
     ),
   );
+  recordSettled(current, status, result?.detail);
   const message =
     status === "completed"
       ? `${current.label} completed${result?.detail ? `: ${result.detail}` : "."}`
@@ -111,6 +125,7 @@ export function settleOperationQuietly(id: string, status: Exclude<OperationStat
       entry.id === id ? { ...entry, status, detail: undefined, cancel: undefined } : entry,
     ),
   );
+  recordSettled(current, status);
   scheduleEviction(id);
 }
 
@@ -132,5 +147,6 @@ export function updateOperationStatus(id: string, status: Exclude<OperationStatu
   setOperations((all) =>
     all.map((entry) => (entry.id === id ? { ...entry, status, cancel: undefined } : entry)),
   );
+  recordSettled(current, status);
   scheduleEviction(id);
 }

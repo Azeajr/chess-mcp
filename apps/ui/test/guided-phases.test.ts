@@ -115,10 +115,10 @@ test("forged, unpresented, ambiguous, implicit and stale approvals change nothin
   });
 
   const current = turn(2, "Yes, apply it.");
-  assert.equal(
-    (await approveProposal(input("user-message-1"), current)).code,
-    "approval_message_invalid",
-  );
+  const forged = await approveProposal(input("user-message-1"), current);
+  assert.equal(forged.code, "approval_message_invalid");
+  // The refusal names the message to cite, so a model that guessed wrong can retry correctly.
+  assert.match(forged.reason ?? "", new RegExp(`${current.messageId}\\. Retry`));
   assert.equal(
     (await approveProposal(input(current.messageId), undefined)).code,
     "approval_message_invalid",

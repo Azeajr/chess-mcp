@@ -7,6 +7,7 @@ import type {
   FindingPriorityLabel,
   FindingResolutionState,
   StrategicDifference,
+  StrategicFinding,
   StrategicFitClassification,
   StrategicFitSourceProvenance,
 } from "./types.js";
@@ -330,3 +331,14 @@ export function assessStrategicFinding(
     }),
   };
 }
+
+/**
+ * Whether a finding asks the player for a decision. Equivalent move orders, uncertain evidence and
+ * data-quality problems are information, as is a finding whose priorities lack the evidence to rank it.
+ */
+export const isDecidableStrategicFinding = (finding: StrategicFinding): boolean =>
+  finding.classification !== "transpositional-equivalence" &&
+  finding.classification !== "uncertain" &&
+  finding.classification !== "data-quality-issue" &&
+  finding.replacement_priority.label !== "insufficient-evidence" &&
+  finding.training_priority.label !== "insufficient-evidence";

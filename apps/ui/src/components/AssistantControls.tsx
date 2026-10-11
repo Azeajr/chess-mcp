@@ -8,6 +8,7 @@ import {
   manualIntervention,
 } from "../store/guided-ui";
 import { openFile, saveFile } from "../store/files";
+import { chatPlainText } from "./ChatMarkdown";
 import { setMobileTab, setStrategicFitWorkspaceOpen } from "../store/ui";
 
 export default function AssistantControls() {
@@ -26,7 +27,7 @@ export default function AssistantControls() {
               </>
             }
           >
-            {(reply) => <>Assistant: {reply()}</>}
+            {(reply) => <>Assistant: {chatPlainText(reply())}</>}
           </Show>
         </span>
         <Show when={guidedSurface() === "document.open"}>

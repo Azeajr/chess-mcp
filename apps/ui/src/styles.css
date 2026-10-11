@@ -2355,6 +2355,26 @@ img,
 .msg.streaming {
   opacity: 0.85;
 }
+/* Rendered reply markdown: the message keeps pre-wrap, so blocks only need their spacing. */
+.msg.assistant p,
+.msg.assistant ul,
+.msg.assistant ol,
+.msg.assistant pre {
+  margin: 0 0 var(--space-2);
+}
+.msg.assistant > :last-child {
+  margin-bottom: 0;
+}
+.msg.assistant ul,
+.msg.assistant ol {
+  padding-left: var(--space-5);
+}
+.msg.assistant code {
+  font-family: ui-monospace, monospace;
+}
+.tool-result-receipt summary {
+  cursor: pointer;
+}
 
 .msg.focus-injection {
   align-self: stretch;

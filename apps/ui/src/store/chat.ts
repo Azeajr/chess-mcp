@@ -33,6 +33,7 @@ import {
 } from "../application/execution-status";
 import { registerOperation, settleOperation, updateOperation } from "./operations";
 import { assertTestOnly } from "./test-seam";
+import { recordEvent, recordModelRound, recordToolCall } from "./diagnostics";
 
 function toolDisplayName(name: string): string {
   return name.replaceAll("_", " ");
@@ -67,8 +68,25 @@ let currentTurn: AssistantTurnContext | null = null;
 export const currentAssistantTurn = () => currentTurn;
 let chatTransportOverride: typeof streamChat | null = null;
 let toolExecutorOverride: typeof runTool | null = null;
-const chatTransport: typeof streamChat = (...args) =>
-  (chatTransportOverride ?? streamChat)(...args);
+// Every request is recorded exactly as sent, after compaction, with its response or failure.
+const chatTransport: typeof streamChat = async (options) => {
+  const round = {
+    turn: currentTurn?.turnId ?? null,
+    model: options.model,
+    mode: chatMode(),
+    messages: options.messages,
+    tools: options.tools,
+    startedAt: Date.now(),
+  };
+  try {
+    const result = await (chatTransportOverride ?? streamChat)(options);
+    recordModelRound({ ...round, result });
+    return result;
+  } catch (e) {
+    recordModelRound({ ...round, error: e instanceof Error ? e.message : String(e) });
+    throw e;
+  }
+};
 const toolExecutor: typeof runTool = (...args) => (toolExecutorOverride ?? runTool)(...args);
 
 export { history, streamingText, busy, error, toolRuns };
@@ -399,6 +417,8 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
             cancel: abortRun,
           });
     let result: unknown;
+    let status = "failed";
+    const startedAt = Date.now();
     const proposalsBefore = new Set(pendingProposals().map((proposal) => proposal.proposalId));
     try {
       result = await toolExecutor(tc.function.name, raw, {
@@ -415,6 +435,7 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         "error" in result &&
         typeof result.error === "string";
       const outcome = executionOutcome(runSignal.aborted, failed);
+      status = outcome;
       updateRun(tc.id, { status: outcome });
       if (operationId)
         settleOperation(
@@ -428,6 +449,7 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         ? { error: "cancelled" }
         : { error: e instanceof Error ? e.message : String(e) };
       const outcome = executionOutcome(isCancelled, true);
+      status = outcome;
       updateRun(tc.id, {
         status: outcome,
         error: isCancelled ? undefined : (result as { error: string }).error,
@@ -447,10 +469,17 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
           pendingProposals().filter((proposal) => !proposalsBefore.has(proposal.proposalId)),
         );
     }
-    setHistory((h) => [
-      ...h,
-      { role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) },
-    ]);
+    const content = JSON.stringify(result);
+    setHistory((h) => [...h, { role: "tool", tool_call_id: tc.id, content }]);
+    recordToolCall({
+      turn: currentTurn?.turnId ?? null,
+      id: tc.id,
+      name: tc.function.name,
+      arguments: raw,
+      status,
+      startedAt,
+      result: content,
+    });
   }
   for (const tc of calls) runControllers.delete(tc.id);
 }
@@ -483,6 +512,7 @@ async function sendTurn(userText: string) {
   setError(null);
   const turnId = ++turnSequence;
   currentTurn = { turnId, messageId: `user-message-${turnId}`, text };
+  recordEvent("user-message", { turn: turnId, text });
   setHistory((h) => [...h, { role: "user", content: text }]);
   setBusy(true);
   setGuidedStatus("executing");
@@ -579,6 +609,7 @@ async function sendTurn(userText: string) {
       if (!error() && reply?.role === "assistant" && reply.content)
         setGuidedReply(reply.content.slice(0, 400));
     }
+    recordEvent("turn-end", { turn: turnId, status: guidedStatus(), error: error() });
     setBusy(false);
     setStreamingText("");
     controller = null;

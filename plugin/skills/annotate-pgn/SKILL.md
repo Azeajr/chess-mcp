@@ -19,7 +19,7 @@ Use the `chess-analysis` MCP to create the artifact; never hand-author its chess
 - Treat engine scores as White-POV centipawns: positive favors White, negative favors Black; about 50 is near equal, 200 clearly better, 500 winning, and the mate sentinel is decisive. Label the favored side.
 - Engine-backed tools default to depth 20. Use depth 30 only when the user explicitly requests deep analysis; warn that multi-position work may take minutes.
 - If an engine or required network source is unavailable, say which source is unavailable and stop that dependent method. Do not turn missing evidence into a chess claim.
-- Summarize semantic results instead of dumping JSON. Preserve structured errors, navigation references, action identifiers, and artifact identifiers for follow-up work.
+- Summarize semantic results instead of dumping JSON. Preserve structured errors, navigation references, action identifiers, and artifact identifiers for follow-up calls, without reciting them to the user.
 - Treat Strategic Fit replacement results as revision-bound atomic previews. Compare full candidate subtrees and retained unavailable/partial evidence; never infer pruning, auto-accept a staged browser change, or imply MCP archive/undo support.
 
 ## Shared method

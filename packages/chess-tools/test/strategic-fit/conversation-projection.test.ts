@@ -6,7 +6,9 @@ import {
   StrategicFitReportProjectionError,
   analyzeStrategicFit,
   completeStrategicFitReport,
+  isDecidableStrategicFinding,
   projectStrategicFitConversation,
+  sortStrategicFitFindings,
   strategicFitCompleteAnalysisOptions,
   strategicFitConversationErrorResult,
   strategicFitReportUnavailableResult,
@@ -67,6 +69,96 @@ test("summary retrieval carries report identity and state without findings or pr
   for (const excluded of ["provenance", "findings", "manifest", "snapshot", "preferences"]) {
     assert.equal(serialized.includes(`"${excluded}"`), false, `summary must exclude ${excluded}`);
   }
+});
+
+test("the summary digest groups every finding and ranks the unresolved decisions", () => {
+  const report = completeReport();
+  const summary = projectStrategicFitConversation(report, { view: "summary", ...request(report) });
+  if (summary.retrieval !== "strategic-fit-summary") throw new Error("expected a summary");
+  const { digest } = summary;
+  const { digest_openings: openingLimit, digest_decidable: decidableLimit } =
+    STRATEGIC_FIT_CONVERSATION_LIMITS;
+
+  assert.equal(
+    digest.by_classification.reduce((sum, entry) => sum + entry.count, 0),
+    report.findings.length,
+  );
+  for (const entry of digest.by_classification) {
+    const members = report.findings.filter(
+      (finding) => finding.classification === entry.classification,
+    );
+    assert.equal(entry.count, members.length);
+    assert.equal(entry.decidable_count, members.filter(isDecidableStrategicFinding).length);
+  }
+  const counts = digest.by_classification.map((entry) => entry.count);
+  assert.deepEqual(
+    counts,
+    [...counts].sort((left, right) => right - left),
+  );
+
+  assert.ok(digest.by_opening.length <= openingLimit);
+  for (const entry of digest.by_opening) assert.equal(entry.opening_family.includes(":"), false);
+  const shown = digest.by_opening.reduce((sum, entry) => sum + entry.finding_count, 0);
+  assert.ok(shown <= report.findings.length);
+  assert.equal(digest.omitted_opening_count === 0, shown === report.findings.length);
+
+  const decidable = sortStrategicFitFindings(
+    report.findings.filter(
+      (finding) =>
+        finding.resolution_state === "unresolved" && isDecidableStrategicFinding(finding),
+    ),
+    "replacement-priority",
+  );
+  assert.equal(digest.decidable_unresolved_count, decidable.length);
+  assert.deepEqual(
+    digest.top_decidable.map((entry) => entry.finding_id),
+    decidable.slice(0, decidableLimit).map((finding) => finding.finding_id),
+  );
+
+  assert.deepEqual(
+    projectStrategicFitConversation(report, { view: "summary", ...request(report) }),
+    summary,
+  );
+  // The browser chat compacts a tool result past 6,000 characters to identities alone.
+  assert.ok(JSON.stringify(summary).length < 6_000);
+});
+
+test("the digest ranks unresolved decisions and groups openings by family", () => {
+  const base = completeReport();
+  assert.ok(base.findings.length >= 5);
+  // The fixtures produce no decidable findings, so rewrite them into the cases the digest separates.
+  const report: StrategicFitReport = {
+    ...base,
+    findings: base.findings.map((finding, index) => ({
+      ...finding,
+      classification: index === 4 ? "uncertain" : "genuine-inconsistency",
+      opening_scope: index % 2 === 0 ? `Caro-Kann Defense: Line ${index}` : "English Opening",
+      resolution_state: index === 3 ? "defer" : "unresolved",
+      replacement_priority: {
+        ...finding.replacement_priority,
+        label: index === 2 ? "insufficient-evidence" : "high",
+        score: index * 10,
+      },
+      training_priority: { ...finding.training_priority, label: "medium" },
+    })),
+  };
+  const summary = projectStrategicFitConversation(report, { view: "summary", ...request(report) });
+  if (summary.retrieval !== "strategic-fit-summary") throw new Error("expected a summary");
+  const { digest } = summary;
+  // Index 2 lacks priority evidence, 3 is resolved and 4 is uncertain: 0 and 1 remain, 1 first.
+  assert.equal(digest.decidable_unresolved_count, 2);
+  assert.deepEqual(
+    digest.top_decidable.map((entry) => entry.finding_id),
+    [report.findings[1]!.finding_id, report.findings[0]!.finding_id],
+  );
+  assert.deepEqual(digest.by_opening, [
+    { opening_family: "Caro-Kann Defense", finding_count: 3, decidable_count: 1 },
+    { opening_family: "English Opening", finding_count: 2, decidable_count: 2 },
+  ]);
+  const genuine = digest.by_classification.find(
+    (entry) => entry.classification === "genuine-inconsistency",
+  );
+  assert.deepEqual([genuine?.count, genuine?.decidable_count], [4, 3]);
 });
 
 test("finding pages are bounded, ordered, and navigable by cursor", () => {

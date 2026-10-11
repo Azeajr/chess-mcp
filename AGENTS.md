@@ -113,6 +113,10 @@ seed after edits. This exploratory loop does not replace the authoritative conta
   measured-bound evidence. Contradictions are surfaced and missing measurements never satisfy a
   bound.
 - Browser chat always receives the complete canonical browser schema. Presets change guidance only.
+- `apps/ui/src/store/diagnostics.ts` records every chat request exactly as sent (after compaction),
+  its reply, each full tool result, faults and app events, for this page session and the previous
+  one. A user's diagnostic bundle stores text as paragraph IDs: join `texts[id]` with blank lines.
+  Bundles never carry credentials; `redactSecrets` runs on the serialized file.
 - Preserve structured errors and per-item illegal results from `compare_moves`.
 - Creating a training item registers untrained targets and never records an attempt. Recall uses
   the user's first move only. Drill session state stays in the training store because recording an

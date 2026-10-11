@@ -32,6 +32,10 @@ keep the same repertoire revision and settings while paging. Scan results are ma
 after edits and hidden when switching documents. On browsers without file handles, Export PGN
 downloads a copy; the working document remains autosaved in browser storage.
 
+Settings → Save diagnostic bundle downloads one JSON file covering this session and the previous one:
+every assistant request as sent and its reply, tool results, errors and app state, with credentials
+removed. The record stays in the browser until you save it.
+
 ## Agent-driven UX review
 
 Coding agents can exercise real user journeys and inspect mobile screenshots with the repo-local

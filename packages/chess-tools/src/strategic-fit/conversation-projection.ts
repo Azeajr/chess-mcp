@@ -11,9 +11,12 @@ import type {
   StrategicFitProfileMode,
   StrategicFitReport,
 } from "./types.js";
+import { STRATEGIC_FIT_CLASSIFICATIONS } from "./types.js";
 import type { StrategicFitFindingSort } from "./analyze.js";
+import { isDecidableStrategicFinding } from "./findings.js";
 import {
   projectStrategicFitReport,
+  sortStrategicFitFindings,
   StrategicFitReportProjectionError,
   type StrategicFitCursorPageInput,
 } from "./report-projection.js";
@@ -28,6 +31,8 @@ export const STRATEGIC_FIT_CONVERSATION_LIMITS = Object.freeze({
   identity_list: 8,
   confidence_caps: 3,
   text_characters: 400,
+  digest_openings: 5,
+  digest_decidable: 3,
 });
 
 export type StrategicFitConversationView = "summary" | "findings" | "finding";
@@ -64,6 +69,38 @@ export interface StrategicFitConversationMetric {
   readonly reason: string | null;
 }
 
+/**
+ * What a report found, grouped so a reader can answer "what did it find?" from one view: how many
+ * findings of each kind, which opening families they gather in, and the decisions that rank first.
+ */
+export interface StrategicFitConversationDigest {
+  readonly by_classification: readonly {
+    readonly classification: StrategicFinding["classification"];
+    readonly plain_language_category: string;
+    readonly count: number;
+    readonly decidable_count: number;
+  }[];
+  readonly by_opening: readonly {
+    /** The opening name before its variation, e.g. "Caro-Kann Defense". */
+    readonly opening_family: string;
+    readonly finding_count: number;
+    readonly decidable_count: number;
+  }[];
+  readonly omitted_opening_count: number;
+  readonly decidable_unresolved_count: number;
+  /** Unresolved decidable findings in replacement-priority order. */
+  readonly top_decidable: readonly {
+    readonly finding_id: string;
+    readonly classification: StrategicFinding["classification"];
+    readonly plain_language_category: string;
+    readonly opening_scope: string;
+    readonly affected_line_summary: StrategicFitConversationText;
+    readonly replacement_priority: string;
+    readonly training_priority: string;
+    readonly source_san_path: StrategicFitConversationPath | null;
+  }[];
+}
+
 export interface StrategicFitConversationSummary {
   readonly retrieval: "strategic-fit-summary";
   readonly report_id: string;
@@ -96,6 +133,7 @@ export interface StrategicFitConversationSummary {
     readonly insufficient_evidence_branch_count: number;
   };
   readonly metrics: readonly StrategicFitConversationMetric[];
+  readonly digest: StrategicFitConversationDigest;
 }
 
 export interface StrategicFitConversationFindingRow {
@@ -264,6 +302,68 @@ function findingRow(finding: StrategicFinding): StrategicFitConversationFindingR
   };
 }
 
+function openingFamily(scope: string): string {
+  const family = scope.split(":", 1)[0]?.trim() ?? "";
+  return family.length > 0 ? family : scope;
+}
+
+function digestProjection(findings: readonly StrategicFinding[]): StrategicFitConversationDigest {
+  const { digest_openings: openingLimit, digest_decidable: decidableLimit } =
+    STRATEGIC_FIT_CONVERSATION_LIMITS;
+  const classifications = STRATEGIC_FIT_CLASSIFICATIONS.flatMap((classification) => {
+    const members = findings.filter((finding) => finding.classification === classification);
+    const [first] = members;
+    return first === undefined
+      ? []
+      : [
+          {
+            classification,
+            plain_language_category: first.plain_language_category,
+            count: members.length,
+            decidable_count: members.filter(isDecidableStrategicFinding).length,
+          },
+        ];
+  }).sort((left, right) => right.count - left.count);
+  const families = new Map<string, { finding_count: number; decidable_count: number }>();
+  for (const finding of findings) {
+    const family = openingFamily(finding.opening_scope);
+    const entry = families.get(family) ?? { finding_count: 0, decidable_count: 0 };
+    entry.finding_count += 1;
+    if (isDecidableStrategicFinding(finding)) entry.decidable_count += 1;
+    families.set(family, entry);
+  }
+  const openings = [...families]
+    .map(([opening_family, counts]) => ({ opening_family, ...counts }))
+    .sort(
+      (left, right) =>
+        right.finding_count - left.finding_count ||
+        (left.opening_family < right.opening_family ? -1 : 1),
+    );
+  const decidable = sortStrategicFitFindings(
+    findings.filter(
+      (finding) =>
+        finding.resolution_state === "unresolved" && isDecidableStrategicFinding(finding),
+    ),
+    "replacement-priority",
+  );
+  return {
+    by_classification: classifications,
+    by_opening: openings.slice(0, openingLimit),
+    omitted_opening_count: Math.max(0, openings.length - openingLimit),
+    decidable_unresolved_count: decidable.length,
+    top_decidable: decidable.slice(0, decidableLimit).map((finding) => ({
+      finding_id: finding.finding_id,
+      classification: finding.classification,
+      plain_language_category: finding.plain_language_category,
+      opening_scope: finding.opening_scope,
+      affected_line_summary: text(finding.affected_line_summary),
+      replacement_priority: finding.replacement_priority.label,
+      training_priority: finding.training_priority.label,
+      source_san_path: paths(finding)[0] ?? null,
+    })),
+  };
+}
+
 function summaryProjection(report: StrategicFitReport): StrategicFitConversationSummary {
   const issueCounts = report.preflight.issues.reduce(
     (counts, issue) => ({ ...counts, [issue.severity]: counts[issue.severity] + 1 }),
@@ -320,6 +420,7 @@ function summaryProjection(report: StrategicFitReport): StrategicFitConversation
       insufficient_evidence_branch_count: report.summary.insufficient_evidence_branch_count,
     },
     metrics,
+    digest: digestProjection(report.findings),
   };
 }
 
