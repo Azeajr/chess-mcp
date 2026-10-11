@@ -21,7 +21,9 @@ import {
 } from "./guided-ui";
 import { workflowPrompt } from "../llm/workflows";
 import { GOAL_STARTERS, MISSING_KEY } from "../content/chat";
-import { apiKey, model, hasApiKey, chatMode } from "./settings";
+import { apiKey, model, hasApiKey, chatMode, setSettingsFocusTarget } from "./settings";
+import { setSettingsOpen } from "./ui";
+import { withoutCredentials } from "../application/chat-credentials";
 import { fen, color, currentTree, currentPath, fileName, version } from "./game";
 import type { Path } from "@chess-mcp/chess-tools";
 import {
@@ -447,8 +449,16 @@ export function send(userText: string): Promise<void> {
 }
 
 async function sendTurn(userText: string) {
-  const text = userText.trim();
-  if (!text || busy()) return;
+  if (busy()) return;
+  const removed = withoutCredentials(userText.trim());
+  const text = removed.text;
+  if (!text) return;
+  // Credentials are entered only in Settings: open it at the field the message held a value for.
+  const [credential] = removed.fields;
+  if (credential) {
+    setSettingsFocusTarget(credential);
+    setSettingsOpen(true);
+  }
   if (!hasApiKey()) {
     // Keep the request through the detour to Settings, so Send again sends it.
     lastRequest = text;

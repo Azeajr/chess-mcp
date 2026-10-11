@@ -33,6 +33,14 @@ export const MISSING_KEY = {
   setup: "Set up the assistant",
 } as const;
 
+/** Replaces a credential typed into chat; Settings opens at the field it belongs in. */
+export const CREDENTIAL_REMOVED = {
+  "lichess-token":
+    "[Lichess token removed from this message. Settings is open at the Lichess API token field for you to enter it.]",
+  "api-key":
+    "[OpenRouter key removed from this message. Settings is open at the OpenRouter API key field for you to enter it.]",
+} as const;
+
 export const CHAT_STARTERS = [
   "What is the plan for White in this position?",
   "Which of my replies here is weakest, and why?",

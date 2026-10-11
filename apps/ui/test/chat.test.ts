@@ -1385,3 +1385,62 @@ test("WP-027 the context chip block is the text the system prompt injects", asyn
   assert.match(block, new RegExp(`nodes=${snapshot.nodes}`));
   assert.match(block, new RegExp(`leaves=${snapshot.leaves}`));
 });
+
+test("credential-shaped text is removed from a chat message, other text is kept", async () => {
+  const { withoutCredentials } = await import("../src/application/chat-credentials.ts");
+  const both = withoutCredentials(
+    "token lip_fixtureNotReal123 and key sk-or-v1-0123456789abcdef0123 please",
+  );
+  assert.deepEqual(both.fields, ["lichess-token", "api-key"]);
+  assert.doesNotMatch(both.text, /lip_|sk-or-/);
+  assert.match(
+    both.text,
+    /^token \[Lichess token removed.*\] and key \[OpenRouter key removed.*\] please$/,
+  );
+  assert.deepEqual(withoutCredentials("Review 1. e4 e5, lip of the board"), {
+    text: "Review 1. e4 e5, lip of the board",
+    fields: [],
+  });
+});
+
+test("a credential typed into chat never reaches the model and opens Settings at its field", async (t) => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  const ui = await import("../src/store/ui.ts");
+  settings.setApiKey("test-key");
+  const sent: string[] = [];
+  chat.setChatTransportForTesting(async (options) => {
+    sent.push(JSON.stringify(options.messages));
+    return { content: "Enter it in the Settings field that is now open.", toolCalls: [] };
+  });
+  t.after(() => {
+    chat.setChatTransportForTesting();
+    settings.setApiKey("");
+    settings.setSettingsFocusTarget(null);
+    ui.setSettingsOpen(false);
+    chat.clearChat();
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
+  await chat.send("My Lichess token is lip_fixtureNotReal123, put it in for me");
+  assert.equal(sent.length, 1);
+  assert.doesNotMatch(sent[0]!, /lip_fixtureNotReal123/);
+  assert.match(sent[0]!, /Lichess token removed from this message/);
+  assert.equal(
+    chat.history().some((message) => message.content?.includes("lip_fixtureNotReal123")),
+    false,
+  );
+  assert.equal(ui.settingsOpen(), true);
+  assert.equal(settings.settingsFocusTarget(), "lichess-token");
+  // Opening the field is all: the user enters the credential.
+  assert.equal(settings.lichessToken(), "");
+});
