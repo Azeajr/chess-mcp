@@ -247,6 +247,9 @@ for (const mobile of [false, true]) {
       await expect(page.locator(".assistant-controls")).toContainText("working");
       await page.getByRole("tab", { name: /Analysis/ }).click();
     }
+    // The field is shown before the assistant's set_fields fills it; typing in between mixed the
+    // two ("e4 d4Nf3").
+    await expect(candidates).toHaveValue("e4 d4");
     await candidates.fill("Nf3");
     await expect(page.locator(".assistant-controls")).toContainText("paused");
     await expect(candidates).toHaveValue("Nf3");
