@@ -77,20 +77,25 @@ export default function SettingsDrawer() {
         <Field class="field" label="Model">
           <input
             type="text"
-            placeholder="deepseek/deepseek-v4-flash"
+            placeholder="deepseek/deepseek-v4.1-flash"
             value={model()}
             onChange={(e) => {
               setModel(e.currentTarget.value);
             }}
           />
-          <small>Pick a model below, or type any OpenRouter slug. See openrouter.ai/models.</small>
+          <small>
+            Pick a model below (hover for price per million input/output tokens), or type any
+            OpenRouter slug from openrouter.ai/models. The assistant needs tool calling and a
+            context window of at least 128k tokens: each message resends about 18k tokens of tool
+            definitions, so prefer a model with prompt caching.
+          </small>
           <div class="model-chips">
             <For each={MODEL_SUGGESTIONS}>
               {(m) => (
                 <button
                   type="button"
                   class={`model-chip${model() === m.slug ? " active" : ""}`}
-                  title={m.slug}
+                  title={`${m.slug} · ${m.price}`}
                   onClick={() => {
                     setModel(m.slug);
                   }}

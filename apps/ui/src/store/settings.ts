@@ -6,15 +6,23 @@ const KEY_API = "chess.openrouter.key";
 const KEY_MODEL = "chess.openrouter.model";
 const KEY_MODE = "chess.chat.mode";
 const KEY_LICHESS = "chess.lichess.token";
-const DEFAULT_MODEL = "deepseek/deepseek-v4-flash";
+const DEFAULT_MODEL = "deepseek/deepseek-v4.1-flash";
 
-export const MODEL_SUGGESTIONS: { label: string; slug: string }[] = [
-  { label: "DeepSeek V4 Flash", slug: "deepseek/deepseek-v4-flash" },
-  { label: "DeepSeek V4 Pro", slug: "deepseek/deepseek-v4-pro" },
-  { label: "DeepSeek-R1 (Distill 32B)", slug: "deepseek/deepseek-r1-distill-qwen-32b" },
-  { label: "Sonnet 4.6", slug: "anthropic/claude-sonnet-4.6" },
-  { label: "Llama 4 Scout 17B", slug: "meta-llama/llama-4-scout" },
-  { label: "Qwen3-32B", slug: "qwen/qwen3-32b" },
+/**
+ * Every chat round resends the whole browser tool schema plus the workflow guidance (about 16–18k
+ * tokens, measured 2026-10-11) and a turn runs up to 12 rounds, so a model needs tool calling with
+ * `tool_choice`, streaming, a context window of at least 128k, and ideally prompt caching. Prices
+ * are USD per million input/output tokens at the cheapest listed provider on 2026-10-11, read from
+ * each model's /endpoints route, because the /models route shows a different provider per model.
+ * Providers differ by price, and the cheapest are often fp4-quantized. Every entry has a 1M window.
+ * Each stands for one trade-off, per Artificial Analysis (Intelligence Index v4.3.2, 2026-10-11):
+ * DeepSeek V4.1 Flash balances speed and capability (39 at 217 tokens/s), GLM 5.3 Flash is the
+ * capability pick (42), and MiMo V2.6 Flash is the cheapest (38 for $0.06 per index task).
+ */
+export const MODEL_SUGGESTIONS: { label: string; slug: string; price: string }[] = [
+  { label: "DeepSeek V4.1 Flash", slug: "deepseek/deepseek-v4.1-flash", price: "$0.04 / $0.14" },
+  { label: "GLM 5.3 Flash", slug: "z-ai/glm-5.3-flash", price: "$0.04 / $0.50" },
+  { label: "MiMo V2.6 Flash", slug: "xiaomi/mimo-v2.6-flash", price: "$0.10 / $0.28" },
 ];
 
 function read(k: string, fallback: string): string {

@@ -41,6 +41,20 @@ export const CREDENTIAL_REMOVED = {
     "[OpenRouter key removed from this message. Settings is open at the OpenRouter API key field for you to enter it.]",
 } as const;
 
+/**
+ * One starter per step of the Strategic Fit journey (docs/CHAT_DRIVEN_UI_SPEC.md J3), in order: set
+ * up and analyse, read the assessment, take the top finding, ask for a replacement, then train.
+ * Each names the step instead of a tool, so the assistant picks the command and stops where the
+ * journey needs the user: setup preferences, accepting a preview, playing recall moves.
+ */
+export const STRATEGIC_FIT_STARTERS = [
+  "Run Strategic Fit on this repertoire and tell me what it found.",
+  "Which finding matters most, and is it a real inconsistency or a forced choice?",
+  "Show me the evidence for the top finding on the board.",
+  "Propose a replacement for the top finding and show me the preview.",
+  "Make a training plan for the line I just changed.",
+] as const;
+
 export const CHAT_STARTERS = [
   "What is the plan for White in this position?",
   "Which of my replies here is weakest, and why?",
