@@ -397,6 +397,78 @@ test("replacement history compaction preserves complete follow-up identity chain
     assert.equal(compacted.includes(identity), true, `missing ${identity}`);
 });
 
+test("a scoped retrieval reaches the model whole in its own turn and compacted after it", async (t) => {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+  const settings = await import("../src/store/settings.ts");
+  const chat = await import("../src/store/chat.ts");
+  settings.setApiKey("test-key");
+  const toolContents: string[][] = [];
+  chat.setChatTransportForTesting(async (opts) => {
+    toolContents.push(
+      opts.messages.filter((message) => message.role === "tool").map((m) => m.content ?? ""),
+    );
+    const last = opts.messages.at(-1);
+    if (last?.role !== "user" || last.content !== "list the findings")
+      return { content: "done", toolCalls: [] };
+    return {
+      content: "",
+      toolCalls: [
+        {
+          id: "retrieval",
+          type: "function",
+          function: {
+            name: "get_strategic_fit_report",
+            arguments: '{"report_id":"report:one","view":"findings"}',
+          },
+        },
+        {
+          id: "audit",
+          type: "function",
+          function: { name: "audit_repertoire_moves", arguments: "{}" },
+        },
+      ],
+    };
+  });
+  // Both results are past the compaction cap, as a real findings page is from its default size.
+  const padding = "x".repeat(7000);
+  chat.setChatToolExecutorForTesting(async (name) =>
+    name === "get_strategic_fit_report"
+      ? {
+          retrieval: "strategic-fit-findings",
+          report_id: "report:one",
+          findings: [{ finding_id: "finding:one", classification: "uncertain", padding }],
+        }
+      : { command: name, padding },
+  );
+  t.after(() => {
+    chat.setChatTransportForTesting();
+    chat.setChatToolExecutorForTesting();
+    settings.setApiKey("");
+    chat.clearChat();
+    delete (globalThis as { localStorage?: unknown }).localStorage;
+  });
+
+  chat.clearChat();
+  await chat.send("list the findings");
+  const [retrieval, audit] = toolContents[1]!;
+  assert.match(retrieval!, /"classification":"uncertain"/);
+  assert.match(audit!, /"compacted":true/);
+
+  await chat.send("thanks");
+  const [earlier] = toolContents[2]!;
+  assert.match(earlier!, /"compacted":true/);
+  assert.match(earlier!, /finding:one/);
+  assert.doesNotMatch(earlier!, /classification/);
+});
+
 test("primary direct repertoire outcomes use the canonical browser commands and defaults", () => {
   const browser = new Set(contractsForHost("browser").map((contract) => contract.name));
   for (const name of [

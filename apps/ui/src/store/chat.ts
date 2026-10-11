@@ -324,13 +324,26 @@ export function compactToolResult(content: string): string {
   }
 }
 
+function isScopedRetrieval(content: string): boolean {
+  try {
+    const value = JSON.parse(content) as { retrieval?: unknown } | null;
+    return typeof value?.retrieval === "string";
+  } catch {
+    return false;
+  }
+}
+
+// A scoped retrieval is bounded by its own projection and is how the model reads what compaction
+// removed, so the turn that asked for one sees it whole; later turns compact it like any result.
 function compactMessages(messages: ChatMessage[]): ChatMessage[] {
+  const turnStart = messages.map((m) => m.role).lastIndexOf("user");
   return messages
-    .filter((m) => m.role !== "focus")
-    .map((m) => {
+    .map((m, index) => {
       if (m.role !== "tool" || !m.content || m.content.length <= MAX_TOOL_RESULT_CHARS) return m;
+      if (index > turnStart && isScopedRetrieval(m.content)) return m;
       return { ...m, content: compactToolResult(m.content) };
-    });
+    })
+    .filter((m) => m.role !== "focus");
 }
 
 function updateRun(id: string, patch: Partial<ToolRunState>) {
