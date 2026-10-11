@@ -233,6 +233,55 @@ test("filled forms win over assistant drafts unless the request replaces them", 
   assert.equal(bad.error, "invalid_arguments");
 });
 
+test("a rejected ui_act names the field and what it accepts", async () => {
+  const reason = async (action: unknown) => {
+    const receipt = (await act(action)) as Receipt & { reason?: string };
+    assert.equal(receipt.error, "invalid_arguments");
+    return receipt.reason ?? "";
+  };
+  // A live model sent free text as the decision reason; "Use a supported UI action" did not say
+  // what was wrong, and it never recovered.
+  assert.match(
+    await reason({
+      kind: "set_fields",
+      form: "decision",
+      values: { findingId: "finding:01", decision: "defer", reason: "User requested deferral." },
+    }),
+    /^values\.reason "User requested deferral\." is not supported; use one of: .+ \(only for keep-intentionally; put free text in values\.note\)\. Nothing was done\.$/,
+  );
+  assert.match(
+    await reason({ kind: "set_fields", form: "compare", values: { candidates: "e4", depth: 12 } }),
+    /^values\.depth is not accepted; values takes candidates\./,
+  );
+  assert.match(
+    await reason({ kind: "submit", workflow: "reviews" }),
+    /^action\.workflow "reviews" is not a workflow/,
+  );
+  assert.match(
+    await reason({ kind: "select_result", resultId: "r" }),
+    /exactly one of action\.ply/,
+  );
+  assert.match(
+    await reason({ kind: "teleport" }),
+    /^action\.kind "teleport" is not supported; use one of: navigate, set_fields/,
+  );
+});
+
+test("opening Strategic Fit without a current report names the step that produces one", async () => {
+  actions.loadPgn("1. e4 e5 *");
+  // Live models read an open Assessment as "analysis running" and ended the turn with nothing
+  // selected; the receipt now says which submit waits for, runs or refreshes the report.
+  const opened = await act({ kind: "navigate", surface: "strategicFit.assessment" });
+  assert.equal(opened.status, "completed");
+  assert.match(
+    String(opened.result?.next),
+    /^There is no Strategic Fit report yet\. Submit strategic_fit_analyze to run it/,
+  );
+  const board = await act({ kind: "navigate", surface: "workspace.board" });
+  assert.equal(board.status, "completed");
+  assert.equal(board.result?.next, undefined);
+});
+
 test("account import names the scope, separates fetched from reviewed, and keeps the repertoire", async () => {
   actions.loadPgn("1. e4 e5 (1... c5) *");
   const pgn = currentTree().toPgn();

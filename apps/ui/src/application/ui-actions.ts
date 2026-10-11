@@ -260,17 +260,8 @@ export function uiSnapshot(turn?: AssistantTurnContext) {
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
-function onlyKeys(value: Record<string, unknown>, required: string[], optional: string[] = []) {
-  const keys = Object.keys(value);
-  return (
-    required.every((key) => keys.includes(key)) &&
-    keys.every((key) => required.includes(key) || optional.includes(key))
-  );
-}
 const shortText = (value: unknown, max = 200): value is string =>
   typeof value === "string" && value.length > 0 && value.length <= max;
-const optionalText = (value: unknown, max: number) =>
-  value === undefined || (typeof value === "string" && value.length <= max);
 
 type UiAction =
   | { kind: "navigate"; surface: GuidedSurface }
@@ -288,118 +279,194 @@ type UiAction =
   | { kind: "open_settings"; section: SettingsSection }
   | { kind: "set_setting"; setting: PublicSetting; value: unknown; requestMessageId: string };
 
-function validFormValues(form: FormId, values: Record<string, unknown>): boolean {
+// ui_act validation names the first problem and what is accepted, so a model can correct one
+// field instead of guessing (a bare "invalid arguments" sent small models off course).
+type Problem = string | null;
+
+function keyProblem(
+  path: string,
+  value: Record<string, unknown>,
+  required: string[],
+  optional: string[] = [],
+): Problem {
+  const missing = required.find((key) => !(key in value));
+  if (missing) return `${path} is missing ${missing}.`;
+  const extra = Object.keys(value).find(
+    (key) => !required.includes(key) && !optional.includes(key),
+  );
+  return extra
+    ? `${path}.${extra} is not accepted; ${path} takes ${[...required, ...optional].join(", ")}.`
+    : null;
+}
+
+const quoted = (value: unknown) => (value === undefined ? "nothing" : JSON.stringify(value));
+
+function oneOf(path: string, value: unknown, allowed: readonly unknown[]): Problem {
+  if (allowed.includes(value)) return null;
+  const listed = allowed.length <= 12 ? `: ${allowed.join(", ")}` : " listed in the ui_act schema";
+  return `${path} ${quoted(value)} is not supported; use one of${listed}.`;
+}
+
+const textProblem = (path: string, value: unknown, max: number, required = true): Problem =>
+  (!required && value === undefined) ||
+  (typeof value === "string" && (value.length > 0 || !required) && value.length <= max)
+    ? null
+    : `${path} must be ${required ? "a non-empty" : "a"} string of at most ${max} characters.`;
+
+function formValuesProblem(form: FormId, values: Record<string, unknown>): Problem {
+  const keys = (required: string[], optional: string[] = []) =>
+    keyProblem("values", values, required, optional);
   switch (form) {
     case "compare":
-      return onlyKeys(values, ["candidates"]) && optionalText(values.candidates, 500);
+      return (
+        keys(["candidates"]) ?? textProblem("values.candidates", values.candidates, 500, false)
+      );
     case "history":
       return (
-        onlyKeys(values, [], ["platform", "username", "month"]) &&
-        (values.platform === undefined ||
-          values.platform === "lichess" ||
-          values.platform === "chesscom") &&
-        optionalText(values.username, 60) &&
+        keys([], ["platform", "username", "month"]) ??
+        (values.platform === undefined
+          ? null
+          : oneOf("values.platform", values.platform, ["lichess", "chesscom"])) ??
+        textProblem("values.username", values.username, 60, false) ??
         (values.month === undefined ||
-          (typeof values.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(values.month)))
+        (typeof values.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(values.month))
+          ? null
+          : "values.month must be YYYY-MM.")
       );
     case "structure":
-      return onlyKeys(values, ["structure"]) && optionalText(values.structure, 80);
+      return keys(["structure"]) ?? textProblem("values.structure", values.structure, 80, false);
     case "opponent":
-      return onlyKeys(values, ["username"]) && optionalText(values.username, 60);
+      return keys(["username"]) ?? textProblem("values.username", values.username, 60, false);
     case "extend":
-      return (
-        onlyKeys(values, ["style"]) &&
-        (values.style === "low_memorization" || values.style === "sharp")
-      );
+      return keys(["style"]) ?? oneOf("values.style", values.style, ["low_memorization", "sharp"]);
     case "decision":
       return (
-        onlyKeys(values, ["findingId", "decision"], ["reason", "note"]) &&
-        shortText(values.findingId) &&
-        (DECISION_STATES as readonly unknown[]).includes(values.decision) &&
-        (values.reason === undefined ||
-          (INTENTIONAL_RESOLUTION_REASONS as readonly unknown[]).includes(values.reason)) &&
-        optionalText(values.note, 2000)
+        keys(["findingId", "decision"], ["reason", "note"]) ??
+        textProblem("values.findingId", values.findingId, 200) ??
+        oneOf("values.decision", values.decision, DECISION_STATES) ??
+        (values.reason === undefined
+          ? null
+          : (oneOf("values.reason", values.reason, INTENTIONAL_RESOLUTION_REASONS)?.replace(
+              /\.$/,
+              " (only for keep-intentionally; put free text in values.note).",
+            ) ?? null)) ??
+        textProblem("values.note", values.note, 2000, false)
       );
     case "replacementLab":
       return (
-        onlyKeys(values, [], ["pivotDecisionId", "sources", "depth"]) &&
-        (values.pivotDecisionId === undefined || shortText(values.pivotDecisionId)) &&
+        keys([], ["pivotDecisionId", "sources", "depth"]) ??
+        (values.pivotDecisionId === undefined
+          ? null
+          : textProblem("values.pivotDecisionId", values.pivotDecisionId, 200)) ??
         (values.sources === undefined ||
-          (Array.isArray(values.sources) &&
-            values.sources.length > 0 &&
-            values.sources.every((source) =>
-              (REPLACEMENT_CANDIDATE_SOURCE_KINDS as readonly unknown[]).includes(source),
-            ))) &&
+        (Array.isArray(values.sources) &&
+          values.sources.length > 0 &&
+          values.sources.every((source) =>
+            (REPLACEMENT_CANDIDATE_SOURCE_KINDS as readonly unknown[]).includes(source),
+          ))
+          ? null
+          : `values.sources must be a non-empty list of: ${REPLACEMENT_CANDIDATE_SOURCE_KINDS.join(", ")}.`) ??
         (values.depth === undefined ||
-          (Number.isInteger(values.depth) &&
-            Number(values.depth) >= 1 &&
-            Number(values.depth) <= 30))
+        (Number.isInteger(values.depth) && Number(values.depth) >= 1 && Number(values.depth) <= 30)
+          ? null
+          : "values.depth must be an integer from 1 to 30.")
       );
   }
 }
 
-function validAction(value: unknown): value is UiAction {
-  if (!record(value)) return false;
+/** The first problem with a ui_act action, or null when it is valid. */
+function actionProblem(value: unknown): Problem {
+  if (!record(value)) return "action must be an object with a kind.";
+  const keys = (required: string[], optional: string[] = []) =>
+    keyProblem("action", value, required, optional);
   switch (value.kind) {
     case "navigate":
-      return onlyKeys(value, ["kind", "surface"]) && isGuidedSurface(value.surface);
+      return (
+        keys(["kind", "surface"]) ??
+        (isGuidedSurface(value.surface)
+          ? null
+          : `action.surface ${quoted(value.surface)} is not a guided surface; use one listed in the ui_act schema.`)
+      );
     case "set_fields":
       return (
-        onlyKeys(value, ["kind", "form", "values"], ["replace"]) &&
-        (FORMS as readonly unknown[]).includes(value.form) &&
-        record(value.values) &&
-        (value.replace === undefined || typeof value.replace === "boolean") &&
-        validFormValues(value.form as FormId, value.values)
+        keys(["kind", "form", "values"], ["replace"]) ??
+        oneOf("action.form", value.form, FORMS) ??
+        (record(value.values) ? null : "action.values must be an object of field values.") ??
+        (value.replace === undefined || typeof value.replace === "boolean"
+          ? null
+          : "action.replace must be true or false.") ??
+        formValuesProblem(value.form as FormId, value.values as Record<string, unknown>)
       );
     case "submit":
       return (
-        onlyKeys(value, ["kind", "workflow"], ["target", "option"]) &&
-        isWorkflow(value.workflow) &&
-        (value.target === undefined || shortText(value.target, 500)) &&
-        (value.option === undefined ||
-          value.option === "add-alternative" ||
-          value.option === "replace")
+        keys(["kind", "workflow"], ["target", "option"]) ??
+        (isWorkflow(value.workflow)
+          ? null
+          : `action.workflow ${quoted(value.workflow)} is not a workflow; use one listed in the ui_act schema.`) ??
+        (value.target === undefined ? null : textProblem("action.target", value.target, 500)) ??
+        (value.option === undefined
+          ? null
+          : oneOf("action.option", value.option, ["add-alternative", "replace"]))
       );
     case "select_result":
       return (
-        onlyKeys(value, ["kind", "resultId"], ["ply", "itemId", "board"]) &&
-        shortText(value.resultId, 500) &&
+        keys(["kind", "resultId"], ["ply", "itemId", "board"]) ??
+        textProblem("action.resultId", value.resultId, 500) ??
         (value.ply === undefined ||
-          (Number.isInteger(value.ply) && Number(value.ply) >= 1 && Number(value.ply) <= 10000)) &&
-        (value.itemId === undefined || shortText(value.itemId, 500)) &&
-        (value.board === undefined || typeof value.board === "boolean") &&
-        (value.ply !== undefined) !== (value.itemId !== undefined)
+        (Number.isInteger(value.ply) && Number(value.ply) >= 1 && Number(value.ply) <= 10000)
+          ? null
+          : "action.ply must be an integer from 1 to 10000.") ??
+        (value.itemId === undefined ? null : textProblem("action.itemId", value.itemId, 500)) ??
+        (value.board === undefined || typeof value.board === "boolean"
+          ? null
+          : "action.board must be true or false.") ??
+        ((value.ply !== undefined) !== (value.itemId !== undefined)
+          ? null
+          : "select_result takes exactly one of action.ply (review plies) or action.itemId (other items).")
       );
     case "select_path":
       return (
-        onlyKeys(value, ["kind", "sanPath"]) &&
-        Array.isArray(value.sanPath) &&
+        keys(["kind", "sanPath"]) ??
+        (Array.isArray(value.sanPath) &&
         value.sanPath.length <= 300 &&
         value.sanPath.every((san) => shortText(san, 10))
+          ? null
+          : "action.sanPath must be a list of at most 300 SAN moves.")
       );
     case "show_proposal":
-      return onlyKeys(value, ["kind", "proposalId"]) && shortText(value.proposalId, 500);
+      return (
+        keys(["kind", "proposalId"]) ?? textProblem("action.proposalId", value.proposalId, 500)
+      );
     case "approve_proposal":
       return (
-        onlyKeys(value, ["kind", "proposalId", "previewVersion", "approvalMessageId"]) &&
-        shortText(value.proposalId, 500) &&
-        shortText(value.previewVersion, 2000) &&
-        shortText(value.approvalMessageId)
+        keys(["kind", "proposalId", "previewVersion", "approvalMessageId"]) ??
+        textProblem("action.proposalId", value.proposalId, 500) ??
+        textProblem("action.previewVersion", value.previewVersion, 2000) ??
+        textProblem("action.approvalMessageId", value.approvalMessageId, 200)
       );
     case "open_settings":
-      return (
-        onlyKeys(value, ["kind", "section"]) &&
-        (SETTINGS_SECTIONS as readonly unknown[]).includes(value.section)
-      );
+      return keys(["kind", "section"]) ?? oneOf("action.section", value.section, SETTINGS_SECTIONS);
     case "set_setting":
       return (
-        onlyKeys(value, ["kind", "setting", "value", "requestMessageId"]) &&
-        (PUBLIC_SETTINGS as readonly unknown[]).includes(value.setting) &&
-        ["number", "boolean", "string"].includes(typeof value.value) &&
-        shortText(value.requestMessageId)
+        keys(["kind", "setting", "value", "requestMessageId"]) ??
+        oneOf("action.setting", value.setting, PUBLIC_SETTINGS) ??
+        (["number", "boolean", "string"].includes(typeof value.value)
+          ? null
+          : "action.value must be a number, boolean or string.") ??
+        textProblem("action.requestMessageId", value.requestMessageId, 200)
       );
     default:
-      return false;
+      return oneOf("action.kind", value.kind, [
+        "navigate",
+        "set_fields",
+        "submit",
+        "select_result",
+        "select_path",
+        "show_proposal",
+        "approve_proposal",
+        "open_settings",
+        "set_setting",
+      ]);
   }
 }
 
@@ -461,6 +528,22 @@ function surfaceFor(action: UiAction): GuidedSurface | null {
   }
 }
 
+// Opening Strategic Fit only shows it: a model that read "analyzing" as done ended its turn with
+// nothing selected. Name the step that waits for, runs or refreshes the report.
+function strategicFitNext(surface: GuidedSurface): { next?: string } {
+  if (!surface.startsWith("strategicFit.") || surface === "strategicFit.lab") return {};
+  const status = strategicFitLifecycle().status;
+  if (status === "completed") return {};
+  return {
+    next:
+      status === "running" || status === "provisional"
+        ? "Strategic Fit is still analyzing. Submit strategic_fit_analyze to wait for this run's report (it does not start another) before selecting findings."
+        : status === "stale"
+          ? "The Strategic Fit report is out of date. Submit strategic_fit_analyze to refresh it before selecting findings."
+          : "There is no Strategic Fit report yet. Submit strategic_fit_analyze to run it before selecting findings.",
+  };
+}
+
 function proposalSurface(proposalId: string): GuidedSurface | null {
   const proposal = pendingProposals().find((item) => item.proposalId === proposalId);
   return proposal && proposal.surface !== "chat" ? proposal.surface : null;
@@ -519,7 +602,7 @@ async function perform(
           error: "profile_setup_required",
           reason: "Strategic Fit shows its first-run setup until the user chooses a preference.",
         };
-      return { surface: action.surface };
+      return { surface: action.surface, ...strategicFitNext(action.surface) };
     case "set_fields": {
       const before = new Set(pendingProposals().map((item) => item.proposalId));
       const filled = setFormFields(action.form, action.values, action.replace === true);
@@ -632,18 +715,20 @@ export async function executeUiTool(
     if ("error" in page) return failure(page.error, page.reason);
     return { state: uiSnapshot(options.turn), resultId: raw.resultId, offset, ...page };
   }
-  if (
-    name !== "ui_act" ||
-    !record(raw) ||
-    !onlyKeys(raw, ["actionId", "stateToken", "action"]) ||
-    !shortText(raw.actionId) ||
-    typeof raw.stateToken !== "string" ||
-    raw.stateToken.length > 4000 ||
-    !validAction(raw.action)
-  )
-    return failure("invalid_arguments", "Use a supported UI action and the current stateToken.");
-  const request = JSON.stringify([raw.stateToken, raw.action]);
-  const existing = receipts.get(raw.actionId);
+  const problem =
+    name !== "ui_act" || !record(raw)
+      ? "Call ui_act with actionId, stateToken and action."
+      : (keyProblem("arguments", raw, ["actionId", "stateToken", "action"]) ??
+        textProblem("actionId", raw.actionId, 200) ??
+        (typeof raw.stateToken === "string" && raw.stateToken.length <= 4000
+          ? null
+          : "stateToken must be the exact token from the latest state or receipt.") ??
+        actionProblem(raw.action));
+  if (problem || !record(raw)) return failure("invalid_arguments", `${problem} Nothing was done.`);
+  const actionId = raw.actionId as string;
+  const token = raw.stateToken as string;
+  const request = JSON.stringify([token, raw.action]);
+  const existing = receipts.get(actionId);
   if (existing)
     return existing.request === request
       ? existing.result
@@ -653,9 +738,7 @@ export async function executeUiTool(
       "session_limit",
       "Reload before starting further UI actions; completed work is retained by existing stores.",
     );
-  const action = raw.action;
-  const token = raw.stateToken;
-  const actionId = raw.actionId;
+  const action = raw.action as UiAction;
   const step = describe(action);
   const result = Promise.resolve().then(async () => {
     if (options.signal?.aborted) return failure("cancelled", "The request stopped.", { step });
