@@ -1,6 +1,6 @@
 # Chat-first interpretation and diagnostic bundles
 
-Status: decisions D1–D8 accepted 2026-10-11; Phase 1 (diagnostics) implemented, Phases 2–3 pending.
+Status: decisions D1–D8 accepted 2026-10-11; Phases 1 (diagnostics) and 2 (digest, prompt) implemented, Phase 3 pending.
 Date: 2026-10-11.
 Source: a live guided-chat run, "Run Strategic Fit on this repertoire and tell me what it found",
 on a 62-line Black repertoire with the familiar-plans profile.

@@ -91,7 +91,7 @@ const define = (
     ...(name === "get_strategic_fit_report"
       ? {
           semantics:
-            "Bounded conversation projection of an existing immutable report: identity, overview state, one compact finding page, or one finding with evidence and navigable paths. Never the full report, provenance, or any document artifact.",
+            "Bounded conversation projection of an existing immutable report: identity and overview state with a digest of what it found (findings by kind and opening family, and the top unresolved decisions), one compact finding page, or one finding with evidence and navigable paths. Never the full report, provenance, or any document artifact.",
         }
       : {}),
     ...(name === "propose_strategic_fit_profile"
@@ -759,7 +759,7 @@ export const TOOL_CONTRACTS = [
   ),
   define(
     "get_strategic_fit_report",
-    "Retrieve one bounded view of an existing Strategic Fit report by its exact identity: the overview summary, one page of compact findings, or one finding with its evidence and navigable SAN paths. Stale report or finding identities fail with a structured error.",
+    "Retrieve one bounded view of an existing Strategic Fit report by its exact identity: the overview summary, whose digest groups the findings by kind and opening family and names the top unresolved decisions; one page of compact findings; or one finding with its evidence and navigable SAN paths. Stale report or finding identities fail with a structured error.",
     ["repertoire"],
     BOTH,
     { view: "summary", page_limit: 10, sort: "replacement-priority" },

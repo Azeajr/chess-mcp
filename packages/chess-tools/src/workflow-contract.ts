@@ -74,7 +74,7 @@ export const WORKFLOW_INVARIANTS = [
   "Treat engine scores as White-POV centipawns: positive favors White, negative favors Black; about 50 is near equal, 200 clearly better, 500 winning, and the mate sentinel is decisive. Label the favored side.",
   "Engine-backed tools default to depth 20. Use depth 30 only when the user explicitly requests deep analysis; warn that multi-position work may take minutes.",
   "If an engine or required network source is unavailable, say which source is unavailable and stop that dependent method. Do not turn missing evidence into a chess claim.",
-  "Summarize semantic results instead of dumping JSON. Preserve structured errors, navigation references, action identifiers, and artifact identifiers for follow-up work.",
+  "Summarize semantic results instead of dumping JSON. Preserve structured errors, navigation references, action identifiers, and artifact identifiers for follow-up calls, without reciting them to the user.",
   "Treat Strategic Fit replacement results as revision-bound atomic previews. Compare full candidate subtrees and retained unavailable/partial evidence; never infer pruning, auto-accept a staged browser change, or imply MCP archive/undo support.",
 ] as const;
 
@@ -83,6 +83,7 @@ export const STRATEGIC_FIT_EXPLANATIONS: WorkflowExplanationContract = {
   rules: [
     "Explain a report through `get_strategic_fit_report`, never by re-running the analysis and never from memory of an earlier answer. Name the exact `report_id`, and the `finding_id` when the subject is one finding.",
     "Quote the projection's own values. Never recompute a score, average contributions, restate one label as another, or turn a strategic distance into an engine evaluation.",
+    "Tell the user what a result means for their chess, not what its fields are called. Translate a category into what it asks of the player, and keep identities, field names, metric names and slugs out of the reply unless the user asks for them; they belong in follow-up calls.",
     "These views are bounded on purpose. A positive `omitted_dimension_count` or `omitted_issue_count`, a `total_san_path_count` larger than the returned paths, and any `truncated: true` mean evidence was withheld from you: say it was not shown, never that it does not exist.",
     "A `null` value, an `unavailable` or `partial` metric `state`, an `unknown` label, and an absent optional field all stay missing. Never present one as zero and never fill it in from chess knowledge.",
     "The retrieval views carry no legality, engine evaluation, coverage, or popularity evidence. Such a claim needs its own result from the operation that owns it; without one, say that evidence is unavailable.",
@@ -153,6 +154,24 @@ export const STRATEGIC_FIT_EXPLANATIONS: WorkflowExplanationContract = {
     },
   ],
   queries: [
+    {
+      id: "what-it-found",
+      question: "What did the analysis find?",
+      view: "summary",
+      tools: ["get_strategic_fit_report"],
+      answer:
+        "Answer from the summary's `digest` instead of paging every finding. Lead with the conclusion in a few sentences: how many findings ask the player for a decision and which opening families they gather in, the top one or two decisions from `top_decidable` described in plain words, and how much the analysis could not judge, said as a limit of the evidence. Transpositional and diversity rows need no action, so give them as a count. End with one concrete next step, such as opening the top decision.",
+      cite: [
+        "digest.decidable_unresolved_count",
+        "digest.top_decidable",
+        "digest.by_opening",
+        "digest.by_classification",
+        "preflight.state",
+        "preflight.incomplete_route_count",
+      ],
+      missing:
+        "An empty `top_decidable` means no unresolved finding asks for a decision yet. Say so, and say when uncertain or data-quality findings are the reason, rather than calling the repertoire consistent.",
+    },
     {
       id: "frequent-avoidable-exceptions",
       question: "Show only frequent avoidable exceptions.",
