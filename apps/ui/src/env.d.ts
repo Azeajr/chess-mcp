@@ -8,3 +8,6 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/** Release version and commit, defined by the Vite config; absent outside a Vite build. */
+declare const __APP_BUILD__: { version: string; commit: string } | undefined;

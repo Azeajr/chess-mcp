@@ -64,14 +64,19 @@ export function saveArtifact(id: string): ArtifactSaveResult {
   const artifact = artifactById(id);
   // The store is in-memory, so a reload leaves an old result pointing at an artifact that is gone.
   if (!artifact) return { ok: false, reason: "missing" };
+  return downloadText(artifact.name, artifact.mediaType, artifact.content);
+}
+
+/** The download behind `saveArtifact`, for content that is saved once and not kept as an artifact. */
+export function downloadText(name: string, mediaType: string, content: string): ArtifactSaveResult {
   let url: string | null = null;
   try {
-    url = URL.createObjectURL(new Blob([artifact.content], { type: artifact.mediaType }));
+    url = URL.createObjectURL(new Blob([content], { type: mediaType }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = artifact.name;
+    link.download = name;
     link.click();
-    return { ok: true, name: artifact.name };
+    return { ok: true, name };
   } catch {
     return { ok: false, reason: "blocked" };
   } finally {

@@ -1,6 +1,8 @@
+import "./store/diagnostics-boot";
 import { render } from "solid-js/web";
 import App from "./App";
 import { executeBrowserCommand } from "./application/browser-commands/client";
+import { observeAppForDiagnostics } from "./application/diagnostic-bundle";
 import {
   actions,
   changesSinceExport,
@@ -133,6 +135,7 @@ import "./workflow-controls.css";
 const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");
 render(() => <App />, root);
+observeAppForDiagnostics();
 
 if (import.meta.env.VITE_PWA_LIFECYCLE_TEST === "1") {
   const bridge = (window as unknown as { __pwaLifecycleTest: object }).__pwaLifecycleTest;

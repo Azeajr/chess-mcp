@@ -2,6 +2,28 @@ import { defineConfig } from "vite";
 import solid from "vite-plugin-solid";
 import { VitePWA } from "vite-plugin-pwa";
 import { webHarness } from "@azeajr/web-harness/vite";
+import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+
+// Identifies the build in a diagnostic bundle: the released plugin version and the commit.
+function appBuild() {
+  let version = "unknown";
+  let commit = "unknown";
+  try {
+    const manifest = new URL("../../plugin/.claude-plugin/plugin.json", import.meta.url);
+    version = (JSON.parse(readFileSync(manifest, "utf8")) as { version: string }).version;
+  } catch {
+    // An app-only checkout has no plugin manifest; the commit still identifies the build.
+  }
+  try {
+    commit = execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    // Builds outside a git checkout, such as some containers, have no commit to report.
+  }
+  return { version, commit };
+}
 
 const crossOriginIsolation = {
   name: "cross-origin-isolation",
@@ -15,6 +37,7 @@ const crossOriginIsolation = {
 };
 
 export default defineConfig({
+  define: { __APP_BUILD__: JSON.stringify(appBuild()) },
   plugins: [
     solid(),
     crossOriginIsolation,
