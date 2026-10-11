@@ -77,11 +77,10 @@ test("J3 Strategic Fit: nothing is recorded until the user approves", async ({ p
   await installFindingWorkerFixture(page);
   await page.goto("/");
   await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
-  // The fixture's first finding is shown on the board at 1. e4 c5 2. c3 Nf6, so the repertoire
-  // holds that line; a model that asks to see the finding must be able to.
-  await chess(page, (api) =>
-    api.loadPgn("1. e4 e5 (1... c5 2. c3 Nf6) 2. Nf3 Nc6 *", "live-fit.pgn"),
-  );
+  // The repertoire the Strategic Fit worker fixture was built for: its findings' semantic routes
+  // belong to this graph, so a decision on them can be recorded (adding a line changes the routes).
+  // Its first finding's board line is not in this tree, so a board request for it is refused.
+  await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "live-fit.pgn"));
   await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
   await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
   const before = await currentPgn(page);
