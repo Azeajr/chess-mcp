@@ -568,7 +568,7 @@ the MCP server, the generated tool catalog and the shared chess contract are unc
 | `select_path`      | Move the board to an existing SAN path.                                                                              |
 | `show_proposal`    | Reveal a pending proposal and record it as presented for decision.                                                   |
 | `approve_proposal` | Apply a pending proposal on verified chat approval (below).                                                          |
-| `open_settings`    | Open Settings at `general`, `engine`, `api-key` or `lichess-token`.                                                  |
+| `open_settings`    | Open Settings at `general`, `engine`, `api-key` or `lichess-token`; an already open drawer stays as the user has it. |
 | `set_setting`      | Change `analysis_depth`, `cloud_eval`, `technical_details` or `chat_workflow` when the user's current message asked. |
 
 Deviations from sections 6–7, each deliberate:

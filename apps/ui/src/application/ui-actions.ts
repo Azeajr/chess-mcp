@@ -820,11 +820,16 @@ async function perform(
           };
     }
     case "open_settings":
-      openSettings(action.section);
-      return {
-        section: action.section,
-        next: "Settings are open; the user enters any credentials. Wait for them to close it.",
-      };
+      return openSettings(action.section)
+        ? {
+            section: action.section,
+            next: "Settings are open; the user enters any credentials. Wait for them to close it.",
+          }
+        : {
+            section: action.section,
+            alreadyOpen: true,
+            next: "Settings were already open and stay as the user has them; the user enters any credentials. Wait for them to close it.",
+          };
     case "set_setting": {
       const applied = applyRequestedSetting(action, turn);
       return applied.ok
@@ -893,7 +898,9 @@ export async function executeUiTool(
         ? proposalSurface(action.proposalId)
         : null);
     const dialog = surface ? blockingDialogFor(surface) : activeDialog();
-    if (dialog && dialog !== "strategic-fit" && dialog !== "replacement-lab")
+    // An open Settings drawer is what open_settings asks for, not something in its way.
+    const asked = dialog === "settings" && action.kind === "open_settings";
+    if (dialog && !asked && dialog !== "strategic-fit" && dialog !== "replacement-lab")
       return failure("dialog_open", `Finish the open ${dialog} dialog before continuing.`, {
         blockingDialog: dialog,
         step,

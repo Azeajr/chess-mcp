@@ -11,7 +11,7 @@ import {
   showTechnicalDetails,
   type SettingsFocusTarget,
 } from "../../store/settings";
-import { setSettingsOpen } from "../../store/ui";
+import { setSettingsOpen, settingsOpen } from "../../store/ui";
 import { CHAT_MODES } from "../../llm/workflows";
 import type { AssistantTurnContext } from "./proposals";
 
@@ -30,10 +30,17 @@ export function settingsSnapshot() {
   };
 }
 
+/**
+ * Opens Settings at a section and says whether it did. An open drawer is left as it is: the app
+ * opens it itself when a credential is typed into chat, and moving focus would pull the user off
+ * the field they are filling.
+ */
 export function openSettings(section: SettingsSection) {
+  if (settingsOpen()) return false;
   const target: SettingsFocusTarget = section === "general" ? null : section;
   setSettingsFocusTarget(target);
   setSettingsOpen(true);
+  return true;
 }
 
 // A setting changes only when the user's own current message asked for it; anything the assistant

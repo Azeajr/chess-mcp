@@ -513,3 +513,29 @@ test("settings open at the requested section and credentials stay the user's", a
   await expect(settings.locator("[data-settings-field='lichess-token']")).toBeFocused();
   await expect(settings.locator("[data-settings-field='lichess-token']")).toHaveValue("");
 });
+
+test("asking for the Settings the app opened for a typed token leaves the user at the field", async ({
+  page,
+}) => {
+  await openApp(page, { width: 1280, height: 800 });
+  const removed =
+    "[Lichess token removed from this message. Settings is open at the Lichess API token field for you to enter it.]";
+  await installScript(page, {
+    [`Use ${removed} for Lichess`]: [
+      { action: { kind: "open_settings", section: "lichess-token" } },
+      { text: "Paste your token into the Lichess API token field." },
+    ],
+  });
+  await ask(page, "Use lip_fixtureNotReal123 for Lichess");
+  const field = page
+    .getByRole("dialog", { name: "Settings" })
+    .locator("[data-settings-field='lichess-token']");
+  // Live models follow the guidance and ask for the drawer the app already opened; that was
+  // refused as "Finish the open settings dialog".
+  await expect
+    .poll(async () => (await receipts(page)).map((receipt) => receipt.error ?? receipt.status))
+    .toEqual(["completed"]);
+  expect((await receipts(page))[0]?.result?.alreadyOpen).toBe(true);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue("");
+});
