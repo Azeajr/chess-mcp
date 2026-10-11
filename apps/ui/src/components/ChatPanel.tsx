@@ -21,7 +21,13 @@ import {
   STRATEGIC_FIT_STARTERS,
 } from "../content/chat";
 import ChatContextChip from "./ChatContextChip";
-import { hasApiKey, chatMode, setChatMode, setSettingsFocusTarget } from "../store/settings";
+import {
+  hasApiKey,
+  chatMode,
+  setChatMode,
+  setSettingsFocusTarget,
+  showTechnicalDetails,
+} from "../store/settings";
 import { mobileTab, setSettingsOpen } from "../store/ui";
 import { actions, color, currentTree } from "../store/game";
 import { isSingleGame } from "./DirectAnalysis";
@@ -29,6 +35,7 @@ import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
 import { resultLabel, taskLabel } from "../content/tools";
 import ToolResult from "./ToolResult";
+import ChatMarkdown from "./ChatMarkdown";
 import Button from "./primitives/Button";
 import PanelHeader from "./primitives/PanelHeader";
 import Progress from "./primitives/Progress";
@@ -52,6 +59,43 @@ function isErrorResult(content: string | null): boolean {
     return typeof v === "object" && v !== null && "error" in v;
   } catch {
     return false;
+  }
+}
+
+function parsed(content: string | null): Record<string, unknown> | null {
+  if (!content) return null;
+  try {
+    const value = JSON.parse(content) as unknown;
+    return typeof value === "object" && value !== null && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The model's own reads: scoped retrievals and app-state lookups it makes to decide what to say.
+ * Its reply is the answer, so these fold to one line; analysis results, steps, artifacts and
+ * errors stay open because they are the user's results and carry their actions.
+ */
+export function chatResultReceipt(operation: string, content: string | null): string | null {
+  if (operation === "ui_get_state") return "read";
+  const value = parsed(content);
+  if (!value || "error" in value || typeof value.retrieval !== "string") return null;
+  const page = value.page as { offset?: number; returned_count?: number; total_count?: number };
+  const finding = value.finding as { plain_language_category?: string } | undefined;
+  switch (value.retrieval) {
+    case "strategic-fit-summary":
+      return `summary · ${String(value.finding_count)} findings`;
+    case "strategic-fit-findings":
+      return (page.returned_count ?? 0) === 0
+        ? `no findings of ${String(page.total_count)}`
+        : `findings ${(page.offset ?? 0) + 1}–${(page.offset ?? 0) + (page.returned_count ?? 0)} of ${String(page.total_count)}`;
+    case "strategic-fit-finding":
+      return `one finding${finding?.plain_language_category ? ` · ${finding.plain_language_category}` : ""}`;
+    default:
+      return "read";
   }
 }
 
@@ -235,7 +279,9 @@ export default function ChatPanel() {
                   </div>
                 </Show>
                 <Show when={m.role === "assistant" && m.content?.trim()}>
-                  <div class="msg assistant">{m.content}</div>
+                  <div class="msg assistant">
+                    <ChatMarkdown text={m.content ?? ""} />
+                  </div>
                 </Show>
                 <Show when={m.role === "assistant" && m.tool_calls}>
                   <div class="tool-chips">
@@ -245,31 +291,54 @@ export default function ChatPanel() {
                   </div>
                 </Show>
                 <Show when={m.role === "tool" && m.tool_call_id}>
-                  <div class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}>
-                    <div class="tool-result-label">
-                      {resultLabel(toolNames().get(m.tool_call_id ?? "") ?? "tool")}
-                      {isErrorResult(m.content) ? " ⚠" : ""}
-                    </div>
-                    <ToolResult
-                      operation={toolNames().get(m.tool_call_id ?? "") ?? "tool"}
-                      content={m.content}
-                    />
-                  </div>
+                  {(() => {
+                    const operation = toolNames().get(m.tool_call_id ?? "") ?? "tool";
+                    const receipt = chatResultReceipt(operation, m.content);
+                    return (
+                      <Show
+                        when={receipt !== null}
+                        fallback={
+                          <div
+                            class={`tool-result${isErrorResult(m.content) ? " tool-result-error" : ""}`}
+                          >
+                            <div class="tool-result-label">
+                              {resultLabel(operation)}
+                              {isErrorResult(m.content) ? " ⚠" : ""}
+                            </div>
+                            <ToolResult operation={operation} content={m.content} />
+                          </div>
+                        }
+                      >
+                        <details
+                          class="tool-result tool-result-receipt"
+                          open={showTechnicalDetails()}
+                        >
+                          <summary class="tool-result-label">
+                            {resultLabel(operation)} · {receipt}
+                          </summary>
+                          <ToolResult operation={operation} content={m.content} />
+                        </details>
+                      </Show>
+                    );
+                  })()}
                 </Show>
               </>
             )}
           </For>
           <Show when={streamingText()}>
-            <div class="msg assistant streaming">{streamingText()}</div>
+            <div class="msg assistant streaming">
+              <ChatMarkdown text={streamingText()} />
+            </div>
           </Show>
           <Show when={busy() && !streamingText()}>
             <div class="msg assistant streaming">…</div>
           </Show>
-          {/* A finished app step already has its card in the conversation; a second "completed"
-              line for it at the end of the log only pushed the explanation out of a phone's view. */}
+          {/* A finished step already has its card or receipt in the conversation; a second
+              "completed" line for it at the end of the log only pushed the explanation out of a
+              phone's view. While a turn runs, its finished chess tools still show progress. */}
           <For
             each={toolRuns().filter(
-              (run) => !(run.name.startsWith("ui_") && run.status === "completed"),
+              (run) => run.status !== "completed" || (busy() && !run.name.startsWith("ui_")),
             )}
           >
             {(run) => (

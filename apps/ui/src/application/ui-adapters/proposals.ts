@@ -314,7 +314,11 @@ export async function approveProposal(
     return {
       ok: false,
       code: "approval_message_invalid",
-      reason: "An approval must cite the user's current message.",
+      // Naming the current message costs nothing (state carries it) and lets a model that cited
+      // the wrong one retry instead of sending the user to the Accept control.
+      reason: turn
+        ? `An approval must cite the user's current message, ${turn.messageId}. Retry with that messageId and a new actionId.`
+        : "An approval must cite the user's current message.",
     };
   if (consumedApprovals.has(turn.messageId))
     return {

@@ -1,6 +1,6 @@
 # Chat-first interpretation and diagnostic bundles
 
-Status: decisions D1–D8 accepted 2026-10-11; Phases 1 (diagnostics) and 2 (digest, prompt) implemented, Phase 3 pending.
+Status: decisions D1–D8 accepted 2026-10-11; Phases 1–3 implemented.
 Date: 2026-10-11.
 Source: a live guided-chat run, "Run Strategic Fit on this repertoire and tell me what it found",
 on a 62-line Black repertoire with the familiar-plans profile.
@@ -201,12 +201,15 @@ plugin versions.
   nodes without `innerHTML`, is about 80 lines, and adds no dependency. Recommended, because models
   write markdown whatever the prompt says. The alternative, plain text plus a "no markdown"
   instruction, is fragile.
-- **Collapse tool results in the conversation to a one-line receipt** (label and a short count, such
-  as "Strategic Fit findings · 19 read") with a disclosure to expand it.
-  - Errors stay expanded.
-  - "Show technical details" expands every receipt.
-  - The result's own surface still shows it in full.
-  - Recommended, because full cards are what made this run read as regurgitation.
+- **Collapse the model's own reads to a one-line receipt** (label and a short count, such as
+  "Strategic Fit report · findings 13–19 of 19") with a disclosure to expand it. Reads are scoped
+  retrievals (results carrying `retrieval`) and `ui_get_state`. "Show technical details" opens
+  them.
+  - Analysis results, step receipts, artifacts and errors stay open. Implementation showed that
+    direct analysis cards are often the only place a result appears and carry its Go to line and
+    Save actions, which a collapsed card would hide.
+  - The 26 cards in the source run were all reads, so this removes the regurgitated look without
+    hiding results.
 - **Once the turn finishes, hide every completed run in the trailing run list,** not only `ui_*`
   steps.
 
@@ -249,13 +252,13 @@ Each phase is one PR.
 
 ## 4. Decisions
 
-| #   | Decision                         | Recommendation                                        | Why                                                          |
-| --- | -------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------ |
-| D1  | Recorder persistence             | IndexedDB, current and previous session, about 8 MB   | Evidence survives the reload that follows a failure.         |
-| D2  | PGN in the bundle                | Included by default, with a checkbox                  | Reproduction needs it, and the file stays local.             |
-| D3  | Full Strategic Fit report        | Excluded; include its inputs and rows instead         | 6.9 MB, and it is deterministic from the inputs.             |
-| D4  | Report-level interpretation      | Digest in the summary view                            | Exact counts in one call; the library stays the arbiter.     |
-| D5  | Teaching the interface           | Only on request or during manual use                  | Chat-first users do not want to learn the controls.          |
-| D6  | Strategic Fit setup              | Asked and approved in chat; the panel is the fallback | Chat-only completeness.                                      |
-| D7  | Markdown                         | Safe subset renderer                                  | Models write markdown anyway.                                |
-| D8  | Tool results in the conversation | Collapsed receipts; technical details expand them     | The model's reply is the answer, and the cards are evidence. |
+| #   | Decision                         | Recommendation                                            | Why                                                      |
+| --- | -------------------------------- | --------------------------------------------------------- | -------------------------------------------------------- |
+| D1  | Recorder persistence             | IndexedDB, current and previous session, about 8 MB       | Evidence survives the reload that follows a failure.     |
+| D2  | PGN in the bundle                | Included by default, with a checkbox                      | Reproduction needs it, and the file stays local.         |
+| D3  | Full Strategic Fit report        | Excluded; include its inputs and rows instead             | 6.9 MB, and it is deterministic from the inputs.         |
+| D4  | Report-level interpretation      | Digest in the summary view                                | Exact counts in one call; the library stays the arbiter. |
+| D5  | Teaching the interface           | Only on request or during manual use                      | Chat-first users do not want to learn the controls.      |
+| D6  | Strategic Fit setup              | Asked and approved in chat; the panel is the fallback     | Chat-only completeness.                                  |
+| D7  | Markdown                         | Safe subset renderer                                      | Models write markdown anyway.                            |
+| D8  | Tool results in the conversation | The model's reads collapse to receipts; results stay open | The reply is the answer; results keep their actions.     |
