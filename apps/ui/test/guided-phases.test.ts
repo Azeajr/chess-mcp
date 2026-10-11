@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { actions, currentTree, version } from "../src/store/game.ts";
 import { executeUiTool, uiSnapshot } from "../src/application/ui-actions.ts";
-import { registerGuidedPresenter } from "../src/store/guided-ui.ts";
+import {
+  comparisonDraft,
+  registerGuidedPresenter,
+  setComparisonDraft,
+} from "../src/store/guided-ui.ts";
+import { runAssistantTool } from "../src/llm/tools.ts";
 import { acceptStagedEdit, stageEdit, stagedEdit } from "../src/store/suggestions.ts";
 import {
   approveProposal,
@@ -13,7 +18,11 @@ import {
   type AssistantTurnContext,
 } from "../src/application/ui-adapters/proposals.ts";
 import { historyUsername, setHistoryUsername } from "../src/store/forms.ts";
-import { commandStates, type CommandExecutionOptions } from "../src/store/commands.ts";
+import {
+  commandStates,
+  setCommandExecutorForTesting,
+  type CommandExecutionOptions,
+} from "../src/store/commands.ts";
 import { importNotice } from "../src/application/analysis-workflows.ts";
 import { exportRecord } from "../src/store/exports.ts";
 import { setApiKey, setLichessToken } from "../src/store/settings.ts";
@@ -280,6 +289,46 @@ test("opening Strategic Fit without a current report names the step that produce
   const board = await act({ kind: "navigate", surface: "workspace.board" });
   assert.equal(board.status, "completed");
   assert.equal(board.result?.next, undefined);
+});
+
+test("a chess tool called directly on the visible game shows its panel and fills its inputs", async (t) => {
+  actions.loadPgn("1. e4 e5 *");
+  setComparisonDraft("");
+  const shown: string[] = [];
+  disposePresenter();
+  disposePresenter = registerGuidedPresenter(async (surface) => {
+    shown.push(surface);
+    return true;
+  });
+  setCommandExecutorForTesting(async (name) =>
+    name === "compare_moves"
+      ? {
+          fen: "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2",
+          eval_pov: "white",
+          moves: [{ move: "g1f3", san: "Nf3", cp: 30, mate: null, legal: true }],
+        }
+      : { total_moves: 2, moves: [{ ply: 2, san: "e5", classification: "mistake", cp_loss: 90 }] },
+  );
+  t.after(() => setCommandExecutorForTesting());
+  type Shown = { ui?: Record<string, unknown> };
+
+  // Live models answered from compare_moves and analyze_game directly about half the time; the
+  // result reached the panel's state, but the panel stayed hidden and Candidate moves stayed empty.
+  const compared = (await runAssistantTool("compare_moves", { moves: ["Nf3", "Bc4"] })) as Shown;
+  assert.equal(comparisonDraft(), "Nf3 Bc4");
+  assert.deepEqual(shown, ["analysis.compare"]);
+  assert.equal(compared.ui?.candidates, "filled");
+  assert.equal(compared.ui?.presentation, "visible");
+
+  setComparisonDraft("Nc3");
+  const kept = (await runAssistantTool("compare_moves", { moves: ["d4"] })) as Shown;
+  assert.equal(comparisonDraft(), "Nc3");
+  assert.equal(kept.ui?.candidates, "kept the user's text");
+
+  const reviewed = (await runAssistantTool("analyze_game", {})) as Shown;
+  assert.equal(reviewed.ui?.surface, "analysis.review");
+  assert.equal(reviewed.ui?.resultId, commandStates().analyze_game.resultId);
+  assert.match(String(reviewed.ui?.next), /select_result this resultId with a ply/);
 });
 
 test("account import names the scope, separates fetched from reviewed, and keeps the repertoire", async () => {

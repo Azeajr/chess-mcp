@@ -2,7 +2,7 @@ import type { ToolSchema } from "./openrouter";
 import { contractsForHost, jsonSchemaForTool } from "@chess-mcp/chess-tools";
 import { executeBrowserCommand } from "../application/browser-commands/client";
 import { executeCommand, isDirectCommand } from "../store/commands";
-import { executeUiTool, type UiToolOptions } from "../application/ui-actions";
+import { executeUiTool, presentDirectResult, type UiToolOptions } from "../application/ui-actions";
 import { uiToolSchemas } from "../application/ui-action-schema";
 import { fen } from "../store/game";
 
@@ -46,11 +46,14 @@ export const runAssistantTool = async (
 ): Promise<unknown> => {
   if (name === "ui_act" || name === "ui_get_state")
     return executeUiTool(name, args, { ...options, dependencies });
-  if (isDirectCommand(name) && ownsCommandLifecycle(name, args))
-    return executeCommand(name, args as Record<string, unknown>, {
+  if (isDirectCommand(name) && ownsCommandLifecycle(name, args)) {
+    const values = args as Record<string, unknown>;
+    const result = await executeCommand(name, values, {
       ...options,
       dependencies,
       returnErrors: true,
     });
+    return presentDirectResult(name, values, result, options.signal);
+  }
   return runTool(name, args, options, dependencies);
 };

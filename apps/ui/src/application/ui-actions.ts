@@ -528,6 +528,51 @@ function surfaceFor(action: UiAction): GuidedSurface | null {
   }
 }
 
+// A chess tool the assistant calls directly on the visible game already publishes into its panel's
+// result state, but live models took that route about half the time and left the user looking at
+// nothing: the panel stayed hidden, Candidate moves stayed empty and no decision was selected. The
+// guided path's visible steps are finished here, and the user's own text still wins.
+const DIRECT_SURFACES: Partial<Record<DirectCommand, GuidedSurface>> = {
+  analyze_game: WORKFLOWS.review,
+  get_game_summary: WORKFLOWS.review,
+  compare_moves: WORKFLOWS.compare,
+  evaluate_position: WORKFLOWS.evaluate,
+  tablebase_lookup: WORKFLOWS.tablebase,
+  position_popularity: WORKFLOWS.popularity,
+  lichess_games: WORKFLOWS.import_history,
+  chesscom_games: WORKFLOWS.import_history,
+  batch_review: WORKFLOWS.import_history,
+  repertoire_vs_history: WORKFLOWS.compare_history,
+  audit_repertoire_moves: WORKFLOWS.audit,
+  find_only_moves: WORKFLOWS.only_moves,
+  find_structures: WORKFLOWS.structures,
+  prep_vs_opponent: WORKFLOWS.prep,
+};
+
+/** Shows a direct command's result where its visible control would have put it. */
+export async function presentDirectResult(
+  command: DirectCommand,
+  args: Record<string, unknown>,
+  result: unknown,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const surface = DIRECT_SURFACES[command];
+  if (!surface || !record(result) || "error" in result || signal?.aborted || activeDialog())
+    return result;
+  const ui: Record<string, unknown> = { surface, resultId: commandStates()[command].resultId };
+  if (command === "compare_moves" && Array.isArray(args.moves)) {
+    const filled = setFormFields("compare", { candidates: args.moves.join(" ") }, false);
+    ui.candidates = "error" in filled ? "kept the user's text" : "filled";
+  }
+  ui.presentation = (await presentGuidedSurface(surface, signal)) ? "visible" : "deferred";
+  if (command === "analyze_game")
+    ui.next =
+      "The review is on the Analysis panel. select_result this resultId with a ply to show that decision's position on the board.";
+  else if (command === "get_game_summary")
+    ui.next = "For moves the user can select on the board, ui_act submit review instead.";
+  return { ...result, ui };
+}
+
 // Opening Strategic Fit only shows it: a model that read "analyzing" as done ended its turn with
 // nothing selected. Name the step that waits for, runs or refreshes the report.
 function strategicFitNext(surface: GuidedSurface): { next?: string } {
