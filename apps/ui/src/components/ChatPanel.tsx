@@ -13,7 +13,13 @@ import {
   replaceRequest,
   handoff,
 } from "../store/chat";
-import { CHAT_CONTROLS, CHAT_STARTERS, GOAL_STARTERS, MISSING_KEY } from "../content/chat";
+import {
+  CHAT_CONTROLS,
+  CHAT_STARTERS,
+  GOAL_STARTERS,
+  MISSING_KEY,
+  STRATEGIC_FIT_STARTERS,
+} from "../content/chat";
 import ChatContextChip from "./ChatContextChip";
 import { hasApiKey, chatMode, setChatMode, setSettingsFocusTarget } from "../store/settings";
 import { mobileTab, setSettingsOpen } from "../store/ui";
@@ -168,6 +174,9 @@ export default function ChatPanel() {
                     starter.replace("White", color() === "white" ? "White" : "Black"),
                   ),
                   ...(isSingleGame() ? ["Review this game"] : []),
+                  ...(!isSingleGame() && currentTree().stats().nodes > 1
+                    ? STRATEGIC_FIT_STARTERS
+                    : []),
                 ]}
               >
                 {(starter) => (
