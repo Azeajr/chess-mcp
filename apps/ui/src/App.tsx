@@ -10,6 +10,9 @@ import ChatPanel from "./components/ChatPanel";
 import Divider from "./components/Divider";
 import MobileTabs from "./components/MobileTabs";
 import ActivityStrip from "./components/ActivityStrip";
+import AssistantControls from "./components/AssistantControls";
+import { registerGuidedPresenter, manualIntervention, setSelectedReview } from "./store/guided-ui";
+import { presentSurfaceInDocument } from "./application/ui-adapters/surfaces";
 import SettingsDrawer from "./components/SettingsDrawer";
 import PromotionModal from "./components/PromotionModal";
 import ColorPickerModal from "./components/ColorPickerModal";
@@ -64,6 +67,32 @@ export default function App() {
   startStrategicFitLifecycle();
 
   onMount(() => {
+    const disposePresenter = registerGuidedPresenter(presentSurfaceInDocument);
+    const intervene = (event: Event) => {
+      if (!event.isTrusted || !(event.target instanceof Element)) return;
+      // Switching panels only changes what is visible; watching chat must not stop its work.
+      if (event.target.closest(".chat-wrap, .assistant-controls, .mobile-tabs")) return;
+      if (
+        event.type === "keydown" &&
+        !["Enter", " ", "ArrowLeft", "ArrowRight"].includes((event as KeyboardEvent).key)
+      )
+        return;
+      if (
+        !event.target.closest(
+          "button, input, select, textarea, summary, .board-wrap, .result-nav, [role=button], [role=tab]",
+        )
+      )
+        return;
+      manualIntervention();
+      setSelectedReview(null);
+    };
+    for (const event of ["pointerdown", "input", "change", "keydown"])
+      document.addEventListener(event, intervene, true);
+    onCleanup(() => {
+      disposePresenter();
+      for (const event of ["pointerdown", "input", "change", "keydown"])
+        document.removeEventListener(event, intervene, true);
+    });
     void (async () => {
       await restoreWorking();
       await restoreStrategicFitMetadata();
@@ -120,6 +149,7 @@ export default function App() {
         aria-hidden={backgroundSuspended() ? "true" : undefined}
       >
         <TopBar />
+        <AssistantControls />
         <Show when={strategicFitMetadataWarning()}>
           {(warning) => (
             <div class="strategic-fit-metadata-warning" role="alert">
@@ -144,7 +174,7 @@ export default function App() {
               collapsed tool, which put it ~90px below the fold of a 950px-tall viewport while the
               board column left 185px of empty space beneath the board. */}
           <div class="board-panel">
-            <div class="board-stage">
+            <div class="board-stage" data-guided-surface="workspace.board">
               <EvalBar />
               <Board />
             </div>

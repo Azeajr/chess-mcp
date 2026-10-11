@@ -98,10 +98,7 @@ test("browser guidance carries the explanation contract in both the preset and p
     assert.match(prompt, /Never present one as zero/);
     assert.match(prompt, /carry no legality, engine evaluation, coverage, or popularity evidence/);
     assert.match(prompt, /never selects a command by itself/);
-    assert.match(
-      prompt,
-      /The workspace charts and panels the user is looking at were never given to you/,
-    );
+    assert.match(prompt, /The workspace charts and maps were never given to you/);
   }
 });
 
@@ -317,8 +314,12 @@ test("an exploration question routes nothing client-side and still offers the co
     chat.clearChat();
     await chat.send(query.question);
     const names = requests.at(-1)!.tools.map((tool) => tool.function.name);
-    assert.equal(names.length, canonicalBrowserSchemas, `${query.id} offers every command`);
-    assert.equal(new Set(names).size, canonicalBrowserSchemas);
+    assert.equal(
+      names.length,
+      canonicalBrowserSchemas + 2,
+      `${query.id} offers every command and UI actions`,
+    );
+    assert.equal(new Set(names).size, canonicalBrowserSchemas + 2);
     assert.equal(names.includes("get_strategic_fit_report"), true);
     for (const tool of query.tools) {
       assert.equal(names.includes(tool), true, `${query.id} can reach ${tool}`);

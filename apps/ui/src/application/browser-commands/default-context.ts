@@ -21,7 +21,7 @@ import {
 } from "../../store/game";
 import { createArtifact } from "../../store/artifacts";
 import { addSuggestion, stageEdit } from "../../store/suggestions";
-import { history as chatHistory } from "../../store/chat";
+import { history as chatHistory } from "../../store/chat-history";
 import {
   rejectStrategicFitChangeSet,
   stageStrategicFitChangeSet,

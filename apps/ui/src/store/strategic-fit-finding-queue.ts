@@ -257,6 +257,15 @@ export function createStrategicFitFindingQueueState(
   const [state, setState] = createSignal<StrategicFitFindingQueueSnapshot>(initialSnapshot());
   let activeController: AbortController | null = null;
   let loadSequence = 0;
+  // The workspace unmounts the queue when it closes. A load it abandoned restarts on reopening;
+  // keeping the branch the reader had open lets that reopening land on it, where the Branch pane
+  // otherwise reopened empty.
+  let retained: { report_id: string; selected_finding_id: string } | null = null;
+  const revealSelection = () => {
+    const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
+    if (selectedOffset !== null)
+      setState((previous) => ({ ...previous, page_offset: selectedOffset }));
+  };
 
   const resetPage = (patch: Partial<StrategicFitFindingQueueSnapshot>) => {
     setState((previous) => ({ ...previous, ...patch, page_offset: 0 }));
@@ -314,9 +323,15 @@ export function createStrategicFitFindingQueueState(
               findings: all,
               canonical_total_count: report.finding_page.total_count,
               error: null,
+              selected_finding_id: all.some(
+                (finding) => finding.finding_id === previous.selected_finding_id,
+              )
+                ? previous.selected_finding_id
+                : null,
             }
           : previous,
       );
+      revealSelection();
     } catch (error) {
       if (controller.signal.aborted || sequence !== loadSequence) return;
       setState((previous) =>
@@ -342,6 +357,7 @@ export function createStrategicFitFindingQueueState(
       activeController?.abort();
       activeController = null;
       loadSequence++;
+      retained = null;
       setState(initialSnapshot());
       return;
     }
@@ -364,6 +380,8 @@ export function createStrategicFitFindingQueueState(
     const sequence = ++loadSequence;
     const needsCompleteReload =
       report.finding_page.has_more || report.findings.length < report.finding_page.total_count;
+    const restored = retained?.report_id === report.report_id ? retained.selected_finding_id : null;
+    retained = null;
     setState({
       ...initialSnapshot(),
       report_id: report.report_id,
@@ -372,8 +390,17 @@ export function createStrategicFitFindingQueueState(
       findings: needsCompleteReload ? [] : [...report.findings],
       canonical_total_count: report.finding_page.total_count,
       intent: appliedIntent,
+      // A complete reload confirms the restored finding once its pages arrive.
+      selected_finding_id:
+        restored !== null &&
+        (needsCompleteReload || report.findings.some((finding) => finding.finding_id === restored))
+          ? restored
+          : null,
     });
-    if (!needsCompleteReload) return;
+    if (!needsCompleteReload) {
+      revealSelection();
+      return;
+    }
 
     const controller = new AbortController();
     activeController = controller;
@@ -417,19 +444,39 @@ export function createStrategicFitFindingQueueState(
             ? selected_finding_id
             : null,
       }));
-      const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
-      if (selectedOffset !== null)
-        setState((previous) => ({ ...previous, page_offset: selectedOffset }));
+      revealSelection();
     },
-    revealSelectedFinding: () => {
-      const selectedOffset = buildStrategicFitFindingQueueView(state()).selected_page_offset;
-      if (selectedOffset === null) return;
-      setState((previous) => ({ ...previous, page_offset: selectedOffset }));
-    },
+    revealSelectedFinding: revealSelection,
     dispose: () => {
+      const current = state();
       activeController?.abort();
       activeController = null;
       loadSequence++;
+      // Closing the workspace (Return to chat, Go to line) leaves its report current, and the
+      // assistant still reads, selects and decides findings by identity. Emptying a loaded queue
+      // made them look absent ("not in the current report", a total of 0), so it is kept; only the
+      // reader's sort, filters and page reset, with the selected finding's page in view.
+      if (current.status === "ready" && current.report_id !== null) {
+        retained = null;
+        const kept: StrategicFitFindingQueueSnapshot = {
+          ...initialSnapshot(),
+          report_id: current.report_id,
+          repertoire_revision: current.repertoire_revision,
+          status: "ready",
+          findings: current.findings,
+          canonical_total_count: current.canonical_total_count,
+          selected_finding_id: current.selected_finding_id,
+        };
+        setState({
+          ...kept,
+          page_offset: buildStrategicFitFindingQueueView(kept).selected_page_offset ?? 0,
+        });
+        return;
+      }
+      retained =
+        current.report_id !== null && current.selected_finding_id !== null
+          ? { report_id: current.report_id, selected_finding_id: current.selected_finding_id }
+          : null;
       setState(initialSnapshot());
     },
   };

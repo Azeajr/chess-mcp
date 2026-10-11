@@ -56,6 +56,8 @@ export interface DialogProps {
   size?: "drawer" | "compact";
   dismissOnBackdrop?: boolean;
   initialFocus?: string;
+  /** Where focus goes on close when it should not return to the opener; null keeps the opener. */
+  returnFocusTo?: () => HTMLElement | null;
   class?: string;
   children: JSX.Element;
   onClose: () => void;
@@ -146,8 +148,9 @@ export default function Dialog(props: DialogProps) {
       if (index !== -1) openDialogs.splice(index, 1);
       document.removeEventListener("keydown", trapFocus, true);
       disposeScope();
+      const destination = props.returnFocusTo?.() ?? returnFocus;
       const restoreFocus = (attemptsLeft: number) => {
-        const target = returnFocus;
+        const target = destination;
         if (!target?.isConnected) return;
         if (document.activeElement !== target) target.focus();
         if (attemptsLeft > 0) {

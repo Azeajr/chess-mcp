@@ -9799,3 +9799,51 @@ img,
   color: var(--muted);
   cursor: pointer;
 }
+
+.assistant-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--type-xs);
+}
+
+.assistant-controls > span {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+
+/*
+  Compact: two lines at most, enough for the start of the assistant's explanation while chat is
+  out of view; more wrapped lines squeezed the chat log to nothing on a 629px phone. On the Chat tab the panel already carries
+  Stop and the hand-off controls, so the duplicate bar steps aside there unless it carries an
+  action of its own, such as Open PGN.
+*/
+@media (max-width: 45em) {
+  /* Without this the one-line purpose's full width widened the bar, and the page, past 375px. */
+  .assistant-controls {
+    min-width: 0;
+  }
+
+  .assistant-controls > span {
+    display: -webkit-box;
+    flex: 1 1 0;
+    min-width: 0;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+
+  .app-main:has(.workspace[data-mtab="chat"])
+    > .assistant-controls:not(:has([data-guided-surface])) {
+    display: none;
+  }
+
+  /* On the Chat tab the conversation already says what is happening; keep only the action. */
+  .app-main:has(.workspace[data-mtab="chat"]) > .assistant-controls > :not([data-guided-surface]) {
+    display: none;
+  }
+}

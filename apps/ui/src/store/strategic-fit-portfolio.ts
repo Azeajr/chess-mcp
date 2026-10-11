@@ -345,6 +345,7 @@ const browserPortfolio = createStrategicFitPortfolioState({
 export const strategicFitPortfolioConstraintSet = (id: string) =>
   browserPortfolio.constraintSet(id);
 export const strategicFitPortfolioSelection = () => browserPortfolio.selection();
+export const strategicFitPortfolioConstraintSets = () => browserPortfolio.constraintSets();
 export const confirmStrategicFitPortfolioConstraints = (id: string) => browserPortfolio.confirm(id);
 export const rejectStrategicFitPortfolioConstraints = (id: string) => browserPortfolio.reject(id);
 

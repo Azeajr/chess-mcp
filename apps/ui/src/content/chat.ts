@@ -7,6 +7,40 @@ export const CHAT_CONTROLS = {
   cancelRunDescription: (tool: string) => `Cancels ${tool} and lets the turn continue.`,
 } as const;
 
+/** Goal starters for an empty app, each with the route to the same task without the assistant. */
+export const GOAL_STARTERS = [
+  {
+    label: "Review a game",
+    manual:
+      "open the game with Open PGN in the File menu, then press Review game in the Analysis tab",
+  },
+  {
+    label: "Improve a repertoire",
+    manual:
+      "open the repertoire with Open PGN in the File menu, then press Open Strategic Fit in the Analysis tab",
+  },
+  {
+    label: "Understand a position",
+    manual:
+      "play or open the position, then use Compare moves and position tools in the Analysis tab",
+  },
+] as const;
+
+export const MISSING_KEY = {
+  message: "Set your OpenRouter API key in Settings.",
+  withManualRoute: (route: string) =>
+    `Set your OpenRouter API key in Settings, then send again. Without the assistant: ${route}.`,
+  setup: "Set up the assistant",
+} as const;
+
+/** Replaces a credential typed into chat; Settings opens at the field it belongs in. */
+export const CREDENTIAL_REMOVED = {
+  "lichess-token":
+    "[Lichess token removed from this message. Settings is open at the Lichess API token field for you to enter it.]",
+  "api-key":
+    "[OpenRouter key removed from this message. Settings is open at the OpenRouter API key field for you to enter it.]",
+} as const;
+
 export const CHAT_STARTERS = [
   "What is the plan for White in this position?",
   "Which of my replies here is weakest, and why?",

@@ -555,12 +555,14 @@ const [lastDecision, setLastDecision] = createSignal<{ document: string; semanti
 );
 export const canUndoLastResolution = () => {
   const decision = lastDecision();
+  const lifecycle = strategicFitLifecycle();
+  const queue = strategicFitFindingQueue.snapshot();
+  // The queue outlives the workspace, so it can still hold the report a refresh replaced.
   return (
     decision?.document === documentId() &&
-    strategicFitLifecycle().status === "completed" &&
-    strategicFitFindingQueue
-      .snapshot()
-      .findings.some((finding) => finding.semantic_finding_id === decision.semantic)
+    lifecycle.status === "completed" &&
+    queue.report_id === lifecycle.current_result?.report_id &&
+    queue.findings.some((finding) => finding.semantic_finding_id === decision.semantic)
   );
 };
 export function undoLastResolution() {

@@ -1,8 +1,29 @@
 import { createSignal } from "solid-js";
+import { history, setHistory } from "./chat-history";
 import { streamChat, type ChatMessage, type ToolCall } from "../llm/openrouter";
-import { toolSchemas, runTool } from "../llm/tools";
+import {
+  assistantToolSchemas,
+  runAssistantTool as runTool,
+  ownsCommandLifecycle,
+} from "../llm/tools";
+import { uiSnapshot, uiStateToken } from "../application/ui-actions";
+import {
+  pendingProposals,
+  recordPresented,
+  type AssistantTurnContext,
+} from "../application/ui-adapters/proposals";
+import {
+  guidedStatus,
+  setGuidedStatus,
+  setGuidedPurpose,
+  setGuidedReply,
+  registerGuidedInterrupt,
+} from "./guided-ui";
 import { workflowPrompt } from "../llm/workflows";
-import { apiKey, model, hasApiKey, chatMode } from "./settings";
+import { GOAL_STARTERS, MISSING_KEY } from "../content/chat";
+import { apiKey, model, hasApiKey, chatMode, setSettingsFocusTarget } from "./settings";
+import { setSettingsOpen } from "./ui";
+import { withoutCredentials } from "../application/chat-credentials";
 import { fen, color, currentTree, currentPath, fileName, version } from "./game";
 import type { Path } from "@chess-mcp/chess-tools";
 import {
@@ -16,6 +37,7 @@ import { assertTestOnly } from "./test-seam";
 function toolDisplayName(name: string): string {
   return name.replaceAll("_", " ");
 }
+const requestAborted = (signal: AbortSignal) => signal.aborted;
 
 const SYSTEM_PROMPT = `You are a chess assistant embedded in a board UI. Use local tools for chess claims. Be concise. Tool results may be compacted; retrieve current document data with the scoped retrieval tools when needed.`;
 const MAX_ROUNDS = 12;
@@ -32,13 +54,17 @@ interface ToolRunState {
   detail?: string;
   error?: string;
 }
-const [history, setHistory] = createSignal<ChatMessage[]>([]);
 const [streamingText, setStreamingText] = createSignal("");
 const [busy, setBusy] = createSignal(false);
 const [error, setError] = createSignal<string | null>(null);
 const [toolRuns, setToolRuns] = createSignal<ToolRunState[]>([]);
 let controller: AbortController | null = null;
 let lastRequest = "";
+// Each user message starts a turn. The application, not the model, assigns the message identity, so
+// an approval or settings request can be traced to the words the user actually sent.
+let turnSequence = 0;
+let currentTurn: AssistantTurnContext | null = null;
+export const currentAssistantTurn = () => currentTurn;
 let chatTransportOverride: typeof streamChat | null = null;
 let toolExecutorOverride: typeof runTool | null = null;
 const chatTransport: typeof streamChat = (...args) =>
@@ -54,8 +80,25 @@ export function clearChat() {
   setError(null);
 }
 export function stop() {
+  if (guidedStatus() !== "paused") {
+    setGuidedStatus("cancelled");
+    setGuidedPurpose("Stopped. Completed results remain available.");
+  }
   controller?.abort();
 }
+registerGuidedInterrupt(stop);
+export function handoff() {
+  stop();
+  setGuidedPurpose("You're in control. Send a message whenever you want help.");
+}
+export async function replaceRequest(text: string) {
+  if (busy()) {
+    stop();
+    await activeSend;
+  }
+  return send(text);
+}
+let activeSend: Promise<void> | undefined;
 export function retry() {
   if (!busy() && lastRequest) void send(lastRequest);
 }
@@ -141,11 +184,14 @@ export function chatContextBlock(snapshot: ChatContextSnapshot = chatContextSnap
 function systemMessage(): ChatMessage {
   return {
     role: "system",
-    content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${chatContextBlock()}`,
+    content: `${SYSTEM_PROMPT}\n\n${workflowPrompt(chatMode())}\n\n${chatContextBlock()}\n\nCurrent UI state: ${JSON.stringify(uiSnapshot(currentTurn ?? undefined))}`,
   };
 }
 
 const REFERENCE_KEYS = new Set([
+  "resultId",
+  "stateToken",
+  "actionId",
   "error",
   "reason",
   "fen",
@@ -309,6 +355,10 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
   for (const tc of calls) {
     if (signal.aborted) {
       updateRun(tc.id, { status: "cancelled" });
+      setHistory((h) => [
+        ...h,
+        { role: "tool", tool_call_id: tc.id, content: '{"error":"cancelled"}' },
+      ]);
       continue;
     }
     const runController = new AbortController();
@@ -320,34 +370,45 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
     const runSignal = runController.signal;
 
     updateRun(tc.id, { status: "running" });
-    const operationId = registerOperation({
-      kind: "chat-tool",
-      label: toolDisplayName(tc.function.name),
-      surface: "chat",
-      cancel: abortRun,
-    });
-    let result: unknown;
+    let raw: unknown;
     try {
-      let raw: unknown;
-      try {
-        raw = JSON.parse(tc.function.arguments || "{}");
-      } catch {
-        raw = null;
-      }
+      raw = JSON.parse(tc.function.arguments || "{}");
+    } catch {
+      raw = null;
+    }
+    const operationId =
+      !toolExecutorOverride && ownsCommandLifecycle(tc.function.name, raw)
+        ? null
+        : registerOperation({
+            kind: "chat-tool",
+            label: toolDisplayName(tc.function.name),
+            surface: "chat",
+            cancel: abortRun,
+          });
+    let result: unknown;
+    const proposalsBefore = new Set(pendingProposals().map((proposal) => proposal.proposalId));
+    try {
       result = await toolExecutor(tc.function.name, raw, {
         signal: runSignal,
         onProgress: (done, total, detail) => {
           updateRun(tc.id, { done, total, detail });
-          updateOperation(operationId, { done, total, detail });
+          if (operationId) updateOperation(operationId, { done, total, detail });
         },
+        ...(currentTurn ? { turn: currentTurn } : {}),
       });
-      const outcome = executionOutcome(runSignal.aborted);
+      const failed =
+        !!result &&
+        typeof result === "object" &&
+        "error" in result &&
+        typeof result.error === "string";
+      const outcome = executionOutcome(runSignal.aborted, failed);
       updateRun(tc.id, { status: outcome });
-      settleOperation(
-        operationId,
-        outcome === "completed" ? "completed" : outcome,
-        outcome === "failed" ? { detail: "tool error" } : undefined,
-      );
+      if (operationId)
+        settleOperation(
+          operationId,
+          outcome === "completed" ? "completed" : outcome,
+          outcome === "failed" ? { detail: "tool error" } : undefined,
+        );
     } catch (e) {
       const isCancelled = isAbortError(e) || runSignal.aborted;
       result = isCancelled
@@ -358,13 +419,20 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
         status: outcome,
         error: isCancelled ? undefined : (result as { error: string }).error,
       });
-      settleOperation(
-        operationId,
-        outcome,
-        outcome === "failed" ? { detail: (result as { error: string }).error } : undefined,
-      );
+      if (operationId)
+        settleOperation(
+          operationId,
+          outcome,
+          outcome === "failed" ? { detail: (result as { error: string }).error } : undefined,
+        );
     } finally {
       signal.removeEventListener("abort", abortRun);
+      // Any proposal a tool staged appears as a card in this turn; record it as presented.
+      if (currentTurn)
+        recordPresented(
+          currentTurn.turnId,
+          pendingProposals().filter((proposal) => !proposalsBefore.has(proposal.proposalId)),
+        );
     }
     setHistory((h) => [
       ...h,
@@ -374,31 +442,60 @@ async function executeCalls(calls: ToolCall[], signal: AbortSignal) {
   for (const tc of calls) runControllers.delete(tc.id);
 }
 
-export async function send(userText: string) {
-  const text = userText.trim();
-  if (!text || busy()) return;
+export function send(userText: string): Promise<void> {
+  if (busy()) return Promise.resolve();
+  activeSend = sendTurn(userText);
+  return activeSend;
+}
+
+async function sendTurn(userText: string) {
+  if (busy()) return;
+  const removed = withoutCredentials(userText.trim());
+  const text = removed.text;
+  if (!text) return;
+  // Credentials are entered only in Settings: open it at the field the message held a value for.
+  const [credential] = removed.fields;
+  if (credential) {
+    setSettingsFocusTarget(credential);
+    setSettingsOpen(true);
+  }
   if (!hasApiKey()) {
-    setError("Set your OpenRouter API key in Settings.");
+    // Keep the request through the detour to Settings, so Send again sends it.
+    lastRequest = text;
+    const goal = GOAL_STARTERS.find((starter) => starter.label === text);
+    setError(goal ? MISSING_KEY.withManualRoute(goal.manual) : MISSING_KEY.message);
     return;
   }
   lastRequest = text;
   setError(null);
+  const turnId = ++turnSequence;
+  currentTurn = { turnId, messageId: `user-message-${turnId}`, text };
   setHistory((h) => [...h, { role: "user", content: text }]);
   setBusy(true);
+  setGuidedStatus("executing");
+  setGuidedPurpose(text.slice(0, 180));
+  setGuidedReply("");
   controller = new AbortController();
   const signal = controller.signal;
   let trailingTools = false;
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
       setStreamingText("");
+      const sourceToken = uiStateToken();
       const result = await chatTransport({
         apiKey: apiKey(),
         model: model(),
         messages: [systemMessage(), ...compactMessages(history())],
-        tools: toolSchemas,
+        tools: assistantToolSchemas,
         signal,
         onText: (d) => setStreamingText((t) => t + d),
       });
+      if (signal.aborted) throw new DOMException("Cancelled", "AbortError");
+      if (sourceToken !== uiStateToken()) {
+        setGuidedStatus("paused");
+        setGuidedPurpose("The position or inputs changed. Send a message to continue from here.");
+        throw new DOMException("Context changed", "AbortError");
+      }
       setStreamingText("");
       setHistory((h) => [
         ...h,
@@ -419,7 +516,7 @@ export async function send(userText: string) {
       }
       trailingTools = true;
       await executeCalls(result.toolCalls, signal);
-      if (signal.aborted) break;
+      if (requestAborted(signal)) break;
     }
     if (trailingTools && !signal.aborted) {
       const final = await chatTransport({
@@ -463,6 +560,12 @@ export async function send(userText: string) {
           : String(e),
     );
   } finally {
+    if (guidedStatus() === "executing") {
+      setGuidedStatus(error() ? "failed" : "completed");
+      const reply = history().at(-1);
+      if (!error() && reply?.role === "assistant" && reply.content)
+        setGuidedReply(reply.content.slice(0, 400));
+    }
     setBusy(false);
     setStreamingText("");
     controller = null;

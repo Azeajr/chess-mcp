@@ -29,7 +29,13 @@ import {
 import { setStagedEditsForTesting, stagedEdits } from "./store/suggestions";
 import { runTool } from "./llm/tools";
 import { artifactById, createArtifact, saveArtifact } from "./store/artifacts";
-import { appendToolResultForTesting, appendUserMessageForTesting } from "./store/chat";
+import {
+  appendToolResultForTesting,
+  appendUserMessageForTesting,
+  busy as chatBusy,
+  setChatTransportForTesting,
+} from "./store/chat";
+import { uiSnapshot } from "./application/ui-actions";
 import { setInspectResultForTesting, setPruneSuggestionsForTesting } from "./store/repertoire";
 import {
   setScanErrorForTesting,
@@ -105,6 +111,7 @@ import {
   lastDirectCommandRequest,
   recordDirectCommandForTesting,
   setCommandStateForTesting,
+  setCommandExecutorForTesting,
 } from "./store/commands";
 import {
   setStrategicFitWorkspaceRegionState,
@@ -149,6 +156,10 @@ if (import.meta.env.DEV) {
     commandStates,
     lastDirectCommandRequest,
     setCommandStateForTesting,
+    setCommandExecutorForTesting,
+    setChatTransportForTesting,
+    chatBusy,
+    uiSnapshot,
     recordDirectCommandForTesting: (command: string, args: Record<string, unknown>) => {
       recordDirectCommandForTesting(
         command as Parameters<typeof recordDirectCommandForTesting>[0],
