@@ -236,6 +236,10 @@ for (const mobile of [false, true]) {
       .poll(async () => (await receipts(page)).map((receipt) => receipt.error ?? receipt.status))
       .toEqual(["completed", "completed", "completed", "completed", "approval_not_presented"]);
     expect(await resolutions(page)).toBe(0);
+    // A finished analysis names the selection; live models explained findings without one.
+    expect(String((await receipts(page))[1]?.result?.next)).toMatch(
+      /^Before explaining a finding, select_result resultId \S+ itemId finding:01 /,
+    );
 
     // The assistant's status and its route back to the conversation live inside the dialog.
     const controls = dialog.getByRole("complementary", { name: "Assistant controls" });

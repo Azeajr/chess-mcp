@@ -354,6 +354,19 @@ test("opening Strategic Fit without a current report names the step that produce
   assert.equal(board.result?.next, undefined);
 });
 
+test("the Replacement Lab before a finding opened it names lab_open", async () => {
+  actions.loadPgn("1. e4 e5 *");
+  // This used to be presentation_unavailable: "The requested view could not be shown."
+  for (const action of [
+    { kind: "navigate", surface: "strategicFit.lab" },
+    { kind: "submit", workflow: "lab_generate" },
+  ]) {
+    const refused = await act(action);
+    assert.equal(refused.error, "lab_not_open");
+    assert.match(String((refused as { reason?: string }).reason), /submit lab_open with target/);
+  }
+});
+
 test("a chess tool called directly on the visible game shows its panel and fills its inputs", async (t) => {
   actions.loadPgn("1. e4 e5 *");
   setComparisonDraft("");

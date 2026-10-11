@@ -638,7 +638,8 @@ their stores and reappear intact. The finding queue keeps a loaded report's find
 the reader had open while the overlay is closed (only its sort, filters and page reset), so the
 assistant still reads and decides findings by identity from chat and the Branch pane never reopens
 empty. Before a report's findings first load, the state gives the report's own total with
-`loaded: false` and identity actions return `findings_not_loaded`. The Lab is never
+`loaded: false` and identity actions return `findings_not_loaded`. Lab actions before a finding
+opened it return `lab_not_open`, naming `lab_open`. The Lab is never
 closed by the assistant, because closing it discards candidates. The assistant bar renders inside the Strategic Fit dialog
 and the Lab dialog, each with Stop, hand-off and Return to chat. On compact layouts the bar is clamped to two
 lines and steps aside on the Chat tab unless it carries Open PGN or Save PGN. A finished step shows

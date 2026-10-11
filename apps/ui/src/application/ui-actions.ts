@@ -76,6 +76,7 @@ import {
 } from "./ui-adapters/workflows";
 import { applyRequestedSetting, openSettings, settingsSnapshot } from "./ui-adapters/settings";
 import { strategicFitFindingQueue } from "../store/strategic-fit-finding-queue";
+import { displayStrategicFitFindingResolution } from "../store/strategic-fit-finding-resolutions";
 import { strategicFitLifecycle } from "../store/strategic-fit";
 import { replacementLabSnapshot } from "../store/strategic-fit-replacement";
 import {
@@ -655,6 +656,19 @@ function approvalNext(created: readonly ProposalSummary[]): { next?: string } {
 }
 
 /** After a review: the board shows a decision only once a reviewed move is selected. */
+/** After an analysis: models described its findings without selecting one, so the user saw none. */
+function findingsNext(reportId: string): { next?: string } {
+  if (!findingsLoaded(reportId)) return {};
+  const first = strategicFitFindingQueue
+    .snapshot()
+    .findings.find((finding) => displayStrategicFitFindingResolution(finding) === "unresolved");
+  return first
+    ? {
+        next: `Before explaining a finding, select_result resultId ${reportId} itemId ${first.finding_id} (the first unresolved; state.strategicFit.findings lists the rest), so the user sees its evidence.`,
+      }
+    : {};
+}
+
 function reviewNext(): string {
   return `Before explaining a decision, select_result resultId ${commandStates().analyze_game.resultId ?? "from this review"} with its ply, so the board shows the position before that move.`;
 }
@@ -749,6 +763,8 @@ async function perform(
       });
       if (action.workflow === "review" && record(value) && !("error" in value))
         return { ...value, next: reviewNext() };
+      if (action.workflow === "strategic_fit_analyze" && record(value) && !("error" in value))
+        return { ...value, ...findingsNext(String(value.reportId)) };
       return record(value) ? value : { result: value ?? null };
     }
     case "select_result": {
@@ -915,6 +931,13 @@ export async function executeUiTool(
       const refused = decisionPrecheck(action.values.findingId as string);
       if (refused) return failure(refused.error, refused.reason, { step });
     }
+    // The lab has no panel until a finding opens it; "could not be shown" left models guessing.
+    if (surfaceFor(action) === "strategicFit.lab" && !replacementLabSnapshot().open)
+      return failure(
+        "lab_not_open",
+        "The Replacement Lab opens from a finding: submit lab_open with target set to its findingId. Nothing was done.",
+        { step },
+      );
     const epoch = interactionEpoch();
     let visible = false;
     if (surface && action.kind !== "approve_proposal") {
