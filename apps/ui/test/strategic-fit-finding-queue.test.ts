@@ -680,3 +680,33 @@ test("dispose aborts an unmounted page load, discards it, and lets the same repo
     ["finding:dispose-a", "finding:dispose-b"],
   );
 });
+
+test("closing keeps a loaded report's findings and selection; only the reader's view resets", async () => {
+  const queue = createStrategicFitFindingQueueState({ execute: async () => null });
+  const first = finding("finding:keep-a");
+  const second = finding("finding:keep-b");
+  const current = report("report:keep", [first, second]);
+  await queue.synchronize(current);
+  queue.selectFinding("finding:keep-b");
+  queue.setOpeningFilter("French");
+
+  // Closing the workspace (Return to chat, Go to line) unmounts the queue while its report stays
+  // current. Emptying it made the assistant read a total of 0 and refuse the findings it had just
+  // selected as "not in the current report"; reopening landed on an empty Branch pane.
+  queue.dispose();
+  assert.equal(queue.snapshot().status, "ready");
+  assert.equal(queue.snapshot().report_id, "report:keep");
+  assert.deepEqual(
+    queue.snapshot().findings.map((item) => item.finding_id),
+    ["finding:keep-a", "finding:keep-b"],
+  );
+  assert.equal(queue.snapshot().selected_finding_id, "finding:keep-b");
+  assert.equal(queue.snapshot().opening_filter, "");
+  await queue.synchronize(current);
+  assert.equal(queue.snapshot().selected_finding_id, "finding:keep-b");
+
+  queue.dispose();
+  await queue.synchronize(report("report:refreshed", [first, second]));
+  assert.equal(queue.snapshot().report_id, "report:refreshed");
+  assert.equal(queue.snapshot().selected_finding_id, null);
+});

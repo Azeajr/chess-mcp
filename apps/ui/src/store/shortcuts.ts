@@ -14,6 +14,8 @@ const scopes: string[] = [];
 const [scopeDepth, setScopeDepth] = createSignal(0);
 
 export const backgroundSuspended = () => scopeDepth() > 0;
+/** How many modal scopes are open, so a caller can tell one known dialog from a stack. */
+export const modalDepth = () => scopeDepth();
 
 export function registerShortcut(registration: ShortcutRegistration): () => void {
   registrations.push(registration);

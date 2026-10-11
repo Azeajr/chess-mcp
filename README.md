@@ -58,7 +58,10 @@ Engine evaluations use White POV unless a result explicitly labels a conversion.
 operations default to depth 20; the PWA can request depth 30.
 
 Chat receives the complete browser command schema on every tool-capable round. Presets change
-guidance only. Edits proposed by chat are revision-bound previews and require explicit acceptance.
+guidance only. In the PWA, chat also operates the visible app with you: it opens the relevant
+controls, fills their fields, runs the same workflows and selects the result it explains, and you can
+take over at any point. Edits proposed by chat are revision-bound previews and require explicit
+acceptance, either with their Accept control or by approving that preview in your next message.
 The browser injects its current document and stages actions; MCP uses repertoire handles and
 confined file operations. The generated [tool catalog](docs/TOOL_CATALOG.md) lists exact host
 support.

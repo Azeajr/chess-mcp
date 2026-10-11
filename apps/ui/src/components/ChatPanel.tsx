@@ -1,4 +1,4 @@
-import { For, Show, createMemo, createSignal } from "solid-js";
+import { For, Show, createEffect, createMemo, createSignal, on } from "solid-js";
 import {
   history,
   streamingText,
@@ -10,12 +10,14 @@ import {
   retry,
   toolRuns,
   cancelRun,
+  replaceRequest,
+  handoff,
 } from "../store/chat";
-import { CHAT_CONTROLS, CHAT_STARTERS } from "../content/chat";
+import { CHAT_CONTROLS, CHAT_STARTERS, GOAL_STARTERS, MISSING_KEY } from "../content/chat";
 import ChatContextChip from "./ChatContextChip";
 import { hasApiKey, chatMode, setChatMode, setSettingsFocusTarget } from "../store/settings";
-import { setSettingsOpen } from "../store/ui";
-import { actions, color } from "../store/game";
+import { mobileTab, setSettingsOpen } from "../store/ui";
+import { actions, color, currentTree } from "../store/game";
 import { isSingleGame } from "./DirectAnalysis";
 import type { ChatMessage } from "../llm/openrouter";
 import { CHAT_MODES, type ChatMode } from "../llm/workflows";
@@ -55,11 +57,42 @@ export default function ChatPanel() {
   const submit = () => {
     const text = input();
     if (!text.trim()) return;
-    setInput("");
-    void send(text);
+    // Without a key nothing is sent, so the words stay in the composer through setup.
+    if (hasApiKey()) setInput("");
+    void replaceRequest(text);
   };
 
   const empty = () => history().length === 0 && !streamingText() && !busy();
+
+  // Follow the conversation as it grows, as long as the reader is at its end: on a phone the log
+  // is a narrow window, and a guided step's explanation landed below it, out of sight. Whichever
+  // of the two containers scrolls at this layout is the one that moves.
+  let scroller!: HTMLDivElement;
+  let log!: HTMLDivElement;
+  let following = true;
+  let gestureAt = -Infinity;
+  // Only a reader's own scrolling decides whether to follow. Content appearing or disappearing,
+  // dialogs and layout changes also move or clamp the offset, and must not stop the follow.
+  const gesture = () => {
+    gestureAt = performance.now();
+  };
+  const follow = (event: Event) => {
+    if (performance.now() - gestureAt > 1000) return;
+    const element = event.currentTarget as HTMLElement;
+    following = element.scrollHeight - element.scrollTop - element.clientHeight < 32;
+  };
+  createEffect(
+    on(
+      [() => history().length, streamingText, () => toolRuns().length, mobileTab],
+      () => {
+        if (!following) return;
+        requestAnimationFrame(() => {
+          for (const element of [scroller, log]) element.scrollTop = element.scrollHeight;
+        });
+      },
+      { defer: true },
+    ),
+  );
 
   return (
     <div class={`chat${empty() ? " chat-empty" : ""}`}>
@@ -76,7 +109,15 @@ export default function ChatPanel() {
         into a zero-height box. The header is the one piece that can scroll away without moving a
         control away from where it is used, so it does. WP-027 AC-1 keeps the chip by the input.
       */}
-      <div class="chat-scroll">
+      <div
+        class="chat-scroll"
+        ref={scroller}
+        onScroll={follow}
+        onWheel={gesture}
+        onTouchMove={gesture}
+        onKeyDown={gesture}
+        onPointerDown={gesture}
+      >
         <PanelHeader>
           <span>Chat</span>
           <Select
@@ -94,7 +135,7 @@ export default function ChatPanel() {
           </Button>
         </PanelHeader>
 
-        <div class="chat-log">
+        <div class="chat-log" ref={log} onScroll={follow}>
           {/*
           WP-021 AC-1: while the assistant is unconfigured this card replaces the terse
           `No API key. Open Settings` line. PD-4 fixed full width over a collapsed rail, so nothing
@@ -113,9 +154,16 @@ export default function ChatPanel() {
         */}
           <Show when={empty()}>
             <div class="chat-starters" data-chat-starters>
-              <p class="chat-starters-title">Ask about this position</p>
+              <p class="chat-starters-title">
+                {currentTree().stats().nodes <= 1
+                  ? "What would you like to do?"
+                  : "Ask about this position"}
+              </p>
               <For
                 each={[
+                  ...(currentTree().stats().nodes <= 1
+                    ? GOAL_STARTERS.map((starter) => starter.label)
+                    : []),
                   ...CHAT_STARTERS.map((starter) =>
                     starter.replace("White", color() === "white" ? "White" : "Black"),
                   ),
@@ -208,7 +256,13 @@ export default function ChatPanel() {
           <Show when={busy() && !streamingText()}>
             <div class="msg assistant streaming">…</div>
           </Show>
-          <For each={toolRuns()}>
+          {/* A finished app step already has its card in the conversation; a second "completed"
+              line for it at the end of the log only pushed the explanation out of a phone's view. */}
+          <For
+            each={toolRuns().filter(
+              (run) => !(run.name.startsWith("ui_") && run.status === "completed"),
+            )}
+          >
             {(run) => (
               <div class={`tool-run ${run.status}`}>
                 <Status
@@ -276,7 +330,18 @@ export default function ChatPanel() {
       <Show when={error()}>
         <div class="chat-error">
           {error()}{" "}
-          <Show when={!busy()}>
+          <Show when={!hasApiKey()}>
+            <button
+              class="chat-retry"
+              onClick={() => {
+                setSettingsFocusTarget("api-key");
+                setSettingsOpen(true);
+              }}
+            >
+              {MISSING_KEY.setup}
+            </button>
+          </Show>
+          <Show when={!busy() && hasApiKey()}>
             <button
               class="chat-retry"
               title={CHAT_CONTROLS.sendAgainDescription}
@@ -298,7 +363,6 @@ export default function ChatPanel() {
           rows="2"
           placeholder="Ask about this position, game, or repertoire…"
           value={input()}
-          disabled={busy()}
           onInput={(e) => setInput(e.currentTarget.value)}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey) {
@@ -310,14 +374,20 @@ export default function ChatPanel() {
         <Show
           when={!busy()}
           fallback={
-            <button
-              class="stop-btn"
-              title={CHAT_CONTROLS.stopRequestDescription}
-              aria-label={CHAT_CONTROLS.stopRequestDescription}
-              onClick={stop}
-            >
-              {CHAT_CONTROLS.stopRequest}
-            </button>
+            <>
+              <button onClick={submit} disabled={!input().trim()}>
+                Send new request
+              </button>
+              <button onClick={handoff}>I'll take it from here</button>
+              <button
+                class="stop-btn"
+                title={CHAT_CONTROLS.stopRequestDescription}
+                aria-label={CHAT_CONTROLS.stopRequestDescription}
+                onClick={stop}
+              >
+                {CHAT_CONTROLS.stopRequest}
+              </button>
+            </>
           }
         >
           <button onClick={submit}>Send</button>

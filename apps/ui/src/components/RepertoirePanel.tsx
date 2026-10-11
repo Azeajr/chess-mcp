@@ -51,12 +51,25 @@ import {
   type ExtendedBridge,
   type PruneSuggestion,
 } from "@chess-mcp/chess-tools";
-import { preference } from "../store/preferences";
+import {
+  extendStyle,
+  opponentHistory,
+  opponentUsername,
+  setExtendStyle,
+  setOpponentUsername,
+  setStructureQuery,
+  structureQuery,
+} from "../store/forms";
+import {
+  generateExport,
+  runRepertoireCommand,
+  type RepertoireScanCommand,
+} from "../application/analysis-workflows";
+import { exportRecord, saveExport, type ExportCommand } from "../store/exports";
 import { stagePreviewLine, preview, acceptPreview, clearPreview } from "../store/suggestions";
 import { actions, currentTree, currentPath, fen, color, documentId } from "../store/game";
 import {
   commandStates,
-  executeCommand,
   cancelCommand,
   commandIsStale,
   rerunCommand,
@@ -98,11 +111,7 @@ const openSection = (control: Element) => {
 };
 
 export default function RepertoirePanel() {
-  const [storedMode, setMode] = preference("chess.extend.style", "low_memorization");
-  const mode = () => (storedMode() === "sharp" ? "sharp" : "low_memorization");
-  const [structure, setStructure] = preference("chess.structure", "");
-  const [opponent, setOpponent] = preference("chess.opponent", "");
-  const [opponents, setOpponents] = preference("chess.opponents", "");
+  const mode = extendStyle;
   const [inlineGap, setInlineGap] = createSignal<string | null>(null);
   const state = (command: DirectCommand) => commandStates()[command];
   const rows = (command: DirectCommand, key: string) =>
@@ -186,27 +195,18 @@ export default function RepertoirePanel() {
 
   // An export finishes by handing the file straight to the browser, so a download that never
   // happens used to look exactly like one that did: saveArtifact reported the failure and nobody
-  // read it. Keep the artifact so the download can be retried without recomputing the export, and
-  // say what went wrong when it fails.
-  const [exportedArtifact, setExportedArtifact] = createSignal<
-    Partial<Record<DirectCommand, string>>
-  >({});
-  const [downloadFailure, setDownloadFailure] = createSignal<
-    Partial<Record<DirectCommand, "missing" | "blocked">>
-  >({});
-
-  const downloadExport = (command: DirectCommand, artifactId: string) => {
-    setExportedArtifact((all) => ({ ...all, [command]: artifactId }));
-    const saved = saveArtifact(artifactId);
-    setDownloadFailure((all) => ({ ...all, [command]: saved.ok ? undefined : saved.reason }));
-  };
-
+  // read it. The shared export record keeps the artifact so the download can be retried without
+  // recomputing the export, says what went wrong when it fails, and says when an export the
+  // assistant generated has not been saved yet.
   const downloadStatus = (command: DirectCommand) => {
-    const artifactId = () => exportedArtifact()[command];
-    const failure = () => downloadFailure()[command];
+    const record = () => (command === "export_annotated_repertoire" ? exportRecord(command) : null);
+    const failure = () => {
+      const save = record()?.save;
+      return save && !save.ok ? save.reason : null;
+    };
     return (
-      <Show when={artifactId()}>
-        {(id) => (
+      <Show when={record()}>
+        {(current) => (
           <>
             <Show when={failure()}>
               {(reason) => (
@@ -216,16 +216,21 @@ export default function RepertoirePanel() {
                 />
               )}
             </Show>
+            <Show when={current().save === null}>
+              <p role="status" data-export-state="generated">
+                {current().name} is ready. It is not saved until you press Save file.
+              </p>
+            </Show>
             {/* Doubles as the confirmation that a file was produced: without it nothing on the
                 page says the export exists. */}
             <button
               class="scan-btn"
               onClick={(e) => {
                 e.preventDefault();
-                downloadExport(command, id());
+                saveExport(command as ExportCommand);
               }}
             >
-              Download again
+              {current().save === null ? "Save file" : "Download again"}
             </button>
           </>
         )}
@@ -234,10 +239,8 @@ export default function RepertoirePanel() {
   };
 
   const commandButton = (
-    command: DirectCommand,
+    command: RepertoireScanCommand | "export_annotated_repertoire",
     label: string,
-    args: () => Record<string, unknown> = () => ({}),
-    downloadArtifact = false,
   ) => (
     <Show
       when={state(command).status === "running"}
@@ -250,25 +253,8 @@ export default function RepertoirePanel() {
           onClick={(e) => {
             e.preventDefault();
             openSection(e.currentTarget);
-            const run = executeCommand(command, {
-              ...args(),
-              ...([
-                "audit_repertoire_moves",
-                "find_only_moves",
-                "export_annotated_repertoire",
-              ].includes(command)
-                ? { depth: analysisDepth() }
-                : {}),
-            });
-            if (!downloadArtifact) {
-              void run;
-              return;
-            }
-            void run.then((result) => {
-              const artifactId = result?.artifact_id;
-              if (typeof artifactId !== "string") return;
-              downloadExport(command, artifactId);
-            });
+            if (command === "export_annotated_repertoire") void generateExport(command, "user");
+            else void runRepertoireCommand(command);
           }}
         >
           {label}
@@ -540,7 +526,7 @@ export default function RepertoirePanel() {
       {/* WP-022 group 1: Analyze */}
       <section class="rep-group" aria-label="Analyze">
         <PanelHeader title="Analyze" />
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.audit">
           <summary>
             <span>Prescribed-move audit</span>
             {/* WP-022 AC-4: one-line result count + relative time, visible while collapsed. */}
@@ -573,16 +559,14 @@ export default function RepertoirePanel() {
           </For>
         </details>
 
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.onlyMoves">
           <summary>
             <span>Only moves & drills</span>
             {/* WP-022 AC-4: one-line result count + relative time, visible while collapsed. */}
             <Show when={collapsedSummary("find_only_moves")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("find_only_moves", "Find", () => ({
-              max_positions: 60,
-            }))}
+            {commandButton("find_only_moves", "Find")}
           </summary>
           <div class="scope-note">Up to 60 positions · cancellable</div>
           {commandStatus("find_only_moves")}
@@ -639,25 +623,23 @@ export default function RepertoirePanel() {
           <ArtifactSaveStatus result={deckSaved()} />
         </details>
 
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.structures">
           <summary>
             <span>Structure search</span>
             {/* WP-022 AC-4: one-line result count + relative time, visible while collapsed. */}
             <Show when={collapsedSummary("find_structures")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("find_structures", "Search", () => ({
-              structure: structure(),
-            }))}
+            {commandButton("find_structures", "Search")}
           </summary>
           <div class="command-input">
             <input
               aria-label="Structure name"
               list="structure-names"
-              value={structure()}
+              value={structureQuery()}
               placeholder="e.g. Carlsbad"
               onInput={(e) => {
-                setStructure(e.currentTarget.value);
+                setStructureQuery(e.currentTarget.value);
               }}
             />
           </div>
@@ -696,38 +678,29 @@ export default function RepertoirePanel() {
       {/* WP-022 group 2: Prepare */}
       <section class="rep-group" aria-label="Prepare">
         <PanelHeader title="Prepare" />
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.prep">
           <summary>
             <span>Opponent preparation</span>
             {/* WP-022 AC-4: one-line result count + relative time, visible while collapsed. */}
             <Show when={collapsedSummary("prep_vs_opponent")}>
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
-            {commandButton("prep_vs_opponent", "Prepare", () => {
-              const username = opponent().trim();
-              if (username)
-                setOpponents(
-                  [...new Set([username, ...opponents().split("\n").filter(Boolean)])]
-                    .slice(0, 5)
-                    .join("\n"),
-                );
-              return { username };
-            })}
+            {commandButton("prep_vs_opponent", "Prepare")}
           </summary>
           <div class="command-input">
             <input
               aria-label="Opponent username"
               list="opponent-history"
-              value={opponent()}
+              value={opponentUsername()}
               placeholder="Lichess username"
               onInput={(e) => {
-                setOpponent(e.currentTarget.value);
+                setOpponentUsername(e.currentTarget.value);
               }}
             />
           </div>
           {commandStatus("prep_vs_opponent")}
           <datalist id="opponent-history">
-            <For each={opponents().split("\n").filter(Boolean)}>
+            <For each={opponentHistory().split("\n").filter(Boolean)}>
               {(name) => <option value={name} />}
             </For>
           </datalist>
@@ -752,7 +725,7 @@ export default function RepertoirePanel() {
       {/* WP-022 group 3: Generate */}
       <section class="rep-group" aria-label="Generate">
         <PanelHeader title="Generate" />
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.export">
           <summary>
             <span>Annotated repertoire</span>
             {/* WP-022 AC-4: one-line result count + relative time, visible while collapsed. */}
@@ -760,12 +733,7 @@ export default function RepertoirePanel() {
               {(text) => <span class="rep-summary-note">{text()}</span>}
             </Show>
             {/* Short visible text preserves the row; the accessible name includes the artifact. */}
-            {commandButton(
-              "export_annotated_repertoire",
-              "Generate",
-              () => ({ max_positions: 60 }),
-              true,
-            )}
+            {commandButton("export_annotated_repertoire", "Generate")}
           </summary>
           <div class="scope-note">
             Create and download a copy with move assessments, gaps, and Strategic Fit notes · up to
@@ -785,7 +753,7 @@ export default function RepertoirePanel() {
       <section class="rep-group" aria-label="Improve">
         <PanelHeader title="Improve" />
         {/* Tier A: gaps */}
-        <details class="rep-section" open>
+        <details class="rep-section" open data-guided-surface="repertoire.gaps">
           <summary>
             <span>Gaps</span>
             <Show
@@ -1074,7 +1042,7 @@ export default function RepertoirePanel() {
         </details>
 
         {/* Tier A: connect dangling stubs into prep (engine-vetted) */}
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.connect">
           <summary>
             <span>Connect</span>
             <Show
@@ -1124,7 +1092,7 @@ export default function RepertoirePanel() {
         </details>
 
         {/* Tier A: shorten a line via an engine-vetted transposition (find_pruning_transpositions) */}
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.shorten">
           <summary>
             <span>Shorten</span>
             <Show
@@ -1315,7 +1283,7 @@ export default function RepertoirePanel() {
         </details>
 
         {/* Tier B: extend from the current position */}
-        <details class="rep-section">
+        <details class="rep-section" data-guided-surface="repertoire.extend">
           <summary>
             <span>Extend here</span>
             <button
@@ -1359,7 +1327,7 @@ export default function RepertoirePanel() {
               class="rep-mode"
               value={mode()}
               onChange={(e) => {
-                setMode(e.currentTarget.value);
+                setExtendStyle(e.currentTarget.value === "sharp" ? "sharp" : "low_memorization");
               }}
             >
               <option value="low_memorization">low-mem</option>
