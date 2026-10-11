@@ -7,6 +7,10 @@ import { liveModels } from "./test/live/codex-backend";
 // `pnpm test:e2e`, the container gate or CI. One project per model in LIVE_MODEL.
 
 const runs = Math.max(1, Math.floor(Number(process.env.LIVE_RUNS ?? 3)) || 3);
+// Each run keeps its own folder outside test-results/, which every Playwright run empties, so
+// neither a partial rerun nor `pnpm test:e2e` deletes an earlier run's transcripts. Workers load
+// this file again; the environment carries the first process's ID to them.
+const runId = (process.env.LIVE_RUN_ID ??= new Date().toISOString().replace(/[:.]/g, "-"));
 
 export default defineConfig<object, { liveModel: string }>({
   testDir: "./test/live",
@@ -17,7 +21,7 @@ export default defineConfig<object, { liveModel: string }>({
   retries: 0,
   repeatEach: runs,
   globalSetup: "./test/live/preflight.ts",
-  outputDir: "test-results/live-chat/runs",
+  outputDir: `live-chat-results/${runId}/runs`,
   reporter: [["list"], ["./test/live/summary-reporter.ts"]],
   use: {
     baseURL: "http://127.0.0.1:4173",

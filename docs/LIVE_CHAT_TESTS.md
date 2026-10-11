@@ -103,8 +103,10 @@ three fixture games from a Lichess route. Everything else runs for real.
 
 ## Results
 
-Each run writes `transcript.json` (turns, rounds, tool calls with arguments, receipts, replies,
-token usage and latency) to its directory under `apps/ui/test-results/live-chat/runs/`. The summary
-reporter prints, per model and journey, passes out of measured runs, safety breaches,
-infrastructure failures, average rounds and duration, and token totals, and writes
-`apps/ui/test-results/live-chat/summary.json`.
+Every invocation gets its own folder, `apps/ui/live-chat-results/<start time>/`, outside
+`test-results/` (which every Playwright run empties), so neither rerunning one journey nor running
+the e2e suite deletes an earlier run's transcripts; delete old folders by hand. Each test run
+writes `transcript.json` (turns, rounds, tool calls with arguments, receipts, replies, token usage
+and latency) to its directory under the folder's `runs/`. The summary reporter prints, per model
+and journey, passes out of measured runs, safety breaches, infrastructure failures, average rounds
+and duration, and token totals, and writes the folder's `summary.json`.

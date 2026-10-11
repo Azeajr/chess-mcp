@@ -39,13 +39,15 @@ function classify(result: TestResult): Kind {
 
 export default class LiveSummaryReporter implements Reporter {
   private rows = new Map<string, Row>();
+  private runDir = "";
   private outputFile = "";
 
   onBegin(config: FullConfig) {
-    this.outputFile = join(
-      dirname(config.configFile ?? process.cwd()),
-      "test-results/live-chat/summary.json",
-    );
+    const runs = config.projects[0]?.outputDir;
+    this.runDir = runs
+      ? dirname(runs)
+      : join(dirname(config.configFile ?? process.cwd()), "live-chat-results");
+    this.outputFile = join(this.runDir, "summary.json");
   }
 
   onTestEnd(test: TestCase, result: TestResult) {
@@ -148,7 +150,7 @@ export default class LiveSummaryReporter implements Reporter {
             (minPassRate
               ? `, every journey at or above ${minPassRate}`
               : " (pass rates are reported, not gated)"),
-      `  Transcripts: test-results/live-chat/runs · summary: ${this.outputFile}`,
+      `  Transcripts: ${join(this.runDir, "runs")} · summary: ${this.outputFile}`,
       "",
     );
     console.log(lines.join("\n"));
