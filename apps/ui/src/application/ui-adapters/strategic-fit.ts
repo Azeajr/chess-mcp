@@ -285,33 +285,40 @@ export function selectFinding(reportId: string, findingId: string) {
   return finding;
 }
 
-/** Puts the board on the finding's line. The workspace closes, as its own Go to line does. */
+function lineIn(path: readonly string[]) {
+  try {
+    return currentTree().indexPathOfSan([...path]) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Puts the board on the finding's first source line that this repertoire contains; its card and
+ * evidence offer only those lines too. The workspace closes, as its own Go to line does.
+ */
 export function showFindingOnBoard(reportId: string, findingId: string) {
   const report = currentReport();
   const finding = findingIn(reportId, findingId);
-  const path = finding?.references.source_san_paths[0];
   if (
     !report ||
     !finding ||
-    !path ||
     report.request_snapshot.document_id !== documentId() ||
     report.request_snapshot.repertoire_revision !== version() ||
     report.request_snapshot.repertoire_pgn !== actions.toPgn() ||
     report.request_snapshot.repertoire_color !== color()
   )
     return null;
-  let target: number[] | null = null;
-  try {
-    target = currentTree().indexPathOfSan([...path]) ?? null;
-  } catch {
-    target = null;
+  for (const path of finding.references.source_san_paths) {
+    const target = path.length ? lineIn(path) : null;
+    if (target === null) continue;
+    strategicFitFindingQueue.selectFinding(findingId);
+    actions.goto(target);
+    setStrategicFitBoardReturn(documentId());
+    setStrategicFitWorkspaceOpen(false);
+    return { sanPath: [...path] };
   }
-  if (target === null) return null;
-  strategicFitFindingQueue.selectFinding(findingId);
-  actions.goto(target);
-  setStrategicFitBoardReturn(documentId());
-  setStrategicFitWorkspaceOpen(false);
-  return { sanPath: [...path] };
+  return null;
 }
 
 /** Refuses before anything is revealed when a finding has no decision to record. */

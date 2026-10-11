@@ -157,6 +157,7 @@ async function ask(page: Page, text: string) {
 
 type Harness = {
   loadPgn(pgn: string, name?: string): void;
+  currentPath(): number[];
   strategicFitMetadata(): { resolutions: unknown[] };
   strategicFitMetadataStatus(): string;
   selectStrategicFitProfile(mode: "balanced"): unknown;
@@ -462,6 +463,40 @@ test("after Return to chat the assistant still sees and decides the report's fin
   expect(String((await receipts(page)).at(-1)?.result?.next)).toMatch(
     /approve_proposal with these values and that message's ID, without showing it again/,
   );
+});
+
+test("a finding shown on the board lands on its first line in the repertoire", async ({ page }) => {
+  test.slow();
+  await installFindingWorkerFixture(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "guided-board.pgn"));
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  await chess(page, (api) => api.selectStrategicFitProfile("balanced"));
+  await installScript(page, {
+    "Show me what Strategic Fit finds on the board": [
+      { action: { kind: "submit", workflow: "strategic_fit_analyze" } },
+      {
+        action: { kind: "select_result", resultId: "$reportId", itemId: "$finding", board: true },
+      },
+      { text: "This is the line." },
+    ],
+  });
+
+  await ask(page, "Show me what Strategic Fit finds on the board");
+  // The finding's first source lines come from moves this repertoire does not play; the board
+  // used to refuse the request instead of using the line it does contain.
+  await expect
+    .poll(async () => (await receipts(page)).map((receipt) => receipt.error ?? receipt.status), {
+      timeout: 30_000,
+    })
+    .toEqual(["completed", "completed"]);
+  expect((await receipts(page)).at(-1)?.result?.selected).toMatchObject({
+    sanPath: ["e4", "e5", "Nf3", "Nc6"],
+  });
+  expect(await chess(page, (api) => api.currentPath())).toEqual([0, 0, 0, 0]);
+  await expect(page.getByRole("dialog", { name: "Strategic Fit" })).toHaveCount(0);
 });
 
 test("settings open at the requested section and credentials stay the user's", async ({ page }) => {
