@@ -21,6 +21,7 @@
     "check:legacy-imports": "node scripts/check-legacy-imports.mjs",
     "check:links": "node scripts/check-links.mjs",
     "test:e2e": "node scripts/playwright-low-impact.mjs",
+    "test:e2e:live": "pnpm --filter @chess-mcp/ui test:e2e:live",
     "ux:review": "web-harness",
     "test:e2e:container": "web-harness e2e",
     "test:e2e:update-snapshots": "web-harness e2e --update-snapshots",

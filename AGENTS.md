@@ -21,6 +21,7 @@ SMOKE_NETWORK=0 EVAL_CACHE_DIR=0 node apps/mcp-server/test/smoke-client.mjs
 pnpm --filter @chess-mcp/ui test:chat
 pnpm --filter @chess-mcp/ui build
 pnpm test:e2e:container
+pnpm test:e2e:live  # local only: a real model drives the guided chat (docs/LIVE_CHAT_TESTS.md)
 pnpm ux:review -- preflight
 pnpm ux:review -- start --workflow review
 pnpm ux:review -- check
