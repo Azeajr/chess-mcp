@@ -1,0 +1,84 @@
+name: Release
+
+# Run by hand on main after the PR that bumps the plugin version has merged (web-harness's
+# "Release tag" shape). The version comes from the repository, never from an input, so the tag
+# always names the version the plugin manifests ship.
+#
+# It creates the GitHub release itself: a tag created with GITHUB_TOKEN starts no workflow, so
+# ci.yml's tag-triggered release job, kept for tags pushed by hand, would never run. Instead this
+# requires main CI to have passed on the exact commit it tags. Re-running is safe: an existing tag
+# on the same commit and an existing release are reported, and a tag on another commit is refused.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('node:fs');
+            const read = (path) => JSON.parse(fs.readFileSync(path, 'utf8'));
+            const version = read('plugin/.claude-plugin/plugin.json').version;
+            const listed = read('.claude-plugin/marketplace.json').plugins.find(
+              (plugin) => plugin.name === 'chess-mcp',
+            )?.version;
+            if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error(`Expected a stable semantic version, got ${version}`);
+            if (listed !== version) throw new Error(`marketplace.json lists ${listed}, plugin.json ${version}`);
+            const tag = `v${version}`;
+            const repo = context.repo;
+            const sha = context.sha;
+
+            const runs = await github.paginate(github.rest.actions.listWorkflowRuns, {
+              ...repo, workflow_id: 'ci.yml', head_sha: sha, event: 'push', per_page: 100,
+            });
+            if (!runs.some((run) => run.head_branch === 'main' && run.status === 'completed' && run.conclusion === 'success')) {
+              throw new Error(`Successful main CI required for ${sha}`);
+            }
+
+            let tagged = false;
+            try {
+              const existing = await github.rest.git.getRef({ ...repo, ref: `tags/${tag}` });
+              let target = existing.data.object;
+              if (target.type === 'tag') {
+                target = (await github.rest.git.getTag({ ...repo, tag_sha: target.sha })).data.object;
+              }
+              if (target.sha !== sha) throw new Error(`${tag} already exists at ${target.sha}; refusing to move it`);
+              core.notice(`${tag} already points to ${sha}`);
+              tagged = true;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            if (!tagged) {
+              // Annotated, like every earlier release tag.
+              const annotated = await github.rest.git.createTag({
+                ...repo, tag, message: `Release ${tag}`, object: sha, type: 'commit',
+              });
+              await github.rest.git.createRef({ ...repo, ref: `refs/tags/${tag}`, sha: annotated.data.sha });
+              core.notice(`Created ${tag} at ${sha}`);
+            }
+
+            try {
+              await github.rest.repos.getReleaseByTag({ ...repo, tag });
+              core.notice(`Release ${tag} already exists`);
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.repos.createRelease({
+                ...repo, tag_name: tag, name: tag, generate_release_notes: true,
+              });
+              core.notice(`Created release ${tag}`);
+            }
