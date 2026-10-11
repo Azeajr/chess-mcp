@@ -85,9 +85,13 @@ import {
 
 export type UiToolOptions = CommandExecutionOptions & { turn?: AssistantTurnContext };
 
-/** Binds an action to everything a user could change underneath it. */
+/**
+ * Binds an action to everything a user could change underneath it. The token is a short hash
+ * rather than the state itself: models copy it into every action, and small models garbled the
+ * FEN it used to carry, which read as a state change that never happened.
+ */
 export function uiStateToken() {
-  return JSON.stringify([
+  const state = JSON.stringify([
     documentId(),
     version(),
     color(),
@@ -97,6 +101,40 @@ export function uiStateToken() {
     comparisonVersion(),
     formVersion(),
   ]);
+  let hash = 0xcbf29ce484222325n;
+  for (let index = 0; index < state.length; index++) {
+    hash ^= BigInt(state.charCodeAt(index));
+    hash = BigInt.asUintN(64, hash * 0x100000001b3n);
+  }
+  return `ui-state:${hash.toString(16).padStart(16, "0")}`;
+}
+
+/** Tokens shown to the assistant, so a stale one is told apart from a miscopied one. */
+const issuedTokens = new Set<string>();
+
+function issueStateToken() {
+  const token = uiStateToken();
+  issuedTokens.delete(token);
+  issuedTokens.add(token);
+  for (const oldest of issuedTokens) {
+    if (issuedTokens.size <= 200) break;
+    issuedTokens.delete(oldest);
+  }
+  return token;
+}
+
+function staleToken(token: string, step: string) {
+  return issuedTokens.has(token)
+    ? failure(
+        "stale_ui",
+        "The document, position or inputs changed. Read current UI state before continuing.",
+        { step },
+      )
+    : failure(
+        "stale_ui",
+        "That stateToken was never issued, so nothing was done. Copy state.stateToken from this receipt exactly and retry.",
+        { step },
+      );
 }
 
 const RESULT_COMMANDS: readonly DirectCommand[] = [
@@ -168,7 +206,7 @@ export function uiSnapshot(turn?: AssistantTurnContext) {
   const dialog = activeDialog();
   const build = (detail: "full" | "reduced") => ({
     schemaVersion: 2,
-    stateToken: uiStateToken(),
+    stateToken: issueStateToken(),
     interactionEpoch: interactionEpoch(),
     conversation: turn
       ? {
@@ -848,12 +886,7 @@ export async function executeUiTool(
   const step = describe(action);
   const result = Promise.resolve().then(async () => {
     if (options.signal?.aborted) return failure("cancelled", "The request stopped.", { step });
-    if (token !== uiStateToken())
-      return failure(
-        "stale_ui",
-        "The document, position or inputs changed. Read current UI state before continuing.",
-        { step },
-      );
+    if (token !== uiStateToken()) return staleToken(token, step);
     const surface =
       surfaceFor(action) ??
       (action.kind === "show_proposal" || action.kind === "approve_proposal"

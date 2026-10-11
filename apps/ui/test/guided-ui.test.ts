@@ -120,7 +120,9 @@ test("comparison fields are visible before submit, manual edits invalidate queue
     });
     manualIntervention();
     setComparisonDraft("Nf3");
-    assert.equal(((await executeUiTool("ui_act", queued)) as { error: string }).error, "stale_ui");
+    const stale = (await executeUiTool("ui_act", queued)) as { error: string; reason: string };
+    assert.equal(stale.error, "stale_ui");
+    assert.match(stale.reason, /changed/);
     assert.equal(comparisonDraft(), "Nf3");
     await comparePosition({ executor });
     assert.deepEqual(commandStates().compare_moves.args?.moves, ["Nf3"]);
@@ -131,6 +133,20 @@ test("comparison fields are visible before submit, manual edits invalidate queue
   } finally {
     dispose();
   }
+});
+
+test("a miscopied state token is refused as never issued, not as a change", async () => {
+  actions.loadPgn("1. e4 e5 *");
+  const token = uiSnapshot().stateToken;
+  assert.match(token, /^ui-state:[0-9a-f]{16}$/);
+  assert.equal(uiSnapshot().stateToken, token);
+  const refused = (await executeUiTool("ui_act", {
+    ...request({ kind: "navigate", surface: "analysis.review" }),
+    stateToken: token.slice(0, -1),
+  })) as { error: string; reason: string; state: { stateToken: string } };
+  assert.equal(refused.error, "stale_ui");
+  assert.match(refused.reason, /never issued/);
+  assert.equal(refused.state.stateToken, token);
 });
 
 test("Stop cancels the shared command and prevents the next workflow step", async () => {

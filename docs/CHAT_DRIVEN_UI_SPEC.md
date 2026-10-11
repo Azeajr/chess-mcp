@@ -575,6 +575,8 @@ Deviations from sections 6–7, each deliberate:
 
 - One `stateToken` binds document ID, revision, side, FEN, selected path, interaction epoch and both
   form versions, instead of a separate `expected` object; any manual change invalidates queued actions.
+  It is a short hash of that state, because models garbled the FEN it once carried; a token the
+  application never issued is refused as miscopied rather than as a change.
 - `approve_proposal` and `select_path` were added to the proposed union; acceptance needs an
   explicit action because the model must name the approval candidate the application then verifies.
 - Adapters live in `apps/ui/src/application/ui-adapters/` behind the existing `ui-actions.ts`
