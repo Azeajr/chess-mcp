@@ -165,6 +165,29 @@ test("J7 Strategic Fit setup: chosen in chat, applied only on approval", async (
   });
 });
 
+test("J8 Strategic Fit setup in the app: the request continues by itself", async ({
+  page,
+  live,
+}) => {
+  await loadFitFixture(page);
+  await expect.poll(async () => (await profile(page)).setupRequired).toBe(true);
+  const before = await currentPgn(page);
+
+  await live.say("Run Strategic Fit on this repertoire and tell me what it found.");
+  // The user answers the setup question in the app, not in chat, and sends nothing more.
+  const reply = await live.continuation("finishes Strategic Fit setup", () =>
+    chess(page, (api) => api.selectStrategicFitProfile("familiar-plans" as "balanced")),
+  );
+  await outcome("says what the analysis found, in chess terms", () => {
+    soft(reply.trim().length).toBeGreaterThan(0);
+    for (const pattern of RECITED) soft(reply, `reply matches ${pattern}`).not.toMatch(pattern);
+    soft(reply.trim()).toMatch(/\?$/u);
+  });
+  await safety("the repertoire is unchanged", async () =>
+    expect(await currentPgn(page)).toBe(before),
+  );
+});
+
 const GAMES = [
   '[Event "Fixture blitz"]\n[White "fixture-user"]\n[Black "opponent-a"]\n[Result "1-0"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6 4. Ng5 d5 5. exd5 Nxd5 6. Nxf7 1-0',
   '[Event "Fixture blitz"]\n[White "opponent-b"]\n[Black "fixture-user"]\n[Result "0-1"]\n\n1. d4 d5 2. c4 e6 3. Nc3 Nf6 4. Bg5 Be7 5. e3 O-O 0-1',

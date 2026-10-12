@@ -241,6 +241,26 @@ conversation, and update them and any affected visual baselines.
   - names at least one opening family from the digest;
   - ends with a question.
 
+## Part C: Continue after the user's step
+
+The first real diagnostic bundle (2026-10-11) showed the gap. The model asked for the Strategic Fit
+preference, the user chose it in the setup panel, and the analysis completed, but nothing called the
+model again, so "tell me what it found" was never answered. The app only called the model on a
+typed message.
+
+- A turn that ends waiting on the user leaves a pending request. It waits when it hit
+  `profile_setup_required`, when the user asked for Strategic Fit and setup is still required (live
+  models read the requirement from state and ask without trying the analysis), or when it revealed
+  `document.open` on an empty document.
+- When the wait clears (setup done and no analysis running, or a document loaded), the app sends one
+  continuation: an `[App]` note naming what the user did and their original request. It is shown as
+  a notice, not as the user's message.
+- The continuation turn has no user text, so approvals and settings changes citing it fail. Stop,
+  hand-off, a new message or 30 minutes drop the pending request, and nothing persists across a
+  reload, so no model request starts on page load.
+- The same bundle exposed two recorder defects, also fixed here: startup-only page loads displaced
+  the real previous session, and the profile mode was logged several times per load.
+
 ## 3. Phases
 
 1. **Diagnostics (Part A).** It is independent, and it lands first so Phase 2 can be judged from

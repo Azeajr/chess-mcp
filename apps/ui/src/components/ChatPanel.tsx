@@ -262,9 +262,15 @@ export default function ChatPanel() {
             {(m, index) => (
               <>
                 {/* WP-028 AC-2: a stable id so a suggestion card can scroll to and focus its source. */}
-                <Show when={m.role === "user"}>
+                <Show when={m.role === "user" && !m.resume}>
                   <div class="msg user" id={`chat-message-${index()}`} tabIndex={-1}>
                     {m.content}
+                  </div>
+                </Show>
+                {/* The app's continuation after the user finished a step it waited for. */}
+                <Show when={m.role === "user" && m.resume}>
+                  <div class="msg focus-injection resume-note">
+                    Continuing your request now that that step is done.
                   </div>
                 </Show>
                 <Show when={m.role === "focus"}>

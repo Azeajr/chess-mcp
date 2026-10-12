@@ -363,6 +363,11 @@ late callbacks from navigating or writing. It does not roll back already accepte
 “I'll take it from here” ends orchestration and retains usable state. A new chat request refreshes
 context; it does not silently resume abandoned actions.
 
+A turn that ends waiting on a step only the user can take (Strategic Fit setup, opening a file) is
+not abandoned. When the user completes that step in the app, the request continues once, with an
+app note saying what the user did; Stop, hand-off, a new message or 30 minutes drop it. The note is
+not the user's words and cannot approve anything ([CHAT_FIRST_AND_DIAGNOSTICS.md](CHAT_FIRST_AND_DIAGNOSTICS.md), Part C).
+
 Keep the composer editable while running. Sending a replacement instruction stops the old turn
 before starting the new one. Keep unsent text through navigation, modal handoffs and model errors.
 At the round limit, give the existing incomplete-state summary with result links and a Continue

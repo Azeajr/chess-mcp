@@ -146,6 +146,29 @@ export class LiveChat {
     if (await chatTab.isVisible()) await chatTab.click();
     await page.getByRole("textbox", { name: "Chat message" }).fill(text);
     await page.getByRole("button", { name: "Send", exact: true }).click();
+    return this.settle(start, `assistant turn "${text}"`);
+  }
+
+  /**
+   * Runs something the user does in the app, then waits for the turn the app starts on its own in
+   * response (a paused request continuing) and returns its reply.
+   */
+  async continuation(label: string, action: () => Promise<unknown>): Promise<string> {
+    this.turns.push({ user: `[app] ${label}`, reply: "", rounds: 0 });
+    const start = this.rounds.length;
+    await action();
+    await expect
+      .poll(() => (this.failure || this.rounds.length > start ? "started" : "waiting"), {
+        timeout: TURN_TIMEOUT,
+        intervals: [500],
+        message: `the app continues after "${label}"`,
+      })
+      .toBe("started");
+    return this.settle(start, `continuation after "${label}"`);
+  }
+
+  private async settle(start: number, message: string): Promise<string> {
+    const page = this.page;
     await expect
       .poll(
         async () => {
@@ -156,7 +179,7 @@ export class LiveChat {
           );
           return busy ? "running" : "done";
         },
-        { timeout: TURN_TIMEOUT, intervals: [500], message: `assistant turn "${text}"` },
+        { timeout: TURN_TIMEOUT, intervals: [500], message },
       )
       .not.toBe("running");
     const rounds = this.rounds.slice(start);

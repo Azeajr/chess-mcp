@@ -3,6 +3,7 @@ import { render } from "solid-js/web";
 import App from "./App";
 import { executeBrowserCommand } from "./application/browser-commands/client";
 import { observeAppForDiagnostics } from "./application/diagnostic-bundle";
+import { observeChatResume } from "./application/chat-resume";
 import {
   actions,
   changesSinceExport,
@@ -136,6 +137,7 @@ const root = document.getElementById("root");
 if (!root) throw new Error("missing #root");
 render(() => <App />, root);
 observeAppForDiagnostics();
+observeChatResume();
 
 if (import.meta.env.VITE_PWA_LIFECYCLE_TEST === "1") {
   const bridge = (window as unknown as { __pwaLifecycleTest: object }).__pwaLifecycleTest;
