@@ -127,4 +127,7 @@ seed after edits. This exploratory loop does not replace the authoritative conta
 Preserve unrelated changes. Use `rg` for discovery and `apply_patch` for edits. Keep public contract
 changes synchronized across tests, generated catalog and skills, README, and plugin versions. Run
 focused checks per task and full gates at phase boundaries. Do not add `Co-Authored-By` trailers.
-Release only when requested; tag CI creates releases.
+Release only when requested: merge a PR that bumps the version in
+`plugin/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`, then run the Release
+workflow on main (`gh workflow run release.yml --ref main`), which tags that commit and creates the
+GitHub release once main CI has passed on it.
