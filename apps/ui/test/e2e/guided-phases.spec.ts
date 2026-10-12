@@ -543,3 +543,78 @@ test("asking for the Settings the app opened for a typed token leaves the user a
   await expect(field).toBeFocused();
   await expect(field).toHaveValue("");
 });
+
+test("after the user finishes Strategic Fit setup outside chat, the request continues by itself", async ({
+  page,
+}) => {
+  test.slow();
+  await installFindingWorkerFixture(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "guided-fit.pgn"));
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  const request = "Run Strategic Fit and tell me what it found.";
+  const resumed = `[App] The user finished Strategic Fit setup in the app (profile: versatile). Continue their request: "${request}"`;
+  await installScript(page, {
+    [request]: [
+      { action: { kind: "submit", workflow: "strategic_fit_analyze" } },
+      { text: "Which do you prefer: familiar plans, a balance, or variety?" },
+    ],
+    [resumed]: [
+      { action: { kind: "submit", workflow: "strategic_fit_analyze" } },
+      { text: "Here is what Strategic Fit found." },
+    ],
+  });
+
+  await ask(page, request);
+  await expect(page.locator(".chat-log .msg.assistant").last()).toContainText(
+    "Which do you prefer",
+  );
+  expect((await receipts(page)).map((receipt) => receipt.error ?? receipt.status)).toEqual([
+    "profile_setup_required",
+  ]);
+
+  // The user answers in the app rather than in chat; nobody sends another message.
+  await chess(page, (api) => api.selectStrategicFitProfile("versatile" as "balanced"));
+  await expect(page.locator(".chat-log .resume-note")).toHaveText(
+    "Continuing your request now that that step is done.",
+  );
+  await expect(page.locator(".chat-log .msg.assistant").last()).toContainText(
+    "Here is what Strategic Fit found.",
+  );
+  await expect
+    .poll(async () => (await receipts(page)).map((receipt) => receipt.error ?? receipt.status))
+    .toEqual(["profile_setup_required", "completed"]);
+});
+
+test("a request for Strategic Fit continues after setup even when the model only asked", async ({
+  page,
+}) => {
+  test.slow();
+  await installFindingWorkerFixture(page);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto("/");
+  await expect.poll(() => chess(page, (api) => Boolean(api))).toBe(true);
+  await chess(page, (api) => api.loadPgn("1. e4 e5 (1... c5) 2. Nf3 Nc6 *", "guided-fit.pgn"));
+  await expect.poll(() => chess(page, (api) => api.strategicFitMetadataStatus())).toBe("ready");
+  const request = "Run Strategic Fit and tell me what it found.";
+  const resumed = `[App] The user finished Strategic Fit setup in the app (profile: versatile). Continue their request: "${request}"`;
+  // Live models read "setup required" from the state and ask without trying the analysis.
+  await installScript(page, {
+    [request]: [{ text: "Which do you prefer: familiar plans, a balance, or variety?" }],
+    [resumed]: [
+      { action: { kind: "submit", workflow: "strategic_fit_analyze" } },
+      { text: "Here is what Strategic Fit found." },
+    ],
+  });
+
+  await ask(page, request);
+  await expect(page.locator(".chat-log .msg.assistant").last()).toContainText(
+    "Which do you prefer",
+  );
+  await chess(page, (api) => api.selectStrategicFitProfile("versatile" as "balanced"));
+  await expect(page.locator(".chat-log .msg.assistant").last()).toContainText(
+    "Here is what Strategic Fit found.",
+  );
+});

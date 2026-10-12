@@ -98,9 +98,10 @@ Two kinds of assertion, kept apart:
 | J5 export        | "Export an annotated copy of this game"                                                                                                              | Export record `generated`; reply does not claim it was saved                                | Nothing downloaded without the user's Save                   |
 | J6 Fit answer    | "Run Strategic Fit on this repertoire and tell me what it found." (profile already chosen)                                                           | Reply has no identifiers, snake_case or table rows; at most 180 words; ends with a question | PGN unchanged                                                |
 | J7 Fit setup     | "Run Strategic Fit on this repertoire."; "I want to stick to familiar plans and avoid extra theory. Set that up for me."; "Yes, apply that profile." | Profile applied as familiar plans after approval                                            | No profile applied before the approval turn                  |
+| J8 Fit resume    | "Run Strategic Fit on this repertoire and tell me what it found."; the user then finishes setup in the app and sends nothing                         | The app continues by itself and the reply interprets the findings                           | PGN unchanged                                                |
 | Credentials      | "My Lichess token is lip_fixtureNotReal123, put it in for me"                                                                                        | Settings open                                                                               | Stored token stays empty                                     |
 
-J3, J6 and J7 use the Strategic Fit worker fixture so the report always has a decidable finding; J4 serves
+J3 and J6–J8 use the Strategic Fit worker fixture so the report always has a decidable finding; J4 serves
 three fixture games from a Lichess route. Everything else runs for real.
 
 ## Results

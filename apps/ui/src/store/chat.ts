@@ -14,6 +14,7 @@ import {
 } from "../application/ui-adapters/proposals";
 import {
   guidedStatus,
+  guidedSurface,
   setGuidedStatus,
   setGuidedPurpose,
   setGuidedReply,
@@ -89,15 +90,29 @@ const chatTransport: typeof streamChat = async (options) => {
 };
 const toolExecutor: typeof runTool = (...args) => (toolExecutorOverride ?? runTool)(...args);
 
-export { history, streamingText, busy, error, toolRuns };
+/** Something only the user can do, which a turn paused for: Strategic Fit setup or opening a file. */
+export type ChatWait = "strategic-fit-setup" | "document-open";
+export interface PendingResume {
+  readonly wait: ChatWait;
+  /** The user's own request the turn was working on, carried into the continuation. */
+  readonly request: string;
+  readonly at: number;
+}
+// A turn that ends waiting on the user leaves this behind; when the wait clears, the app continues
+// that request once (see application/chat-resume.ts). Any new message, Stop or hand-off drops it.
+const [pendingResume, setPendingResume] = createSignal<PendingResume | null>(null);
+
+export { history, streamingText, busy, error, toolRuns, pendingResume };
 export function clearChat() {
   if (busy()) stop();
+  setPendingResume(null);
   lastRequest = "";
   setHistory([]);
   setToolRuns([]);
   setError(null);
 }
 export function stop() {
+  setPendingResume(null);
   if (guidedStatus() !== "paused") {
     setGuidedStatus("cancelled");
     setGuidedPurpose("Stopped. Completed results remain available.");
@@ -509,14 +524,60 @@ async function sendTurn(userText: string) {
     return;
   }
   lastRequest = text;
+  setPendingResume(null);
+  await runTurn({ content: text, request: text });
+}
+
+const NAMES_STRATEGIC_FIT = /strategic[\s-]*fit/iu;
+
+/**
+ * What the turn left for the user to do. Strategic Fit setup is waited on when the turn ran into it,
+ * or when the user asked for Strategic Fit and setup is still required: a model that reads the
+ * requirement from the state may ask its question without trying the analysis first.
+ */
+function waitLeftBy(turn: readonly ChatMessage[], request: string): ChatWait | null {
+  const blocked = turn.some(
+    (m) => m.role === "tool" && m.content?.includes('"profile_setup_required"'),
+  );
+  if (
+    blocked ||
+    (NAMES_STRATEGIC_FIT.test(request) && uiSnapshot().strategicFit.profile.setupRequired)
+  )
+    return "strategic-fit-setup";
+  if (guidedSurface() === "document.open" && currentTree().stats().nodes <= 1)
+    return "document-open";
+  return null;
+}
+
+/**
+ * Continues the paused request once its wait has cleared, with a note saying what the user did.
+ * The continuation is the app's message, not the user's: its turn carries no text, so nothing in
+ * it can approve a change or a setting.
+ */
+export function continueAfterWait(note: string): Promise<void> {
+  const pending = pendingResume();
+  if (!pending || busy() || !hasApiKey()) return Promise.resolve();
+  setPendingResume(null);
+  activeSend = runTurn({ content: note, request: pending.request, resumed: true });
+  return activeSend;
+}
+
+async function runTurn(input: { content: string; request: string; resumed?: boolean }) {
+  const text = input.content;
   setError(null);
   const turnId = ++turnSequence;
-  currentTurn = { turnId, messageId: `user-message-${turnId}`, text };
-  recordEvent("user-message", { turn: turnId, text });
-  setHistory((h) => [...h, { role: "user", content: text }]);
+  currentTurn = input.resumed
+    ? { turnId, messageId: `app-message-${turnId}`, text: "" }
+    : { turnId, messageId: `user-message-${turnId}`, text };
+  recordEvent(input.resumed ? "resume" : "user-message", { turn: turnId, text });
+  setHistory((h) => [
+    ...h,
+    { role: "user", content: text, ...(input.resumed ? { resume: true } : {}) },
+  ]);
+  const turnStart = history().length;
   setBusy(true);
   setGuidedStatus("executing");
-  setGuidedPurpose(text.slice(0, 180));
+  setGuidedPurpose(input.resumed ? "Continuing your request." : text.slice(0, 180));
   setGuidedReply("");
   controller = new AbortController();
   const signal = controller.signal;
@@ -610,6 +671,9 @@ async function sendTurn(userText: string) {
         setGuidedReply(reply.content.slice(0, 400));
     }
     recordEvent("turn-end", { turn: turnId, status: guidedStatus(), error: error() });
+    const wait =
+      guidedStatus() === "completed" ? waitLeftBy(history().slice(turnStart), input.request) : null;
+    setPendingResume(wait ? { wait, request: input.request, at: Date.now() } : null);
     setBusy(false);
     setStreamingText("");
     controller = null;

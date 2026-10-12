@@ -161,7 +161,9 @@ for (const mobile of [false, true]) {
     });
     await page.getByRole("button", { name: "Load", exact: true }).click();
     await expect(page.getByText("guided-game.pgn", { exact: true })).toBeVisible();
-    await ask(page, "Review this game");
+    // Loading the game is the step the assistant waited for; it continues without being asked.
+    // On a phone the conversation sits behind the Chat tab, so the note is present, not in view.
+    await expect(page.locator(".chat-log .resume-note")).toHaveCount(1);
     await expect(page.getByText("Showing the position before reviewed move 2.")).toBeVisible();
     await expect.poll(() => currentPath(page)).toEqual([0]);
   });

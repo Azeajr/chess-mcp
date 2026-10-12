@@ -10,6 +10,8 @@ export interface ChatMessage {
   tool_calls?: ToolCall[];
   tool_call_id?: string;
   focusPath?: number[];
+  /** An app-written continuation sent as a user turn: shown as a notice, never as the user's words. */
+  resume?: boolean;
 }
 
 export interface ToolSchema {

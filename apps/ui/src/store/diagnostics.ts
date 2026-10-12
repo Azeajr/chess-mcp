@@ -399,8 +399,17 @@ export async function flushDiagnostics(limit = MAX_BYTES) {
   }
 }
 
+// Every page load records its restored document, settings and profile, so those events alone say
+// nothing happened: a reload, such as an update's, must not displace the session the user wants.
+const STARTUP_EVENTS = new Set(["document", "settings", "strategic-fit-profile"]);
+
+const isActivity = (event: RecordedEvent) =>
+  !STARTUP_EVENTS.has(event.kind) &&
+  !(event.kind === "strategic-fit" && event.detail.status === "idle");
+
 const hasContent = (session: DiagnosticSession) =>
-  session.rounds.length + session.tools.length + session.faults.length + session.events.length > 0;
+  session.rounds.length + session.tools.length + session.faults.length > 0 ||
+  session.events.some(isActivity);
 
 function isPersisted(value: unknown): value is PersistedDiagnostics {
   return (
