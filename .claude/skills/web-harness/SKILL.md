@@ -2,7 +2,7 @@
 name: web-harness
 description: Drive, inspect and verify this project's web app with web-harness — owned browser sessions in Docker, batched journeys, failure bundles, production smoke, container E2E and scenario reports. Use when reproducing a UI bug, checking that a change works in a real browser, reviewing a layout, or proving a fix before a PR.
 ---
-<!-- web-harness 0.2.5: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
+<!-- web-harness 0.2.7: installed by `web-harness skill install`; reinstall after upgrading, do not edit. -->
 
 # web-harness
 
