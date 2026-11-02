@@ -34,7 +34,7 @@
     "smoke": "web-harness smoke"
   },
   "devDependencies": {
-    "@azeajr/web-harness": "github:Azeajr/web-harness#v0.2.5",
+    "@azeajr/web-harness": "github:Azeajr/web-harness#v0.2.7",
     "@eslint/js": "^9.39.5",
     "eslint": "^9.39.5",
     "eslint-plugin-solid": "^0.14.5",
